@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Devanagari, Source_Serif_4, Geist } from "next/font/google";
+import { Noto_Sans_Devanagari, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const notoSansDevanagari = Noto_Sans_Devanagari({
   variable: "--font-noto-devanagari",
@@ -29,9 +26,11 @@ export default function RootLayout({
   return (
     <html
       lang="hi"
-      className={cn("h-full", "antialiased", notoSansDevanagari.variable, sourceSerif.variable, "font-sans", geist.variable)}
+      className={`${notoSansDevanagari.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
+        {children}
+      </body>
     </html>
   );
 }

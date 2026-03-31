@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { LogIn, LogOut, ShieldCheck } from "lucide-react";
+import { Tabs } from "@/components/ui/tabs";
+import { GooeyInput } from "@/components/ui/gooey-input";
 
 type NewsPost = {
   id: string;
@@ -313,12 +316,16 @@ const normalizeForSearch = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const SearchIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
-    <circle cx="11" cy="11" r="7" />
-    <path d="M20 20l-3.5-3.5" />
-  </svg>
-);
+const normalizeRomanized = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/aa/g, "a")
+    .replace(/ee/g, "i")
+    .replace(/oo/g, "u")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const stripLatinVowels = (text: string) => text.replace(/[aeiou]/g, "");
 
 const MoonIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
@@ -333,9 +340,51 @@ const SunIcon = () => (
   </svg>
 );
 
+// const FacebookIcon = () => (
+//   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+//     <path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z" />
+//   </svg>
+// );
+
+const FacebookIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <g transform="scale(1.4) translate(0 -5)">
+      <path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z" />
+    </g>
+  </svg>
+);
+
+// const YoutubeIcon = () => (
+//   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+//     <path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2A30 30 0 0 0 2 12a30 30 0 0 0 .4 4.8 2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2A30 30 0 0 0 22 12a30 30 0 0 0-.4-4.8zM10 15.1V8.9l5.2 3.1L10 15.1z" />
+//   </svg>
+// );
+
+const YoutubeIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <g transform="scale(1.1) translate(0 -2)">
+      <path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2A30 30 0 0 0 2 12a30 30 0 0 0 .4 4.8 2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2A30 30 0 0 0 22 12a30 30 0 0 0-.4-4.8zM10 15.1V8.9l5.2 3.1L10 15.1z" />
+    </g>
+  </svg>
+);
+
+// const TwitterIcon = () => (
+//   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+//     <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
+//   </svg>
+// );
+
+const TwitterIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <g transform="scale(0.9) translate(0 -1)">
+      <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
+    </g>
+  </svg>
+);
+
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
   const [searchTerm, setSearchTerm] = useState("");
@@ -449,13 +498,23 @@ export default function Home() {
   const filteredNews = useMemo(() => {
     const q = normalizeForSearch(searchTerm);
     const qLatin = transliterate(q);
+    const qRoman = normalizeRomanized(qLatin);
+    const qSkeleton = stripLatinVowels(qRoman);
     const source = [...featuredPosts, ...allNewsPosts];
     const searched = !q
       ? source
       : source.filter((post) => {
           const raw = normalizeForSearch([post.title, post.excerpt, post.category, post.author].join(" "));
           const latin = transliterate(raw);
-          return raw.includes(q) || latin.includes(q) || latin.includes(qLatin);
+          const roman = normalizeRomanized(latin);
+          const skeleton = stripLatinVowels(roman);
+          return (
+            raw.includes(q) ||
+            latin.includes(q) ||
+            latin.includes(qLatin) ||
+            roman.includes(qRoman) ||
+            skeleton.includes(qSkeleton)
+          );
         });
     if (selectedCategory === "सभी") {
       return searched;
@@ -479,12 +538,22 @@ export default function Home() {
   const filteredBlogs = useMemo(() => {
     const q = normalizeForSearch(searchTerm);
     const qLatin = transliterate(q);
+    const qRoman = normalizeRomanized(qLatin);
+    const qSkeleton = stripLatinVowels(qRoman);
     const searched = !q
       ? blogs
       : blogs.filter((post) => {
           const raw = normalizeForSearch([post.title, post.excerpt, post.category, post.author].join(" "));
           const latin = transliterate(raw);
-          return raw.includes(q) || latin.includes(q) || latin.includes(qLatin);
+          const roman = normalizeRomanized(latin);
+          const skeleton = stripLatinVowels(roman);
+          return (
+            raw.includes(q) ||
+            latin.includes(q) ||
+            latin.includes(qLatin) ||
+            roman.includes(qRoman) ||
+            skeleton.includes(qSkeleton)
+          );
         });
     if (selectedCategory === "सभी") {
       return searched;
@@ -661,37 +730,95 @@ export default function Home() {
     setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
   };
 
+  const navTabs = [
+    { title: "होम", value: "home" },
+    { title: "ताज़ा खबरें", value: "latest" },
+    { title: "कैटेगरी", value: "categories" },
+    { title: "ब्लॉग", value: "blogs" },
+    { title: "न्यूज़लेटर", value: "newsletter" },
+    { title: "एडमिन", value: "admin" },
+  ];
+
+  const scrollToSection = (id: string) => {
+    const section = document.getElementById(id);
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleNavTabChange = (value: string) => {
+    if (value === "categories") {
+      setIsCategoryMenuOpen((prev) => !prev);
+      return;
+    }
+    if (value === "admin") {
+      setIsCategoryMenuOpen(false);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setIsCategoryMenuOpen(false);
+    if (value === "home") {
+      scrollToSection("top");
+      return;
+    }
+    scrollToSection(value);
+  };
+
+  const roleText = currentUser
+    ? currentUser.role === "master"
+      ? "मास्टर एडमिन"
+      : currentUser.role === "admin"
+        ? "एडमिन"
+        : "योगदानकर्ता"
+    : "";
+
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span>{formatDate()}</span>
-          <div className="flex items-center gap-3">
-            <a className="interactive-link" href="https://facebook.com" target="_blank" rel="noreferrer">
-              Facebook
+          <div className="flex items-center gap-1">
+            {/* <a className="interactive-link inline-flex items-center gap-1" href="https://facebook.com" target="_blank" rel="noreferrer">
+              <FacebookIcon />
             </a>
-            <a className="interactive-link" href="https://youtube.com" target="_blank" rel="noreferrer">
-              YouTube
+            <a className="interactive-link inline-flex items-center gap-1" href="https://youtube.com" target="_blank" rel="noreferrer">
+              <YoutubeIcon />
             </a>
-            <a className="interactive-link" href="https://x.com" target="_blank" rel="noreferrer">
-              Twitter
+            <a className="interactive-link inline-flex items-center gap-1" href="https://x.com" target="_blank" rel="noreferrer">
+              <TwitterIcon />
+            </a> */}
+            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://facebook.com" target="_blank" rel="noreferrer">
+              <FacebookIcon className="h-4 w-4" />
             </a>
-            <a className="interactive-link" href="#">
-              ई-पेपर
+
+            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://youtube.com" target="_blank" rel="noreferrer">
+              <YoutubeIcon className="h-4 w-4" />
             </a>
-            <a className="interactive-link" href="#">
+
+            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://x.com" target="_blank" rel="noreferrer">
+              <TwitterIcon className="h-4 w-4" />
+            </a>
+            <button type="button" className="interactive-link h-10 w-10 hover:cursor-pointer">
               सदस्यता
-            </a>
-            <a className="interactive-link" href="#">
+            </button>
+            <button type="button" className="interactive-link h-10 w-10 hover:cursor-pointer">
               संपर्क
-            </a>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              {currentUser ? `${roleText}` : "लॉगिन"}
+            </button>
           </div>
         </div>
 
         <header id="top" className="headline-fade border-b border-[var(--line)] py-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--primary)]">
+              <p className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--primary)] hover:cursor-pointer">
                 CPI(M) जन मीडिया प्लेटफ़ॉर्म
               </p>
               <h1 className="mt-3 font-serif text-4xl font-bold leading-tight text-[var(--headline)] sm:text-5xl">
@@ -701,96 +828,62 @@ export default function Home() {
                 श्रमिक, किसान, छात्र, महिला और लोकतांत्रिक आंदोलनों की विश्वसनीय खबरें, गहन विश्लेषण और जमीनी रिपोर्ट।
               </p>
             </div>
-            <button className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+            <a href="#"><button className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] hover: cursor-pointer">
               लाइव कवरेज
-            </button>
+            </button></a>
           </div>
         </header>
 
         <nav className="sticky top-0 z-20 my-4 rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 p-3 backdrop-blur-md">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="#top"
-                className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                होम
-              </a>
-              <a
-                href="#latest"
-                className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                ताज़ा खबरें
-              </a>
-              <div className="relative">
-                <button
-                  onClick={() => setIsCategoryMenuOpen((prev) => !prev)}
-                  className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                >
-                  कैटेगरी
-                </button>
-                {isCategoryMenuOpen && (
-                  <div className="absolute left-0 top-11 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {allCategories.map((category) => (
-                        <button
-                          key={category}
-                          onClick={() => {
-                            setSelectedCategory(category);
-                            setNewsVisibleCount(6);
-                            setBlogVisibleCount(4);
-                            setIsCategoryMenuOpen(false);
-                          }}
-                          className={`rise-on-hover rounded-md border px-3 py-2 text-left text-sm ${
-                            selectedCategory === category
-                              ? "border-[var(--primary)] text-[var(--primary)]"
-                              : "border-[var(--line)]"
-                          }`}
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <Tabs
+              tabs={navTabs}
+              onTabChange={handleNavTabChange}
+              hideContent
+              containerClassName="gap-1 lg:flex-1 lg:pr-4"
+              activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
+              tabClassName="rise-on-hover border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            />
+            {isCategoryMenuOpen && (
+              <div className="absolute left-0 top-12 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {allCategories.map((category) => (
+                    <button
+                      key={category}
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setNewsVisibleCount(6);
+                        setBlogVisibleCount(4);
+                        setIsCategoryMenuOpen(false);
+                      }}
+                      className={`rise-on-hover rounded-md border px-3 py-2 text-left text-sm ${
+                        selectedCategory === category
+                          ? "border-[var(--primary)] text-[var(--primary)]"
+                          : "border-[var(--line)]"
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <a
-                href="#blogs"
-                className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                ब्लॉग
-              </a>
-              <a
-                href="#newsletter"
-                className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                न्यूज़लेटर
-              </a>
-              <a
-                href="#admin"
-                className="rise-on-hover rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                एडमिन
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsSearchOpen((prev) => !prev)}
-                className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                aria-label="Search"
-              >
-                <SearchIcon />
-              </button>
-              {isSearchOpen && (
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="खबरें खोजें... (उदाहरण: vaam)"
-                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] sm:max-w-sm"
-                />
-              )}
+            )}
+            <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto">
+              <GooeyInput
+                value={searchTerm}
+                onValueChange={setSearchTerm}
+                placeholder="खबरें खोजें..."
+                classNames={{
+                  trigger: theme === "dark"
+                    ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
+                    : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
+
+                  bubbleSurface: theme === "dark"
+                    ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
+                    : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
+                }}
+              />
               <button
                 onClick={toggleTheme}
                 className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -897,13 +990,13 @@ export default function Home() {
               <h3 className="mb-4 font-serif text-2xl font-bold text-[var(--headline)]">विचार</h3>
               <div className="grid gap-3">
                 {opinionPieces.map((item) => (
-                  <a
+                  <button
+                    type="button"
                     key={item}
-                    href="#"
                     className="rise-on-hover interactive-link rounded-md border border-[var(--line)] px-4 py-3 text-base font-medium text-[var(--foreground)]"
                   >
                     {item}
-                  </a>
+                  </button>
                 ))}
               </div>
             </section>
@@ -919,14 +1012,14 @@ export default function Home() {
                   "शहरी परिवहन में निजीकरण के प्रभाव पर जनसुनवाई",
                   "कैंपस लोकतंत्र और छात्र चुनाव: नई बहस",
                 ].map((item, index) => (
-                  <a
+                  <button
+                    type="button"
                     key={item}
-                    href="#"
                     className="rise-on-hover flex gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-3"
                   >
                     <span className="text-xl font-bold text-[var(--primary)]">{index + 1}</span>
                     <span className="text-sm leading-6 text-[var(--foreground)]">{item}</span>
-                  </a>
+                  </button>
                 ))}
               </div>
             </section>
@@ -951,45 +1044,6 @@ export default function Home() {
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section id="admin" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-              <h3 className="font-serif text-xl font-bold text-[var(--headline)]">एडमिन कंट्रोल्स</h3>
-              {!currentUser && (
-                <form onSubmit={handleLogin} className="mt-4 space-y-3">
-                  <input
-                    type="email"
-                    value={loginForm.email}
-                    onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
-                    placeholder="एडमिन/योगदानकर्ता ईमेल"
-                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
-                  />
-                  <input
-                    type="password"
-                    value={loginForm.password}
-                    onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
-                    placeholder="पासवर्ड"
-                    className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
-                  />
-                  <button className="rise-on-hover w-full rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                    लॉगिन
-                  </button>
-                </form>
-              )}
-              {currentUser && (
-                <div className="mt-4 space-y-3">
-                  <p className="rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm">
-                    लॉगिन: {currentUser.email} ({currentUser.role})
-                  </p>
-                  <button
-                    onClick={handleLogout}
-                    className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                  >
-                    लॉगआउट
-                  </button>
-                </div>
-              )}
-              {loginMessage && <p className="mt-3 text-sm text-[var(--primary)]">{loginMessage}</p>}
-            </section>
-
             <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
               <div className="mt-3 space-y-3 text-sm">
@@ -1009,9 +1063,9 @@ export default function Home() {
         <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ब्लॉग पोस्ट</h3>
-            <a href="#" className="interactive-link text-sm font-semibold text-[var(--primary)]">
+            <button type="button" className="interactive-link text-sm font-semibold text-[var(--primary)]">
               ब्लॉग आर्काइव
-            </a>
+            </button>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {visibleBlogs.map((post) => (
@@ -1034,144 +1088,6 @@ export default function Home() {
             </button>
           )}
         </section>
-
-        {currentUser && (
-          <section className="my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-            <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">अथॉराइज्ड यूज़र और परमिशन मैनेजमेंट</h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              मास्टर एडमिन को पूर्ण नियंत्रण है। मास्टर एडमिन हटाया नहीं जा सकता।
-            </p>
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <section className="rounded-lg border border-[var(--line)] p-4">
-                <h4 className="text-lg font-semibold text-[var(--headline)]">एडमिन सूची</h4>
-                <p className="mt-1 text-xs text-[var(--muted)]">मास्टर: {MASTER_EMAIL}</p>
-                <div className="mt-3 space-y-3">
-                  {adminAccounts.map((admin) => (
-                    <div key={admin.id} className="rounded-md border border-[var(--line)] p-3">
-                      <p className="text-sm font-semibold text-[var(--headline)]">{admin.email}</p>
-                      <div className="mt-2 grid grid-cols-1 gap-2">
-                        {permissionLabels.map((perm) => (
-                          <label key={perm.key} className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                            <input
-                              type="checkbox"
-                              checked={admin.permissions[perm.key]}
-                              disabled={!isMaster}
-                              onChange={() => handleAdminPermissionToggle(admin.id, perm.key)}
-                            />
-                            {perm.label}
-                          </label>
-                        ))}
-                      </div>
-                      {isMaster && (
-                        <button
-                          onClick={() => handleRemoveAdmin(admin.id)}
-                          className="rise-on-hover mt-3 rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                        >
-                          Remove Admin
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {isMaster && (
-                  <form onSubmit={handleAddAdmin} className="mt-4 space-y-2">
-                    <input
-                      type="email"
-                      value={newAdminForm.email}
-                      onChange={(event) => setNewAdminForm((prev) => ({ ...prev, email: event.target.value }))}
-                      placeholder="नया एडमिन ईमेल"
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                    />
-                    <input
-                      type="password"
-                      value={newAdminForm.password}
-                      onChange={(event) => setNewAdminForm((prev) => ({ ...prev, password: event.target.value }))}
-                      placeholder="पासवर्ड"
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                    />
-                    <div className="grid grid-cols-1 gap-1">
-                      {permissionLabels.map((perm) => (
-                        <label key={perm.key} className="flex items-center gap-2 text-xs text-[var(--muted)]">
-                          <input
-                            type="checkbox"
-                            checked={newAdminForm.permissions[perm.key]}
-                            onChange={() =>
-                              setNewAdminForm((prev) => ({
-                                ...prev,
-                                permissions: {
-                                  ...prev.permissions,
-                                  [perm.key]: !prev.permissions[perm.key],
-                                },
-                              }))
-                            }
-                          />
-                          {perm.label}
-                        </label>
-                      ))}
-                    </div>
-                    <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                      Add Admin
-                    </button>
-                  </form>
-                )}
-              </section>
-
-              <section className="rounded-lg border border-[var(--line)] p-4">
-                <h4 className="text-lg font-semibold text-[var(--headline)]">अधिकृत योगदानकर्ता</h4>
-                <div className="mt-3 space-y-2">
-                  {contributorAccounts.map((contributor) => (
-                    <div key={contributor.id} className="rounded-md border border-[var(--line)] p-3">
-                      <p className="text-sm font-semibold text-[var(--headline)]">{contributor.email}</p>
-                      <p className="text-xs text-[var(--muted)]">{contributor.active ? "सक्रिय" : "निष्क्रिय"}</p>
-                      {canManageContributors && (
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            onClick={() => handleToggleContributor(contributor.id)}
-                            className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                          >
-                            {contributor.active ? "Disable" : "Enable"}
-                          </button>
-                          <button
-                            onClick={() => handleRemoveContributor(contributor.id)}
-                            className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {canManageContributors && (
-                  <form onSubmit={handleAddContributor} className="mt-4 space-y-2">
-                    <input
-                      type="email"
-                      value={newContributorForm.email}
-                      onChange={(event) =>
-                        setNewContributorForm((prev) => ({ ...prev, email: event.target.value }))
-                      }
-                      placeholder="योगदानकर्ता ईमेल"
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                    />
-                    <input
-                      type="password"
-                      value={newContributorForm.password}
-                      onChange={(event) =>
-                        setNewContributorForm((prev) => ({ ...prev, password: event.target.value }))
-                      }
-                      placeholder="पासवर्ड"
-                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
-                    />
-                    <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                      Add Contributor
-                    </button>
-                  </form>
-                )}
-                {adminMessage && <p className="mt-3 text-sm text-[var(--primary)]">{adminMessage}</p>}
-              </section>
-            </div>
-          </section>
-        )}
 
         <section className="my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई ब्लॉग पोस्ट जोड़ें</h3>
@@ -1227,19 +1143,224 @@ export default function Home() {
           {blogMessage && <p className="mt-3 text-sm font-medium text-[var(--primary)]">{blogMessage}</p>}
         </section>
 
+        {isAuthModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+            <div className="shadow-input relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(false)}
+                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              >
+                Close
+              </button>
+              {!currentUser && (
+                <div className="mx-auto w-full max-w-md">
+                  <h3 className="text-xl font-bold text-[var(--headline)]">कंट्रोल पैनल लॉगिन</h3>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    लॉगिन के बाद सिस्टम खुद आपकी भूमिका पहचान लेगा: मास्टर, एडमिन या योगदानकर्ता।
+                  </p>
+                  <form onSubmit={handleLogin} className="my-8 space-y-4">
+                    <div className="space-y-2">
+                      <label htmlFor="auth-email" className="text-sm font-medium text-[var(--headline)]">
+                        Email Address
+                      </label>
+                      <input
+                        id="auth-email"
+                        type="email"
+                        value={loginForm.email}
+                        onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
+                        placeholder="admin@site.com"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="auth-password" className="text-sm font-medium text-[var(--headline)]">
+                        Password
+                      </label>
+                      <input
+                        id="auth-password"
+                        type="password"
+                        value={loginForm.password}
+                        onChange={(event) => setLoginForm((prev) => ({ ...prev, password: event.target.value }))}
+                        placeholder="••••••••"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                      />
+                    </div>
+                    <button
+                      className="group/btn relative block h-10 w-full rounded-md bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] font-medium text-white"
+                      type="submit"
+                    >
+                      लॉगिन करें →
+                    </button>
+                  </form>
+                  {loginMessage && <p className="text-sm text-[var(--primary)]">{loginMessage}</p>}
+                </div>
+              )}
+              {currentUser && (
+                <div className="space-y-5">
+                  <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--headline)]">
+                        <ShieldCheck className="h-4 w-4 text-[var(--primary)]" />
+                        लॉगिन: {currentUser.email}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold">
+                          {roleText}
+                        </span>
+                        <button
+                          onClick={handleLogout}
+                          className="inline-flex items-center gap-1 rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                        >
+                          <LogOut className="h-3.5 w-3.5" />
+                          लॉगआउट
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {isMaster && (
+                    <section className="rounded-lg border border-[var(--line)] p-4">
+                      <h4 className="text-lg font-semibold text-[var(--headline)]">एडमिन सूची</h4>
+                      <p className="mt-1 text-xs text-[var(--muted)]">मास्टर: {MASTER_EMAIL}</p>
+                      <div className="mt-3 space-y-3">
+                        {adminAccounts.map((admin) => (
+                          <div key={admin.id} className="rounded-md border border-[var(--line)] p-3">
+                            <p className="text-sm font-semibold text-[var(--headline)]">{admin.email}</p>
+                            <div className="mt-2 grid grid-cols-1 gap-2">
+                              {permissionLabels.map((perm) => (
+                                <label key={perm.key} className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                                  <input
+                                    type="checkbox"
+                                    checked={admin.permissions[perm.key]}
+                                    onChange={() => handleAdminPermissionToggle(admin.id, perm.key)}
+                                  />
+                                  {perm.label}
+                                </label>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveAdmin(admin.id)}
+                              className="rise-on-hover mt-3 rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                            >
+                              Remove Admin
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <form onSubmit={handleAddAdmin} className="mt-4 space-y-2">
+                        <input
+                          type="email"
+                          value={newAdminForm.email}
+                          onChange={(event) => setNewAdminForm((prev) => ({ ...prev, email: event.target.value }))}
+                          placeholder="नया एडमिन ईमेल"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <input
+                          type="password"
+                          value={newAdminForm.password}
+                          onChange={(event) => setNewAdminForm((prev) => ({ ...prev, password: event.target.value }))}
+                          placeholder="पासवर्ड"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <div className="grid grid-cols-1 gap-1">
+                          {permissionLabels.map((perm) => (
+                            <label key={perm.key} className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                              <input
+                                type="checkbox"
+                                checked={newAdminForm.permissions[perm.key]}
+                                onChange={() =>
+                                  setNewAdminForm((prev) => ({
+                                    ...prev,
+                                    permissions: {
+                                      ...prev.permissions,
+                                      [perm.key]: !prev.permissions[perm.key],
+                                    },
+                                  }))
+                                }
+                              />
+                              {perm.label}
+                            </label>
+                          ))}
+                        </div>
+                        <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                          Add Admin
+                        </button>
+                      </form>
+                    </section>
+                  )}
+                  {canManageContributors && (
+                    <section className="rounded-lg border border-[var(--line)] p-4">
+                      <h4 className="text-lg font-semibold text-[var(--headline)]">अधिकृत योगदानकर्ता</h4>
+                      <div className="mt-3 space-y-2">
+                        {contributorAccounts.map((contributor) => (
+                          <div key={contributor.id} className="rounded-md border border-[var(--line)] p-3">
+                            <p className="text-sm font-semibold text-[var(--headline)]">{contributor.email}</p>
+                            <p className="text-xs text-[var(--muted)]">{contributor.active ? "सक्रिय" : "निष्क्रिय"}</p>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                onClick={() => handleToggleContributor(contributor.id)}
+                                className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                              >
+                                {contributor.active ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                onClick={() => handleRemoveContributor(contributor.id)}
+                                className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <form onSubmit={handleAddContributor} className="mt-4 space-y-2">
+                        <input
+                          type="email"
+                          value={newContributorForm.email}
+                          onChange={(event) => setNewContributorForm((prev) => ({ ...prev, email: event.target.value }))}
+                          placeholder="योगदानकर्ता ईमेल"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <input
+                          type="password"
+                          value={newContributorForm.password}
+                          onChange={(event) =>
+                            setNewContributorForm((prev) => ({ ...prev, password: event.target.value }))
+                          }
+                          placeholder="पासवर्ड"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                          Add Contributor
+                        </button>
+                      </form>
+                    </section>
+                  )}
+                  {currentUser.role === "contributor" && (
+                    <p className="rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
+                      आपका योगदानकर्ता एक्सेस सक्रिय है। आप ब्लॉग सेक्शन से पोस्ट प्रकाशित कर सकते हैं।
+                    </p>
+                  )}
+                  {adminMessage && <p className="text-sm text-[var(--primary)]">{adminMessage}</p>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 वाम की आवाज़ • CPI(M) समर्थित जन समाचार मंच</p>
             <div className="flex items-center gap-4">
-              <a className="interactive-link" href="#">
+              <button type="button" className="interactive-link">
                 संपादकीय नीति
-              </a>
-              <a className="interactive-link" href="#">
+              </button>
+              <button type="button" className="interactive-link">
                 गोपनीयता
-              </a>
-              <a className="interactive-link" href="#">
+              </button>
+              <button type="button" className="interactive-link">
                 विज्ञापन
-              </a>
+              </button>
             </div>
           </div>
         </footer>
