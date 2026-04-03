@@ -13,7 +13,7 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "वाम की आवाज़ | CPI(M) जन समाचार मंच",
+  title: "वाम की आवाज़ | जन समाचार मंच",
   description:
     "वामपंथी विचार, जन संघर्ष, सामाजिक न्याय और लोकतांत्रिक मुद्दों पर केंद्रित आधुनिक न्यूज़ पोर्टल।",
 };
