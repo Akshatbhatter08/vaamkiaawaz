@@ -10,6 +10,7 @@ type NewsPost = {
   category: string;
   title: string;
   excerpt: string;
+  content?: string;
   author: string;
   time: string;
 };
@@ -40,6 +41,7 @@ const BLOG_STORAGE_KEY = "vaamki-aawaz-blogs";
 const USERS_STORAGE_KEY = "vaamki-aawaz-users";
 const SESSION_STORAGE_KEY = "vaamki-aawaz-session";
 const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
+const POST_CLICKS_STORAGE_KEY = "vaamki-aawaz-post-clicks";
 
 const allPermissionsEnabled = (): Permissions => ({
   manageHomepage: true,
@@ -219,6 +221,8 @@ const initialBlogs: NewsPost[] = [
     title: "सड़क से सदन तक: जन आंदोलनों की नई रणनीति",
     excerpt:
       "ग्रामीण और शहरी संघर्षों को एक साझा राजनीतिक फ्रेम में जोड़ने की चुनौती पर विस्तृत चर्चा।",
+    content:
+      "जन आंदोलनों की नई रणनीति केवल विरोध तक सीमित नहीं रह सकती। स्थानीय मुद्दों से शुरू होकर उन्हें नीति-स्तर की बहस तक ले जाना जरूरी है। इसी कारण सड़क से सदन तक का पुल बनाना आज लोकतांत्रिक राजनीति की सबसे बड़ी आवश्यकता बन गया है।\n\nइस रणनीति का पहला आयाम संगठनात्मक है, जहां मजदूर, किसान, छात्र और महिला संगठनों को साझा न्यूनतम कार्यक्रम के आधार पर साथ लाया जाता है। दूसरा आयाम वैचारिक है, जिसमें जनहित के सवालों को सरल भाषा में जनता के बीच ले जाकर व्यापक राजनीतिक समझ तैयार की जाती है। तीसरा आयाम संसदीय हस्तक्षेप है, जहां जमीनी मांगों को प्रश्न, विधेयक संशोधन और नीति-पत्र के माध्यम से संस्थागत स्वर दिया जाता है।\n\nयह मॉडल तभी सफल होगा जब आंदोलन और जनप्रतिनिधित्व के बीच भरोसेमंद संवाद कायम रहे। इसके लिए नियमित जनसुनवाई, तथ्याधारित रिपोर्टिंग और अभियान-आधारित राजनीतिक शिक्षा की जरूरत है।",
     author: "अतिथि लेखक",
     time: "आज",
   },
@@ -228,6 +232,8 @@ const initialBlogs: NewsPost[] = [
     title: "2026 की अर्थनीति: जनकल्याणकारी विकल्प और राजनीतिक इच्छाशक्ति",
     excerpt:
       "राजकोषीय नीति, सार्वजनिक वितरण और रोजगार गारंटी कार्यक्रमों की संभावनाओं का तुलनात्मक अध्ययन।",
+    content:
+      "2026 की अर्थनीति पर बहस में सबसे महत्वपूर्ण प्रश्न यह है कि विकास का लाभ किसे मिल रहा है। यदि बजटीय प्राथमिकताएं सार्वजनिक शिक्षा, स्वास्थ्य और रोजगार पर केंद्रित नहीं होंगी, तो असमानता और सामाजिक असुरक्षा दोनों बढ़ेंगी।\n\nजनकल्याणकारी विकल्पों में सार्वजनिक निवेश की पुनर्बहाली, ग्रामीण-शहरी रोजगार गारंटी का विस्तार, और आवश्यक वस्तुओं की मूल्य-स्थिरता के लिए वितरण तंत्र को मजबूत करना शामिल है। इसके साथ ही MSME क्षेत्र के लिए सस्ती क्रेडिट गारंटी, सहकारी उत्पादन मॉडल और स्थानीय बाजारों के संरक्षण की नीतियां जरूरी हैं।\n\nराजनीतिक इच्छाशक्ति का अर्थ केवल घोषणाएं नहीं, बल्कि संसाधनों की वास्तविक पुनर्संरचना है। जब नीति निर्माण में श्रमिक, किसान, महिला और युवा समूहों की भागीदारी बढ़ती है, तब अर्थनीति अधिक न्यायपूर्ण और टिकाऊ दिशा में आगे बढ़ती है।",
     author: "विचार मंच",
     time: "कल",
   },
@@ -408,12 +414,15 @@ export default function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [blogMessage, setBlogMessage] = useState("");
+  const [postClicks, setPostClicks] = useState<Record<string, number>>({});
+  const [activePost, setActivePost] = useState<NewsPost | null>(null);
   const [formState, setFormState] = useState({
     title: "",
     author: "",
     category: "ब्लॉग",
     customCategory: "",
     excerpt: "",
+    content: "",
   });
 
   useEffect(() => {
@@ -442,6 +451,13 @@ export default function Home() {
     if (savedSession) {
       setSessionEmail(savedSession);
     }
+    const savedPostClicks = localStorage.getItem(POST_CLICKS_STORAGE_KEY);
+    if (savedPostClicks) {
+      const parsedClicks = JSON.parse(savedPostClicks) as Record<string, number>;
+      if (parsedClicks && typeof parsedClicks === "object") {
+        setPostClicks(parsedClicks);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -464,6 +480,10 @@ export default function Home() {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(POST_CLICKS_STORAGE_KEY, JSON.stringify(postClicks));
+  }, [postClicks]);
 
   const currentUser = useMemo(
     () => users.find((user) => user.email.toLowerCase() === sessionEmail.toLowerCase()),
@@ -516,11 +536,10 @@ export default function Home() {
             skeleton.includes(qSkeleton)
           );
         });
-    if (selectedCategory === "सभी") {
-      return searched;
-    }
-    return searched.filter((post) => post.category === selectedCategory);
-  }, [searchTerm, selectedCategory]);
+    const categoryFiltered =
+      selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
+    return [...categoryFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
+  }, [searchTerm, selectedCategory, postClicks]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   const feedPosts = useMemo(() => filteredNews.slice(3), [filteredNews]);
@@ -555,11 +574,10 @@ export default function Home() {
             skeleton.includes(qSkeleton)
           );
         });
-    if (selectedCategory === "सभी") {
-      return searched;
-    }
-    return searched.filter((post) => post.category === selectedCategory);
-  }, [blogs, searchTerm, selectedCategory]);
+    const categoryFiltered =
+      selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
+    return [...categoryFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
+  }, [blogs, searchTerm, selectedCategory, postClicks]);
   const visibleBlogs = useMemo(() => filteredBlogs.slice(0, blogVisibleCount), [filteredBlogs, blogVisibleCount]);
   const adminAccounts = useMemo(() => users.filter((user) => user.role === "admin"), [users]);
   const contributorAccounts = useMemo(() => users.filter((user) => user.role === "contributor"), [users]);
@@ -713,8 +731,8 @@ export default function Home() {
       setBlogMessage("नई पोस्ट केवल अधिकृत एडमिन या अधिकृत योगदानकर्ता ही जोड़ सकते हैं।");
       return;
     }
-    if (!formState.title || !formState.author || !formState.excerpt) {
-      setBlogMessage("शीर्षक, लेखक और सारांश भरना आवश्यक है।");
+    if (!formState.title || !formState.author || !formState.excerpt || !formState.content) {
+      setBlogMessage("शीर्षक, लेखक, सारांश और पूरा लेख भरना आवश्यक है।");
       return;
     }
     const freshBlog: NewsPost = {
@@ -722,11 +740,12 @@ export default function Home() {
       category: formState.customCategory.trim() || formState.category,
       title: formState.title,
       excerpt: formState.excerpt,
+      content: formState.content,
       author: formState.author,
       time: "अभी पोस्ट किया गया",
     };
     setBlogs((prev) => [freshBlog, ...prev]);
-    setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "" });
+    setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "", content: "" });
     setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
   };
 
@@ -772,6 +791,15 @@ export default function Home() {
         : "योगदानकर्ता"
     : "";
 
+  const getFullArticle = (post: NewsPost) =>
+    post.content?.trim() ||
+    `${post.excerpt}\n\nइस विषय पर विस्तृत रिपोर्ट के लिए संपादकीय टीम द्वारा तथ्यात्मक पृष्ठभूमि, जमीनी प्रतिक्रियाएं और नीति-संदर्भ एकत्र किए जा रहे हैं।`;
+
+  const handlePostOpen = (post: NewsPost) => {
+    setActivePost(post);
+    setPostClicks((prev) => ({ ...prev, [post.id]: (prev[post.id] ?? 0) + 1 }));
+  };
+
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
@@ -816,19 +844,29 @@ export default function Home() {
         </div>
 
         <header id="top" className="headline-fade border-b border-[var(--line)] py-7">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4 sm:gap-5">
+              <img
+                src="/vaamki-logo.png"
+                alt="वाम की आवाज़ लोगो"
+                onError={(event) => {
+                  event.currentTarget.src = "/vercel.svg";
+                }}
+                className="h-20 w-20 shrink-0 rounded-lg border border-[var(--line)] object-cover sm:h-24 sm:w-24"
+              />
+              <div className="space-y-2">
               <p className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--primary)] hover:cursor-pointer">
-                CPI(M) जन मीडिया प्लेटफ़ॉर्म
+                जन मीडिया प्लेटफ़ॉर्म
               </p>
-              <h1 className="mt-3 font-serif text-4xl font-bold leading-tight text-[var(--headline)] sm:text-5xl">
+              <h1 className="font-serif text-4xl font-bold leading-tight text-[var(--headline)] sm:text-5xl">
                 वाम की आवाज़
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-[var(--muted)] sm:text-base">
+              <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
                 श्रमिक, किसान, छात्र, महिला और लोकतांत्रिक आंदोलनों की विश्वसनीय खबरें, गहन विश्लेषण और जमीनी रिपोर्ट।
               </p>
+              </div>
             </div>
-            <a href="#"><button className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] hover: cursor-pointer">
+            <a href="#"><button className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] px-5 py-2 text-sm font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]">
               लाइव कवरेज
             </button></a>
           </div>
@@ -915,7 +953,11 @@ export default function Home() {
         <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <section className="space-y-6 lg:col-span-8">
             {featuredForDisplay[0] && (
-              <article className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6">
+              <button
+                type="button"
+                onClick={() => handlePostOpen(featuredForDisplay[0])}
+                className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left"
+              >
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                   {featuredForDisplay[0].category}
                 </p>
@@ -927,15 +969,20 @@ export default function Home() {
                   <span>{featuredForDisplay[0].author}</span>
                   <span>•</span>
                   <span>{featuredForDisplay[0].time}</span>
+                  <span>•</span>
+                  <span>{postClicks[featuredForDisplay[0].id] ?? 0} क्लिक</span>
                 </div>
-              </article>
+                <span className="mt-4 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
+              </button>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {featuredForDisplay.slice(1).map((story) => (
-                <article
+                <button
+                  type="button"
                   key={story.id}
-                  className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5"
+                  onClick={() => handlePostOpen(story)}
+                  className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left"
                 >
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                     {story.category}
@@ -945,9 +992,10 @@ export default function Home() {
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
                   <p className="mt-4 text-xs text-[var(--muted)]">
-                    {story.author} • {story.time}
+                    {story.author} • {story.time} • {postClicks[story.id] ?? 0} क्लिक
                   </p>
-                </article>
+                  <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
+                </button>
               ))}
             </div>
 
@@ -961,9 +1009,11 @@ export default function Home() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {visibleFeedPosts.map((story) => (
-                  <article
+                  <button
+                    type="button"
                     key={story.id}
-                    className="rise-on-hover rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 transition-all"
+                    onClick={() => handlePostOpen(story)}
+                    className="rise-on-hover rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-all"
                   >
                     <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                       {story.category}
@@ -971,9 +1021,10 @@ export default function Home() {
                     <h4 className="mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
                     <p className="mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
                     <p className="mt-3 text-xs text-[var(--muted)]">
-                      {story.author} • {story.time}
+                      {story.author} • {story.time} • {postClicks[story.id] ?? 0} क्लिक
                     </p>
-                  </article>
+                    <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
+                  </button>
                 ))}
               </div>
               {visibleFeedPosts.length < feedPosts.length && (
@@ -1069,14 +1120,20 @@ export default function Home() {
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {visibleBlogs.map((post) => (
-              <article key={post.id} className="rise-on-hover rounded-lg border border-[var(--line)] p-4">
+              <button
+                type="button"
+                key={post.id}
+                onClick={() => handlePostOpen(post)}
+                className="rise-on-hover rounded-lg border border-[var(--line)] p-4 text-left"
+              >
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
                 <h4 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
                 <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
                 <p className="mt-3 text-xs text-[var(--muted)]">
-                  {post.author} • {post.time}
+                  {post.author} • {post.time} • {postClicks[post.id] ?? 0} क्लिक
                 </p>
-              </article>
+                <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
+              </button>
             ))}
           </div>
           {visibleBlogs.length < filteredBlogs.length && (
@@ -1090,7 +1147,7 @@ export default function Home() {
         </section>
 
         <section className="my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई ब्लॉग पोस्ट जोड़ें</h3>
+          <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई खबर या ब्लॉग पोस्ट जोड़ें</h3>
           {!canPublishBlog && (
             <p className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
               ब्लॉग पोस्ट जोड़ने के लिए एडमिन या एडमिन द्वारा अधिकृत योगदानकर्ता लॉगिन करें।
@@ -1101,7 +1158,7 @@ export default function Home() {
               <input
                 value={formState.title}
                 onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="पोस्ट शीर्षक"
+                placeholder="हेडलाइन / शीर्षक"
                 className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               />
               <input
@@ -1135,13 +1192,45 @@ export default function Home() {
               <textarea
                 value={formState.excerpt}
                 onChange={(event) => setFormState((prev) => ({ ...prev, excerpt: event.target.value }))}
-                placeholder="संक्षिप्त सारांश"
+                placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
                 className="min-h-24 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
+              />
+              <textarea
+                value={formState.content}
+                onChange={(event) => setFormState((prev) => ({ ...prev, content: event.target.value }))}
+                placeholder="पूरी विस्तृत खबर / लेख"
+                className="min-h-48 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
               />
             </form>
           )}
           {blogMessage && <p className="mt-3 text-sm font-medium text-[var(--primary)]">{blogMessage}</p>}
         </section>
+
+        {activePost && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+            <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              <button
+                type="button"
+                onClick={() => setActivePost(null)}
+                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              >
+                Close
+              </button>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{activePost.category}</p>
+              <h2 className="pr-14 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-3xl">
+                {activePost.title}
+              </h2>
+              <p className="mt-3 text-xs text-[var(--muted)]">
+                {activePost.author} • {activePost.time} • {postClicks[activePost.id] ?? 0} क्लिक
+              </p>
+              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)]">
+                {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
+                  <p key={`${activePost.id}-${index}`}>{paragraph}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {isAuthModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
@@ -1350,7 +1439,7 @@ export default function Home() {
 
         <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 वाम की आवाज़ • CPI(M) समर्थित जन समाचार मंच</p>
+            <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
             <div className="flex items-center gap-4">
               <button type="button" className="interactive-link">
                 संपादकीय नीति
