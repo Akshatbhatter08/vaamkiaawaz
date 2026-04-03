@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, LogOut, ShieldCheck } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
@@ -13,6 +13,19 @@ type NewsPost = {
   content?: string;
   author: string;
   time: string;
+  clickCount?: number;
+  source?: "static" | "blog";
+};
+
+type ApiBlogPost = {
+  id: string;
+  category: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  author: string;
+  clickCount: number;
+  createdAt: string;
 };
 
 type Role = "master" | "admin" | "contributor";
@@ -37,7 +50,6 @@ type UserAccount = {
 
 const MASTER_EMAIL = "lordbuddha.mailing@gmail.com";
 const MASTER_PASSWORD = "@Keshava95";
-const BLOG_STORAGE_KEY = "vaamki-aawaz-blogs";
 const USERS_STORAGE_KEY = "vaamki-aawaz-users";
 const SESSION_STORAGE_KEY = "vaamki-aawaz-session";
 const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
@@ -225,6 +237,8 @@ const initialBlogs: NewsPost[] = [
       "जन आंदोलनों की नई रणनीति केवल विरोध तक सीमित नहीं रह सकती। स्थानीय मुद्दों से शुरू होकर उन्हें नीति-स्तर की बहस तक ले जाना जरूरी है। इसी कारण सड़क से सदन तक का पुल बनाना आज लोकतांत्रिक राजनीति की सबसे बड़ी आवश्यकता बन गया है।\n\nइस रणनीति का पहला आयाम संगठनात्मक है, जहां मजदूर, किसान, छात्र और महिला संगठनों को साझा न्यूनतम कार्यक्रम के आधार पर साथ लाया जाता है। दूसरा आयाम वैचारिक है, जिसमें जनहित के सवालों को सरल भाषा में जनता के बीच ले जाकर व्यापक राजनीतिक समझ तैयार की जाती है। तीसरा आयाम संसदीय हस्तक्षेप है, जहां जमीनी मांगों को प्रश्न, विधेयक संशोधन और नीति-पत्र के माध्यम से संस्थागत स्वर दिया जाता है।\n\nयह मॉडल तभी सफल होगा जब आंदोलन और जनप्रतिनिधित्व के बीच भरोसेमंद संवाद कायम रहे। इसके लिए नियमित जनसुनवाई, तथ्याधारित रिपोर्टिंग और अभियान-आधारित राजनीतिक शिक्षा की जरूरत है।",
     author: "अतिथि लेखक",
     time: "आज",
+    clickCount: 0,
+    source: "blog",
   },
   {
     id: "bl2",
@@ -236,6 +250,8 @@ const initialBlogs: NewsPost[] = [
       "2026 की अर्थनीति पर बहस में सबसे महत्वपूर्ण प्रश्न यह है कि विकास का लाभ किसे मिल रहा है। यदि बजटीय प्राथमिकताएं सार्वजनिक शिक्षा, स्वास्थ्य और रोजगार पर केंद्रित नहीं होंगी, तो असमानता और सामाजिक असुरक्षा दोनों बढ़ेंगी।\n\nजनकल्याणकारी विकल्पों में सार्वजनिक निवेश की पुनर्बहाली, ग्रामीण-शहरी रोजगार गारंटी का विस्तार, और आवश्यक वस्तुओं की मूल्य-स्थिरता के लिए वितरण तंत्र को मजबूत करना शामिल है। इसके साथ ही MSME क्षेत्र के लिए सस्ती क्रेडिट गारंटी, सहकारी उत्पादन मॉडल और स्थानीय बाजारों के संरक्षण की नीतियां जरूरी हैं।\n\nराजनीतिक इच्छाशक्ति का अर्थ केवल घोषणाएं नहीं, बल्कि संसाधनों की वास्तविक पुनर्संरचना है। जब नीति निर्माण में श्रमिक, किसान, महिला और युवा समूहों की भागीदारी बढ़ती है, तब अर्थनीति अधिक न्यायपूर्ण और टिकाऊ दिशा में आगे बढ़ती है।",
     author: "विचार मंच",
     time: "कल",
+    clickCount: 0,
+    source: "blog",
   },
 ];
 
@@ -333,6 +349,32 @@ const normalizeRomanized = (text: string) =>
 
 const stripLatinVowels = (text: string) => text.replace(/[aeiou]/g, "");
 
+const formatRelativeTime = (isoDate: string) => {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+  if (minutes < 60) {
+    return `${minutes} मिनट पहले`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} घंटे पहले`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} दिन पहले`;
+};
+
+const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
+  id: post.id,
+  category: post.category,
+  title: post.title,
+  excerpt: post.excerpt,
+  content: post.content,
+  author: post.author,
+  time: formatRelativeTime(post.createdAt),
+  clickCount: post.clickCount,
+  source: "blog",
+});
+
 const MoonIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
     <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 1 0 20 14.5z" />
@@ -416,6 +458,7 @@ export default function Home() {
   const [blogMessage, setBlogMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
   const [activePost, setActivePost] = useState<NewsPost | null>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
   const [formState, setFormState] = useState({
     title: "",
     author: "",
@@ -429,13 +472,6 @@ export default function Home() {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as "light" | "dark" | null;
     if (savedTheme) {
       setTheme(savedTheme);
-    }
-    const savedBlogs = localStorage.getItem(BLOG_STORAGE_KEY);
-    if (savedBlogs) {
-      const parsedBlogs = JSON.parse(savedBlogs) as NewsPost[];
-      if (Array.isArray(parsedBlogs) && parsedBlogs.length > 0) {
-        setBlogs(parsedBlogs);
-      }
     }
     const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
     if (savedUsers) {
@@ -461,10 +497,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(BLOG_STORAGE_KEY, JSON.stringify(blogs));
-  }, [blogs]);
-
-  useEffect(() => {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   }, [users]);
 
@@ -484,6 +516,51 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(POST_CLICKS_STORAGE_KEY, JSON.stringify(postClicks));
   }, [postClicks]);
+
+  useEffect(() => {
+    let rafId: number | null = null;
+    const update = () => {
+      rafId = null;
+      const start = 20;
+      const end = 210;
+      const raw = (window.scrollY - start) / (end - start);
+      const clamped = Math.max(0, Math.min(1, raw));
+      const eased = clamped * clamped * (3 - 2 * clamped);
+      stickyHeaderRef.current?.style.setProperty("--compact-progress", eased.toFixed(4));
+    };
+    const onScroll = () => {
+      if (rafId !== null) {
+        return;
+      }
+      rafId = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadBlogs = async () => {
+      try {
+        const response = await fetch("/api/blogs", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch blogs");
+        }
+        const data = (await response.json()) as { posts: ApiBlogPost[] };
+        if (Array.isArray(data.posts) && data.posts.length > 0) {
+          setBlogs(data.posts.map(mapApiBlogToNewsPost));
+        }
+      } catch {
+        setBlogs(initialBlogs);
+      }
+    };
+    void loadBlogs();
+  }, []);
 
   const currentUser = useMemo(
     () => users.find((user) => user.email.toLowerCase() === sessionEmail.toLowerCase()),
@@ -576,8 +653,8 @@ export default function Home() {
         });
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
-    return [...categoryFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
-  }, [blogs, searchTerm, selectedCategory, postClicks]);
+    return [...categoryFiltered].sort((a, b) => (b.clickCount ?? 0) - (a.clickCount ?? 0));
+  }, [blogs, searchTerm, selectedCategory]);
   const visibleBlogs = useMemo(() => filteredBlogs.slice(0, blogVisibleCount), [filteredBlogs, blogVisibleCount]);
   const adminAccounts = useMemo(() => users.filter((user) => user.role === "admin"), [users]);
   const contributorAccounts = useMemo(() => users.filter((user) => user.role === "contributor"), [users]);
@@ -725,7 +802,7 @@ export default function Home() {
     setNewsletterEmail("");
   };
 
-  const handleBlogSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleBlogSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canPublishBlog) {
       setBlogMessage("नई पोस्ट केवल अधिकृत एडमिन या अधिकृत योगदानकर्ता ही जोड़ सकते हैं।");
@@ -735,18 +812,28 @@ export default function Home() {
       setBlogMessage("शीर्षक, लेखक, सारांश और पूरा लेख भरना आवश्यक है।");
       return;
     }
-    const freshBlog: NewsPost = {
-      id: `bl-${Date.now()}`,
-      category: formState.customCategory.trim() || formState.category,
-      title: formState.title,
-      excerpt: formState.excerpt,
-      content: formState.content,
-      author: formState.author,
-      time: "अभी पोस्ट किया गया",
-    };
-    setBlogs((prev) => [freshBlog, ...prev]);
-    setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "", content: "" });
-    setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
+    try {
+      const response = await fetch("/api/blogs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: formState.customCategory.trim() || formState.category,
+          title: formState.title,
+          excerpt: formState.excerpt,
+          content: formState.content,
+          author: formState.author,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Unable to publish");
+      }
+      const data = (await response.json()) as { post: ApiBlogPost };
+      setBlogs((prev) => [mapApiBlogToNewsPost(data.post), ...prev]);
+      setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "", content: "" });
+      setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
+    } catch {
+      setBlogMessage("पोस्ट सेव नहीं हो सकी। कृपया दोबारा प्रयास करें।");
+    }
   };
 
   const navTabs = [
@@ -795,7 +882,29 @@ export default function Home() {
     post.content?.trim() ||
     `${post.excerpt}\n\nइस विषय पर विस्तृत रिपोर्ट के लिए संपादकीय टीम द्वारा तथ्यात्मक पृष्ठभूमि, जमीनी प्रतिक्रियाएं और नीति-संदर्भ एकत्र किए जा रहे हैं।`;
 
+  const getPostClicks = (post: NewsPost) => {
+    if (post.source === "blog") {
+      return post.clickCount ?? 0;
+    }
+    return postClicks[post.id] ?? 0;
+  };
+
   const handlePostOpen = (post: NewsPost) => {
+    if (post.source === "blog") {
+      setBlogs((prev) =>
+        prev.map((item) => (item.id === post.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)),
+      );
+      const optimistic = { ...post, clickCount: (post.clickCount ?? 0) + 1 };
+      setActivePost(optimistic);
+      void fetch(`/api/blogs/${post.id}/click`, { method: "POST" })
+        .then((res) => res.json() as Promise<{ id: string; clickCount: number }>)
+        .then((data) => {
+          setBlogs((prev) => prev.map((item) => (item.id === data.id ? { ...item, clickCount: data.clickCount } : item)));
+          setActivePost((prev) => (prev?.id === data.id ? { ...prev, clickCount: data.clickCount } : prev));
+        })
+        .catch(() => undefined);
+      return;
+    }
     setActivePost(post);
     setPostClicks((prev) => ({ ...prev, [post.id]: (prev[post.id] ?? 0) + 1 }));
   };
@@ -806,15 +915,6 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span>{formatDate()}</span>
           <div className="flex items-center gap-1">
-            {/* <a className="interactive-link inline-flex items-center gap-1" href="https://facebook.com" target="_blank" rel="noreferrer">
-              <FacebookIcon />
-            </a>
-            <a className="interactive-link inline-flex items-center gap-1" href="https://youtube.com" target="_blank" rel="noreferrer">
-              <YoutubeIcon />
-            </a>
-            <a className="interactive-link inline-flex items-center gap-1" href="https://x.com" target="_blank" rel="noreferrer">
-              <TwitterIcon />
-            </a> */}
             <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://facebook.com" target="_blank" rel="noreferrer">
               <FacebookIcon className="h-4 w-4" />
             </a>
@@ -843,95 +943,149 @@ export default function Home() {
           </div>
         </div>
 
-        <header id="top" className="headline-fade border-b border-[var(--line)] py-7">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4 sm:gap-5">
-              <img
-                src="/vaamki-logo.png"
-                alt="वाम की आवाज़ लोगो"
-                onError={(event) => {
-                  event.currentTarget.src = "/vercel.svg";
-                }}
-                className="h-20 w-20 shrink-0 rounded-lg border border-[var(--line)] object-cover sm:h-24 sm:w-24"
-              />
-              <div className="space-y-2">
-              <p className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--primary)] hover:cursor-pointer">
-                जन मीडिया प्लेटफ़ॉर्म
-              </p>
-              <h1 className="font-serif text-4xl font-bold leading-tight text-[var(--headline)] sm:text-5xl">
-                वाम की आवाज़
-              </h1>
-              <p className="max-w-2xl text-sm text-[var(--muted)] sm:text-base">
-                श्रमिक, किसान, छात्र, महिला और लोकतांत्रिक आंदोलनों की विश्वसनीय खबरें, गहन विश्लेषण और जमीनी रिपोर्ट।
-              </p>
-              </div>
-            </div>
-            <a href="#"><button className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] px-5 py-2 text-sm font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]">
-              लाइव कवरेज
-            </button></a>
-          </div>
-        </header>
-
-        <nav className="sticky top-0 z-20 my-4 rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 p-3 backdrop-blur-md">
-          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <Tabs
-              tabs={navTabs}
-              onTabChange={handleNavTabChange}
-              hideContent
-              containerClassName="gap-1 lg:flex-1 lg:pr-4"
-              activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
-              tabClassName="rise-on-hover border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-            />
-            {isCategoryMenuOpen && (
-              <div className="absolute left-0 top-12 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {allCategories.map((category) => (
-                    <button
-                      key={category}
-                      onClick={() => {
-                        setSelectedCategory(category);
-                        setNewsVisibleCount(6);
-                        setBlogVisibleCount(4);
-                        setIsCategoryMenuOpen(false);
-                      }}
-                      className={`rise-on-hover rounded-md border px-3 py-2 text-left text-sm ${
-                        selectedCategory === category
-                          ? "border-[var(--primary)] text-[var(--primary)]"
-                          : "border-[var(--line)]"
-                      }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
+        <div
+          ref={stickyHeaderRef}
+          className="sticky top-0 z-50 bg-[var(--background)]"
+          style={{ "--compact-progress": 0 } as CSSProperties}
+        >
+          <header
+            id="top"
+            className="headline-fade border-b border-[var(--line)] bg-[var(--background)]"
+            style={{
+              paddingTop: "calc(28px - 16px * var(--compact-progress))",
+              paddingBottom: "calc(28px - 16px * var(--compact-progress))",
+            }}
+          >
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <img
+                  src="/vaamki-logo.png"
+                  alt="वाम की आवाज़ लोगो"
+                  onError={(event) => {
+                    event.currentTarget.src = "/vercel.svg";
+                  }}
+                  className="shrink-0 rounded-lg border border-[var(--line)] object-cover"
+                  style={{
+                    width: "calc(80px - 28px * var(--compact-progress))",
+                    height: "calc(80px - 28px * var(--compact-progress))",
+                  }}
+                />
+                <div className="space-y-2">
+                  <p
+                    className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 font-semibold text-[var(--primary)] hover:cursor-pointer"
+                    style={{
+                      fontSize: "calc(0.75rem - 0.1rem * var(--compact-progress))",
+                      paddingTop: "calc(4px - 2px * var(--compact-progress))",
+                      paddingBottom: "calc(4px - 2px * var(--compact-progress))",
+                    }}
+                  >
+                    विकल्प की डिजिटल दुनिया
+                  </p>
+                  <h1
+                    className="font-serif font-bold leading-tight text-[var(--headline)]"
+                    style={{
+                      fontSize: "calc(2.45rem - 1.05rem * var(--compact-progress))",
+                    }}
+                  >
+                    वाम की आवाज़
+                  </h1>
+                  <p
+                    className="max-w-2xl overflow-hidden text-[var(--muted)]"
+                    style={{
+                      opacity: "calc(1 - var(--compact-progress))",
+                      maxHeight: "calc(48px * (1 - var(--compact-progress)))",
+                      fontSize: "calc(1rem - 0.13rem * var(--compact-progress))",
+                    }}
+                  >
+                    श्रमिक, किसान, छात्र, महिला और लोकतांत्रिक आंदोलनों की विश्वसनीय खबरें, गहन विश्लेषण और जमीनी रिपोर्ट।
+                  </p>
                 </div>
               </div>
-            )}
-            <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto">
-              <GooeyInput
-                value={searchTerm}
-                onValueChange={setSearchTerm}
-                placeholder="खबरें खोजें..."
-                classNames={{
-                  trigger: theme === "dark"
-                    ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
-                    : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
-
-                  bubbleSurface: theme === "dark"
-                    ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
-                    : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
-                }}
-              />
-              <button
-                onClick={toggleTheme}
-                className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                aria-label={theme === "light" ? "Night mode" : "Day mode"}
-              >
-                {theme === "light" ? <MoonIcon /> : <SunIcon />}
-              </button>
+              <a href="#">
+                <button
+                  className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
+                  style={{
+                    paddingLeft: "calc(20px - 4px * var(--compact-progress))",
+                    paddingRight: "calc(20px - 4px * var(--compact-progress))",
+                    paddingTop: "calc(8px - 2px * var(--compact-progress))",
+                    paddingBottom: "calc(8px - 2px * var(--compact-progress))",
+                    fontSize: "calc(0.875rem - 0.1rem * var(--compact-progress))",
+                  }}
+                >
+                  लाइव कवरेज
+                </button>
+              </a>
             </div>
-          </div>
-        </nav>
+          </header>
+
+          <nav
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-md"
+            style={{
+              marginTop: "calc(16px - 8px * var(--compact-progress))",
+              marginBottom: "calc(16px - 8px * var(--compact-progress))",
+              padding: "calc(12px - 4px * var(--compact-progress))",
+            }}
+          >
+            <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <Tabs
+                tabs={navTabs}
+                onTabChange={handleNavTabChange}
+                hideContent
+                containerClassName="gap-1 lg:flex-1 lg:pr-4"
+                activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
+                tabClassName="rise-on-hover border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              />
+              {isCategoryMenuOpen && (
+                <div className="absolute left-0 top-12 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {allCategories.map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => {
+                          setSelectedCategory(category);
+                          setNewsVisibleCount(6);
+                          setBlogVisibleCount(4);
+                          setIsCategoryMenuOpen(false);
+                        }}
+                        className={`rise-on-hover rounded-md border px-3 py-2 text-left text-sm ${
+                          selectedCategory === category
+                            ? "border-[var(--primary)] text-[var(--primary)]"
+                            : "border-[var(--line)]"
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto">
+                <GooeyInput
+                  value={searchTerm}
+                  onValueChange={setSearchTerm}
+                  placeholder="खबरें खोजें..."
+                  classNames={{
+                    trigger: theme === "dark"
+                      ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
+                      : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
+
+                    bubbleSurface: theme === "dark"
+                      ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
+                      : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
+                  }}
+                />
+                <button
+                  onClick={toggleTheme}
+                  className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  aria-label={theme === "light" ? "Night mode" : "Day mode"}
+                >
+                  {theme === "light" ? <MoonIcon /> : <SunIcon />}
+                </button>
+              </div>
+            </div>
+          </nav>
+        </div>
 
         <section className="my-4 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)]">
           <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-2">
@@ -970,7 +1124,7 @@ export default function Home() {
                   <span>•</span>
                   <span>{featuredForDisplay[0].time}</span>
                   <span>•</span>
-                  <span>{postClicks[featuredForDisplay[0].id] ?? 0} क्लिक</span>
+                  <span>{getPostClicks(featuredForDisplay[0])} क्लिक</span>
                 </div>
                 <span className="mt-4 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
               </button>
@@ -992,7 +1146,7 @@ export default function Home() {
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
                   <p className="mt-4 text-xs text-[var(--muted)]">
-                    {story.author} • {story.time} • {postClicks[story.id] ?? 0} क्लिक
+                    {story.author} • {story.time} • {getPostClicks(story)} क्लिक
                   </p>
                   <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                 </button>
@@ -1021,7 +1175,7 @@ export default function Home() {
                     <h4 className="mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
                     <p className="mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
                     <p className="mt-3 text-xs text-[var(--muted)]">
-                      {story.author} • {story.time} • {postClicks[story.id] ?? 0} क्लिक
+                      {story.author} • {story.time} • {getPostClicks(story)} क्लिक
                     </p>
                     <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                   </button>
@@ -1130,7 +1284,7 @@ export default function Home() {
                 <h4 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
                 <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
                 <p className="mt-3 text-xs text-[var(--muted)]">
-                  {post.author} • {post.time} • {postClicks[post.id] ?? 0} क्लिक
+                  {post.author} • {post.time} • {getPostClicks(post)} क्लिक
                 </p>
                 <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
               </button>
@@ -1221,7 +1375,7 @@ export default function Home() {
                 {activePost.title}
               </h2>
               <p className="mt-3 text-xs text-[var(--muted)]">
-                {activePost.author} • {activePost.time} • {postClicks[activePost.id] ?? 0} क्लिक
+                {activePost.author} • {activePost.time} • {getPostClicks(activePost)} क्लिक
               </p>
               <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)]">
                 {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
