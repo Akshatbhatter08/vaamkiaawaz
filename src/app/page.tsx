@@ -349,6 +349,41 @@ const normalizeRomanized = (text: string) =>
 
 const stripLatinVowels = (text: string) => text.replace(/[aeiou]/g, "");
 
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const inferDateKeyFromTime = (timeLabel: string) => {
+  const now = new Date();
+  if (timeLabel.includes("कल")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return toDateKey(d);
+  }
+  const minuteMatch = timeLabel.match(/(\d+)\s*मिनट/);
+  if (minuteMatch) {
+    const d = new Date(now);
+    d.setMinutes(d.getMinutes() - Number(minuteMatch[1]));
+    return toDateKey(d);
+  }
+  const hourMatch = timeLabel.match(/(\d+)\s*घंट/);
+  if (hourMatch) {
+    const d = new Date(now);
+    d.setHours(d.getHours() - Number(hourMatch[1]));
+    return toDateKey(d);
+  }
+  const dayMatch = timeLabel.match(/(\d+)\s*दिन/);
+  if (dayMatch) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - Number(dayMatch[1]));
+    return toDateKey(d);
+  }
+  return toDateKey(now);
+};
+
 const formatRelativeTime = (isoDate: string) => {
   const diffMs = Date.now() - new Date(isoDate).getTime();
   const minutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
@@ -432,9 +467,12 @@ const TwitterIcon = ({ className = "" }) => (
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [isHeaderSolid, setIsHeaderSolid] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isParichayVisible, setIsParichayVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
+  const [selectedNewsDate, setSelectedNewsDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [newsVisibleCount, setNewsVisibleCount] = useState(6);
   const [blogVisibleCount, setBlogVisibleCount] = useState(4);
@@ -527,6 +565,10 @@ export default function Home() {
       const clamped = Math.max(0, Math.min(1, raw));
       const eased = clamped * clamped * (3 - 2 * clamped);
       stickyHeaderRef.current?.style.setProperty("--compact-progress", eased.toFixed(4));
+      setIsHeaderSolid((prev) => {
+        const next = window.scrollY > 8;
+        return prev === next ? prev : next;
+      });
     };
     const onScroll = () => {
       if (rafId !== null) {
@@ -615,8 +657,11 @@ export default function Home() {
         });
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
-    return [...categoryFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
-  }, [searchTerm, selectedCategory, postClicks]);
+    const dateFiltered = selectedNewsDate
+      ? categoryFiltered.filter((post) => inferDateKeyFromTime(post.time) === selectedNewsDate)
+      : categoryFiltered;
+    return [...dateFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
+  }, [searchTerm, selectedCategory, postClicks, selectedNewsDate]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   const feedPosts = useMemo(() => filteredNews.slice(3), [filteredNews]);
@@ -839,10 +884,10 @@ export default function Home() {
   const navTabs = [
     { title: "होम", value: "home" },
     { title: "ताज़ा खबरें", value: "latest" },
+    { title: "परिचय", value: "parichay" },
     { title: "कैटेगरी", value: "categories" },
     { title: "ब्लॉग", value: "blogs" },
     { title: "न्यूज़लेटर", value: "newsletter" },
-    { title: "एडमिन", value: "admin" },
   ];
 
   const scrollToSection = (id: string) => {
@@ -855,6 +900,11 @@ export default function Home() {
   const handleNavTabChange = (value: string) => {
     if (value === "categories") {
       setIsCategoryMenuOpen((prev) => !prev);
+      return;
+    }
+    if (value === "parichay") {
+      setIsCategoryMenuOpen(false);
+      setIsParichayVisible(true);
       return;
     }
     if (value === "admin") {
@@ -915,23 +965,20 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span>{formatDate()}</span>
           <div className="flex items-center gap-1">
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://facebook.com" target="_blank" rel="noreferrer">
+            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
               <FacebookIcon className="h-4 w-4" />
             </a>
 
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://youtube.com" target="_blank" rel="noreferrer">
+            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer">
               <YoutubeIcon className="h-4 w-4" />
             </a>
 
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://x.com" target="_blank" rel="noreferrer">
-              <TwitterIcon className="h-4 w-4" />
-            </a>
             <button type="button" className="interactive-link h-10 w-10 hover:cursor-pointer">
               सदस्यता
             </button>
-            <button type="button" className="interactive-link h-10 w-10 hover:cursor-pointer">
-              संपर्क
-            </button>
+            <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link px-2 py-1 text-xs sm:text-sm">
+              संपर्क: vaamkiaawaz@gmail.com
+            </a>
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
@@ -945,12 +992,12 @@ export default function Home() {
 
         <div
           ref={stickyHeaderRef}
-          className="sticky top-0 z-50 bg-[var(--background)]"
+          className={`sticky top-0 z-50 ${isHeaderSolid ? "bg-[var(--surface)]" : "bg-transparent"}`}
           style={{ "--compact-progress": 0 } as CSSProperties}
         >
           <header
             id="top"
-            className="headline-fade border-b border-[var(--line)] bg-[var(--background)]"
+            className={`headline-fade border-b border-[var(--line)] ${isHeaderSolid ? "bg-[var(--surface)]" : ""}`}
             style={{
               paddingTop: "calc(28px - 16px * var(--compact-progress))",
               paddingBottom: "calc(28px - 16px * var(--compact-progress))",
@@ -994,10 +1041,10 @@ export default function Home() {
                     style={{
                       opacity: "calc(1 - var(--compact-progress))",
                       maxHeight: "calc(48px * (1 - var(--compact-progress)))",
-                      fontSize: "calc(1rem - 0.13rem * var(--compact-progress))",
+                      fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
                     }}
                   >
-                    श्रमिक, किसान, छात्र, महिला और लोकतांत्रिक आंदोलनों की विश्वसनीय खबरें, गहन विश्लेषण और जमीनी रिपोर्ट।
+                    अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, न्याय, समानता और प्रगति में हैं विश्वास तो — उठो ! बोलो ! बदलो !
                   </p>
                 </div>
               </div>
@@ -1039,7 +1086,7 @@ export default function Home() {
                 <div className="absolute left-0 top-12 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {allCategories.map((category) => (
+                    {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
                       <button
                         key={category}
                         onClick={() => {
@@ -1075,6 +1122,25 @@ export default function Home() {
                       : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
                   }}
                 />
+                <input
+                  type="date"
+                  value={selectedNewsDate}
+                  onChange={(event) => {
+                    setSelectedNewsDate(event.target.value);
+                    setNewsVisibleCount(6);
+                  }}
+                  className="h-10 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
+                  aria-label="Select date for news filter"
+                />
+                {selectedNewsDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedNewsDate("")}
+                    className="h-10 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  >
+                    Reset
+                  </button>
+                )}
                 <button
                   onClick={toggleTheme}
                   className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -1361,7 +1427,7 @@ export default function Home() {
         </section>
 
         {activePost && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
               <button
                 type="button"
@@ -1381,6 +1447,46 @@ export default function Home() {
                 {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
                   <p key={`${activePost.id}-${index}`}>{paragraph}</p>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isParichayVisible && (
+          <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              <button
+                type="button"
+                onClick={() => setIsParichayVisible(false)}
+                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              >
+                Close
+              </button>
+              <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">परिचय</h3>
+              <div className="mt-3 space-y-3 text-sm leading-7 text-[var(--foreground)]">
+                <p>नमस्ते!</p>
+                <p>"वाम की आवाज़" (Vaam Ki Aawaz) ®️ में स्वागत है!</p>
+                <p>
+                  यह न्यूज़ पोर्टल आम आदमी की आवाज़ है - गरीबों, दलितों, पिछड़ों, आदिवासियों, महिलाओं, युवाओं, अल्पसंख्यकों और हर शोषित की बेबाक आवाज़!
+                  हम आवाज़ उठाते हैं – क्योंकि बदलाव की शुरुआत आवाज़ से ही होती है! प्रगतिशील विचारों और वैकल्पिक नज़रिए से खबरें, विश्लेषण, विचार और सच सामने लाते हैं हम।
+                </p>
+                <p>
+                  हम लड़ते हैं — जातिवाद, भाषाई सांप्रदायिकता और धार्मिक विभाजन के खिलाफ, नफरत, शोषण, असमानता और अन्याय के खिलाफ — एकता, समानता और इंसानियत की आवाज़!
+                </p>
+                <div>
+                  <p>यहाँ मिलेगा:</p>
+                  <p>• सच्ची और निष्पक्ष खबरें</p>
+                  <p>• जीवन के असली मुद्दे</p>
+                  <p>• जेंडर, जाति, धर्म और आर्थिक असमानता पर गहरी बातचीत</p>
+                  <p>• युवाओं और उनके सपनों की आवाज़</p>
+                  <p>• देश -विदेश की नीतियों पर सीधी-सटीक बात</p>
+                  <p>• वैकल्पिक सोच और दृष्टिकोण - और भी बहुत कुछ</p>
+                </div>
+                <p>
+                  अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, तो — उठो, बोलो, बदलो! "वाम की आवाज़" (Vaam Ki Aawaz)
+                  🎤आपकी आवाज़ है, ✊आपका हथियार है।
+                </p>
+                <p>न्याय, समानता और प्रगति में हैं विश्वास, तो कमेंट करें, वीडियो शेयर करें, सब्सक्राइब करें 🤝🏻</p>
               </div>
             </div>
           </div>
