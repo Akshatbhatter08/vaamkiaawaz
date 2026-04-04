@@ -467,7 +467,7 @@ const TwitterIcon = ({ className = "" }) => (
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [isHeaderSolid, setIsHeaderSolid] = useState(false);
+  const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isParichayVisible, setIsParichayVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
@@ -556,32 +556,18 @@ export default function Home() {
   }, [postClicks]);
 
   useEffect(() => {
-    let rafId: number | null = null;
     const update = () => {
-      rafId = null;
-      const start = 20;
-      const end = 210;
-      const raw = (window.scrollY - start) / (end - start);
-      const clamped = Math.max(0, Math.min(1, raw));
-      const eased = clamped * clamped * (3 - 2 * clamped);
-      stickyHeaderRef.current?.style.setProperty("--compact-progress", eased.toFixed(4));
-      setIsHeaderSolid((prev) => {
-        const next = window.scrollY > 8;
-        return prev === next ? prev : next;
-      });
+      const isScrolled = window.scrollY > 12;
+      const compact = isScrolled ? "1" : "0";
+      stickyHeaderRef.current?.style.setProperty("--compact-progress", compact);
+      setIsScrolledHeader((prev) => (prev === isScrolled ? prev : isScrolled));
     };
     const onScroll = () => {
-      if (rafId !== null) {
-        return;
-      }
-      rafId = window.requestAnimationFrame(update);
+      update();
     };
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      if (rafId !== null) {
-        window.cancelAnimationFrame(rafId);
-      }
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
@@ -992,12 +978,12 @@ export default function Home() {
 
         <div
           ref={stickyHeaderRef}
-          className={`sticky top-0 z-50 ${isHeaderSolid ? "bg-[var(--surface)]" : "bg-transparent"}`}
+          className={`sticky top-0 z-50 ${isScrolledHeader ? (theme === "dark" ? "bg-[var(--surface)]" : "bg-white") : "bg-transparent"}`}
           style={{ "--compact-progress": 0 } as CSSProperties}
         >
           <header
             id="top"
-            className={`headline-fade border-b border-[var(--line)] ${isHeaderSolid ? "bg-[var(--surface)]" : ""}`}
+            className="headline-fade border-b border-[var(--line)]"
             style={{
               paddingTop: "calc(28px - 16px * var(--compact-progress))",
               paddingBottom: "calc(28px - 16px * var(--compact-progress))",
@@ -1048,7 +1034,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <a href="#">
+              <a href="https://www.youtube.com/@VaamKiAawaz">
                 <button
                   className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
                   style={{

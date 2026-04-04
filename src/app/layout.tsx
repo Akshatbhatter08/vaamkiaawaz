@@ -15,7 +15,7 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: "वाम की आवाज़ | जन समाचार मंच",
   description:
-    "वामपंथी विचार, जन संघर्ष, सामाजिक न्याय और लोकतांत्रिक मुद्दों पर केंद्रित आधुनिक न्यूज़ पोर्टल।",
+    "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
 };
 
 export default function RootLayout({
