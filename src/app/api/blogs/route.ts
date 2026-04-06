@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { initialBlogSeed } from "@/lib/blog-seed";
+import { requireAuth } from "@/lib/auth";
 
 const mapBlog = (post: {
   id: string;
@@ -37,13 +38,39 @@ export async function GET() {
   }
 
   const posts = await prisma.blogPost.findMany({
-    orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }],
   });
 
   return NextResponse.json({ posts: posts.map(mapBlog) });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const authPayload = await requireAuth(request);
+  if (authPayload instanceof NextResponse) return authPayload;
+  const userId = authPayload.id as string | undefined;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, active: true, permissions: true },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const permissions = (user.permissions ?? {}) as Partial<Record<"publishBlog", boolean>>;
+  const canPublish =
+    user.role === "MASTER_ADMIN" ||
+    (user.role === "ADMIN" && permissions.publishBlog === true) ||
+    (user.role === "CONTRIBUTOR" && user.active);
+
+  if (!canPublish) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = (await request.json()) as {
     category?: string;
     title?: string;

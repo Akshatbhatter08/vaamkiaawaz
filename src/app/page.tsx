@@ -1,7 +1,8 @@
 "use client";
 
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, ShieldCheck } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 
@@ -13,6 +14,7 @@ type NewsPost = {
   content?: string;
   author: string;
   time: string;
+  createdAt?: string;
   clickCount?: number;
   source?: "static" | "blog";
 };
@@ -26,6 +28,14 @@ type ApiBlogPost = {
   author: string;
   clickCount: number;
   createdAt: string;
+};
+
+type ApiAuthUser = {
+  id: string;
+  email: string;
+  role: "MASTER_ADMIN" | "ADMIN" | "CONTRIBUTOR";
+  active?: boolean;
+  permissions?: Partial<Permissions> | null;
 };
 
 type Role = "master" | "admin" | "contributor";
@@ -54,6 +64,8 @@ const USERS_STORAGE_KEY = "vaamki-aawaz-users";
 const SESSION_STORAGE_KEY = "vaamki-aawaz-session";
 const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
 const POST_CLICKS_STORAGE_KEY = "vaamki-aawaz-post-clicks";
+const MANAGED_CATEGORIES_STORAGE_KEY = "vaamki-aawaz-managed-categories";
+const HIDDEN_CATEGORIES_STORAGE_KEY = "vaamki-aawaz-hidden-categories";
 
 const allPermissionsEnabled = (): Permissions => ({
   manageHomepage: true,
@@ -69,6 +81,18 @@ const noPermissions = (): Permissions => ({
   manageCategories: false,
   manageNewsletter: false,
   manageUsers: false,
+});
+
+const mapApiUserToAccount = (user: ApiAuthUser): UserAccount => ({
+  id: user.id,
+  role: user.role === "MASTER_ADMIN" ? "master" : user.role === "ADMIN" ? "admin" : "contributor",
+  email: user.email,
+  password: "",
+  active: user.active ?? true,
+  permissions: {
+    ...noPermissions(),
+    ...(user.permissions ?? {}),
+  },
 });
 
 const permissionLabels: { key: PermissionKey; label: string }[] = [
@@ -385,17 +409,25 @@ const inferDateKeyFromTime = (timeLabel: string) => {
 };
 
 const formatRelativeTime = (isoDate: string) => {
-  const diffMs = Date.now() - new Date(isoDate).getTime();
-  const minutes = Math.max(1, Math.floor(diffMs / (1000 * 60)));
-  if (minutes < 60) {
-    return `${minutes} मिनट पहले`;
+  const parsed = new Date(isoDate).getTime();
+  if (Number.isNaN(parsed)) {
+    return "अभी";
   }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours} घंटे पहले`;
+  const diffMs = Date.now() - parsed;
+  if (diffMs < 60 * 1000) {
+    return "कुछ पल पहले";
   }
-  const days = Math.floor(hours / 24);
-  return `${days} दिन पहले`;
+  if (diffMs < 60 * 60 * 1000) {
+    return "कुछ मिनट पहले";
+  }
+  if (diffMs < 24 * 60 * 60 * 1000) {
+    return "कुछ घंटे पहले";
+  }
+  return new Date(parsed).toLocaleDateString("hi-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 };
 
 const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
@@ -406,9 +438,52 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   content: post.content,
   author: post.author,
   time: formatRelativeTime(post.createdAt),
+  createdAt: post.createdAt,
   clickCount: post.clickCount,
   source: "blog",
 });
+
+const getPostCreatedAtMs = (post: NewsPost) => {
+  if (post.createdAt) {
+    const parsed = new Date(post.createdAt).getTime();
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+};
+
+const getPostSortTimestamp = (post: NewsPost) => {
+  const createdAtMs = getPostCreatedAtMs(post);
+  if (createdAtMs > 0) {
+    return createdAtMs;
+  }
+  const now = Date.now();
+  if (post.time.includes("अभी") || post.time.includes("कुछ पल")) {
+    return now;
+  }
+  if (post.time.includes("आज")) {
+    return now - 60 * 60 * 1000;
+  }
+  if (post.time.includes("कल")) {
+    return now - 24 * 60 * 60 * 1000;
+  }
+  const minuteMatch = post.time.match(/(\d+)\s*मिनट/);
+  if (minuteMatch) {
+    return now - Number(minuteMatch[1]) * 60 * 1000;
+  }
+  const hourMatch = post.time.match(/(\d+)\s*घंट/);
+  if (hourMatch) {
+    return now - Number(hourMatch[1]) * 60 * 60 * 1000;
+  }
+  const dayMatch = post.time.match(/(\d+)\s*दिन/);
+  if (dayMatch) {
+    return now - Number(dayMatch[1]) * 24 * 60 * 60 * 1000;
+  }
+  return 0;
+};
+
+const normalizeCategoryName = (value: string) => value.trim().toLowerCase();
 
 const MoonIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
@@ -471,13 +546,28 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isParichayVisible, setIsParichayVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [newsVisibleCount, setNewsVisibleCount] = useState(6);
   const [blogVisibleCount, setBlogVisibleCount] = useState(4);
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
-  const [users, setUsers] = useState<UserAccount[]>(seedUsers());
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [managedCategories, setManagedCategories] = useState<string[]>([]);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const data = (await res.json()) as { users: ApiAuthUser[] };
+        setUsers(data.users.map(mapApiUserToAccount));
+      }
+    } catch (err) {}
+  };
   const [sessionEmail, setSessionEmail] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginMessage, setLoginMessage] = useState("");
@@ -511,20 +601,19 @@ export default function Home() {
     if (savedTheme) {
       setTheme(savedTheme);
     }
-    const savedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-    if (savedUsers) {
-      const parsedUsers = JSON.parse(savedUsers) as UserAccount[];
-      if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-        const hasMaster = parsedUsers.some((user) => user.role === "master" && user.email === MASTER_EMAIL);
-        setUsers(hasMaster ? parsedUsers : [...seedUsers(), ...parsedUsers]);
+    
+    fetchUsers();
+    fetch("/api/auth/me").then(res => res.json()).then(data => {
+      if (data.user) {
+        const currentUser = mapApiUserToAccount(data.user as ApiAuthUser);
+        setSessionEmail(currentUser.email);
+        setUsers((prev) => {
+          const withoutCurrent = prev.filter((item) => item.email.toLowerCase() !== currentUser.email.toLowerCase());
+          return [currentUser, ...withoutCurrent];
+        });
       }
-    } else {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(seedUsers()));
-    }
-    const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (savedSession) {
-      setSessionEmail(savedSession);
-    }
+    }).catch(() => {});
+
     const savedPostClicks = localStorage.getItem(POST_CLICKS_STORAGE_KEY);
     if (savedPostClicks) {
       const parsedClicks = JSON.parse(savedPostClicks) as Record<string, number>;
@@ -532,19 +621,21 @@ export default function Home() {
         setPostClicks(parsedClicks);
       }
     }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    if (sessionEmail) {
-      localStorage.setItem(SESSION_STORAGE_KEY, sessionEmail);
-    } else {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
+    const savedManagedCategories = localStorage.getItem(MANAGED_CATEGORIES_STORAGE_KEY);
+    if (savedManagedCategories) {
+      const parsed = JSON.parse(savedManagedCategories) as unknown;
+      if (Array.isArray(parsed)) {
+        setManagedCategories(parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0));
+      }
     }
-  }, [sessionEmail]);
+    const savedHiddenCategories = localStorage.getItem(HIDDEN_CATEGORIES_STORAGE_KEY);
+    if (savedHiddenCategories) {
+      const parsed = JSON.parse(savedHiddenCategories) as unknown;
+      if (Array.isArray(parsed)) {
+        setHiddenCategories(parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -554,6 +645,14 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(POST_CLICKS_STORAGE_KEY, JSON.stringify(postClicks));
   }, [postClicks]);
+
+  useEffect(() => {
+    localStorage.setItem(MANAGED_CATEGORIES_STORAGE_KEY, JSON.stringify(managedCategories));
+  }, [managedCategories]);
+
+  useEffect(() => {
+    localStorage.setItem(HIDDEN_CATEGORIES_STORAGE_KEY, JSON.stringify(hiddenCategories));
+  }, [hiddenCategories]);
 
   useEffect(() => {
     const update = () => {
@@ -570,6 +669,13 @@ export default function Home() {
     return () => {
       window.removeEventListener("scroll", onScroll);
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -608,7 +714,7 @@ export default function Home() {
     return currentUser.active;
   }, [currentUser]);
 
-  const canManageContributors = useMemo(() => {
+  const canManageUsers = useMemo(() => {
     if (!currentUser) {
       return false;
     }
@@ -618,6 +724,16 @@ export default function Home() {
     return currentUser.role === "admin" && currentUser.permissions.manageUsers;
   }, [currentUser]);
 
+  const canManageCategories = useMemo(() => {
+    if (!currentUser) {
+      return false;
+    }
+    if (currentUser.role === "master") {
+      return true;
+    }
+    return currentUser.role === "admin" && currentUser.permissions.manageCategories;
+  }, [currentUser]);
+
   const isMaster = currentUser?.role === "master";
 
   const filteredNews = useMemo(() => {
@@ -625,7 +741,7 @@ export default function Home() {
     const qLatin = transliterate(q);
     const qRoman = normalizeRomanized(qLatin);
     const qSkeleton = stripLatinVowels(qRoman);
-    const source = [...featuredPosts, ...allNewsPosts];
+    const source = [...blogs, ...featuredPosts, ...allNewsPosts];
     const searched = !q
       ? source
       : source.filter((post) => {
@@ -644,10 +760,18 @@ export default function Home() {
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
     const dateFiltered = selectedNewsDate
-      ? categoryFiltered.filter((post) => inferDateKeyFromTime(post.time) === selectedNewsDate)
+      ? categoryFiltered.filter((post) => {
+          if (post.createdAt) {
+            const parsed = new Date(post.createdAt);
+            if (!Number.isNaN(parsed.getTime())) {
+              return toDateKey(parsed) === selectedNewsDate;
+            }
+          }
+          return inferDateKeyFromTime(post.time) === selectedNewsDate;
+        })
       : categoryFiltered;
-    return [...dateFiltered].sort((a, b) => (postClicks[b.id] ?? 0) - (postClicks[a.id] ?? 0));
-  }, [searchTerm, selectedCategory, postClicks, selectedNewsDate]);
+    return [...dateFiltered].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
+  }, [blogs, searchTerm, selectedCategory, selectedNewsDate]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   const feedPosts = useMemo(() => filteredNews.slice(3), [filteredNews]);
@@ -660,8 +784,20 @@ export default function Home() {
     [...featuredPosts, ...allNewsPosts, ...blogs].forEach((post) => {
       set.add(post.category);
     });
-    return ["सभी", ...Array.from(set)];
-  }, [blogs]);
+    managedCategories.forEach((category) => {
+      set.add(category);
+    });
+    const hidden = new Set(hiddenCategories.map(normalizeCategoryName));
+    const sorted = Array.from(set).filter((category) => !hidden.has(normalizeCategoryName(category)));
+    return ["सभी", ...sorted];
+  }, [blogs, managedCategories, hiddenCategories]);
+
+  useEffect(() => {
+    if (!allCategories.includes(selectedCategory)) {
+      setSelectedCategory("सभी");
+    }
+  }, [allCategories, selectedCategory]);
+
   const filteredBlogs = useMemo(() => {
     const q = normalizeForSearch(searchTerm);
     const qLatin = transliterate(q);
@@ -684,7 +820,7 @@ export default function Home() {
         });
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
-    return [...categoryFiltered].sort((a, b) => (b.clickCount ?? 0) - (a.clickCount ?? 0));
+    return [...categoryFiltered].sort((a, b) => getPostCreatedAtMs(b) - getPostCreatedAtMs(a));
   }, [blogs, searchTerm, selectedCategory]);
   const visibleBlogs = useMemo(() => filteredBlogs.slice(0, blogVisibleCount), [filteredBlogs, blogVisibleCount]);
   const adminAccounts = useMemo(() => users.filter((user) => user.role === "admin"), [users]);
@@ -694,133 +830,237 @@ export default function Home() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const matchedUser = users.find(
-      (user) =>
-        user.email.toLowerCase() === loginForm.email.trim().toLowerCase() &&
-        user.password === loginForm.password.trim(),
-    );
-    if (!matchedUser) {
-      setLoginMessage("गलत ईमेल या पासवर्ड।");
-      return;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginForm.email.trim(), password: loginForm.password.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoginMessage(data.error || "गलत ईमेल या पासवर्ड।");
+        return;
+      }
+      const loggedInUser = mapApiUserToAccount(data.user as ApiAuthUser);
+      setSessionEmail(loggedInUser.email);
+      setUsers((prev) => {
+        const withoutCurrent = prev.filter((item) => item.email.toLowerCase() !== loggedInUser.email.toLowerCase());
+        return [loggedInUser, ...withoutCurrent];
+      });
+      setLoginMessage(`स्वागत है ${loggedInUser.email}`);
+      setLoginForm({ email: "", password: "" });
+      void fetchUsers();
+    } catch (err) {
+      setLoginMessage("लॉगिन विफल।");
     }
-    if (!matchedUser.active) {
-      setLoginMessage("यह खाता निष्क्रिय है।");
-      return;
-    }
-    setSessionEmail(matchedUser.email);
-    setLoginMessage(`स्वागत है ${matchedUser.email}`);
-    setLoginForm({ email: "", password: "" });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
     setSessionEmail("");
     setLoginMessage("सफलतापूर्वक लॉगआउट किया गया।");
   };
 
-  const handleAddAdmin = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isMaster) {
-      return;
-    }
+    if (!canManageUsers) return;
     if (!newAdminForm.email.trim() || !newAdminForm.password.trim()) {
       setAdminMessage("नए एडमिन के लिए ईमेल और पासवर्ड आवश्यक है।");
       return;
     }
-    const alreadyExists = users.some((user) => user.email.toLowerCase() === newAdminForm.email.trim().toLowerCase());
-    if (alreadyExists) {
-      setAdminMessage("यह ईमेल पहले से मौजूद है।");
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newAdminForm.email.trim(),
+          password: newAdminForm.password.trim(),
+          role: "ADMIN",
+          permissions: newAdminForm.permissions
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAdminMessage(data.error || "त्रुटि");
+        return;
+      }
+      setAdminMessage("नया एडमिन जोड़ा गया।");
+      setNewAdminForm({ email: "", password: "", permissions: noPermissions() });
+      void fetchUsers();
+    } catch (err) {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleRemoveAdmin = async (adminId: string) => {
+    if (!canManageUsers) {
       return;
     }
-    const freshAdmin: UserAccount = {
-      id: `admin-${Date.now()}`,
-      role: "admin",
-      email: newAdminForm.email.trim(),
-      password: newAdminForm.password.trim(),
-      active: true,
-      permissions: newAdminForm.permissions,
+    try {
+      const res = await fetch(`/api/users/${adminId}`, { method: "DELETE" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setAdminMessage(data.error || "एडमिन हटाया नहीं जा सका।");
+        return;
+      }
+      setAdminMessage("एडमिन हटाया गया।");
+      void fetchUsers();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleAdminPermissionToggle = async (adminId: string, key: PermissionKey) => {
+    if (!isMaster) {
+      return;
+    }
+    const targetAdmin = users.find((user) => user.id === adminId && user.role === "admin");
+    if (!targetAdmin) {
+      return;
+    }
+    const nextPermissions = {
+      ...targetAdmin.permissions,
+      [key]: !targetAdmin.permissions[key],
     };
-    setUsers((prev) => [...prev, freshAdmin]);
-    setAdminMessage("नया एडमिन जोड़ा गया।");
-    setNewAdminForm({ email: "", password: "", permissions: noPermissions() });
-  };
-
-  const handleRemoveAdmin = (adminId: string) => {
-    if (!isMaster) {
-      return;
+    try {
+      const res = await fetch(`/api/users/${adminId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: nextPermissions }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setAdminMessage(data.error || "परमिशन अपडेट नहीं हो सकी।");
+        return;
+      }
+      setAdminMessage("एडमिन परमिशन अपडेट हो गई।");
+      void fetchUsers();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
     }
-    setUsers((prev) => prev.filter((user) => user.id !== adminId));
   };
 
-  const handleAdminPermissionToggle = (adminId: string, key: PermissionKey) => {
-    if (!isMaster) {
-      return;
-    }
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== adminId || user.role !== "admin") {
-          return user;
-        }
-        return {
-          ...user,
-          permissions: {
-            ...user.permissions,
-            [key]: !user.permissions[key],
-          },
-        };
-      }),
-    );
-  };
-
-  const handleAddContributor = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddContributor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canManageContributors) {
-      return;
-    }
+    if (!canManageUsers) return;
     if (!newContributorForm.email.trim() || !newContributorForm.password.trim()) {
       setAdminMessage("योगदानकर्ता के लिए ईमेल और पासवर्ड आवश्यक है।");
       return;
     }
-    const alreadyExists = users.some(
-      (user) => user.email.toLowerCase() === newContributorForm.email.trim().toLowerCase(),
-    );
-    if (alreadyExists) {
-      setAdminMessage("यह ईमेल पहले से मौजूद है।");
-      return;
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newContributorForm.email.trim(),
+          password: newContributorForm.password.trim(),
+          role: "CONTRIBUTOR"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAdminMessage(data.error || "त्रुटि");
+        return;
+      }
+      setAdminMessage("अधिकृत योगदानकर्ता जोड़ा गया।");
+      setNewContributorForm({ email: "", password: "" });
+      void fetchUsers();
+    } catch (err) {
+      setAdminMessage("नेटवर्क त्रुटि");
     }
-    const contributor: UserAccount = {
-      id: `contributor-${Date.now()}`,
-      role: "contributor",
-      email: newContributorForm.email.trim(),
-      password: newContributorForm.password.trim(),
-      active: true,
-      permissions: noPermissions(),
-    };
-    setUsers((prev) => [...prev, contributor]);
-    setAdminMessage("अधिकृत योगदानकर्ता जोड़ा गया।");
-    setNewContributorForm({ email: "", password: "" });
   };
 
-  const handleToggleContributor = (contributorId: string) => {
-    if (!canManageContributors) {
+  const handleToggleContributor = async (contributorId: string) => {
+    if (!canManageUsers) {
       return;
     }
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== contributorId || user.role !== "contributor") {
-          return user;
-        }
-        return { ...user, active: !user.active };
-      }),
-    );
+    const contributor = users.find((user) => user.id === contributorId && user.role === "contributor");
+    if (!contributor) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/users/${contributorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !contributor.active }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setAdminMessage(data.error || "योगदानकर्ता स्थिति अपडेट नहीं हो सकी।");
+        return;
+      }
+      setAdminMessage("योगदानकर्ता स्थिति अपडेट हो गई।");
+      void fetchUsers();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
   };
 
-  const handleRemoveContributor = (contributorId: string) => {
-    if (!canManageContributors) {
+  const handleRemoveContributor = async (contributorId: string) => {
+    if (!canManageUsers) {
       return;
     }
-    setUsers((prev) => prev.filter((user) => user.id !== contributorId));
+    try {
+      const res = await fetch(`/api/users/${contributorId}`, { method: "DELETE" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setAdminMessage(data.error || "योगदानकर्ता हटाया नहीं जा सका।");
+        return;
+      }
+      setAdminMessage("योगदानकर्ता हटाया गया।");
+      void fetchUsers();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleAddCategory = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManageCategories) {
+      return;
+    }
+    const name = newCategoryName.trim();
+    if (!name) {
+      setAdminMessage("कैटेगरी नाम आवश्यक है।");
+      return;
+    }
+    setManagedCategories((prev) => {
+      const lowerName = normalizeCategoryName(name);
+      if (prev.some((item) => normalizeCategoryName(item) === lowerName)) {
+        return prev;
+      }
+      return [...prev, name];
+    });
+    setHiddenCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(name)));
+    setNewCategoryName("");
+    setAdminMessage("कैटेगरी जोड़ दी गई।");
+  };
+
+  const handleRemoveCategory = (category: string) => {
+    if (!canManageCategories) {
+      return;
+    }
+    if (normalizeCategoryName(category) === normalizeCategoryName("ब्लॉग")) {
+      setAdminMessage("ब्लॉग कैटेगरी हटाई नहीं जा सकती।");
+      return;
+    }
+    setManagedCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(category)));
+    setHiddenCategories((prev) => {
+      const categoryKey = normalizeCategoryName(category);
+      if (prev.some((item) => normalizeCategoryName(item) === categoryKey)) {
+        return prev;
+      }
+      return [...prev, category];
+    });
+    if (selectedCategory === category) {
+      setSelectedCategory("सभी");
+    }
+    if (formState.category === category) {
+      setFormState((prev) => ({ ...prev, category: "ब्लॉग" }));
+    }
+    setAdminMessage("कैटेगरी हटा दी गई।");
   };
 
   const handleNewsletter = (event: FormEvent<HTMLFormElement>) => {
@@ -844,11 +1084,12 @@ export default function Home() {
       return;
     }
     try {
+      const targetCategory = formState.customCategory.trim() || formState.category;
       const response = await fetch("/api/blogs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          category: formState.customCategory.trim() || formState.category,
+          category: targetCategory,
           title: formState.title,
           excerpt: formState.excerpt,
           content: formState.content,
@@ -860,6 +1101,16 @@ export default function Home() {
       }
       const data = (await response.json()) as { post: ApiBlogPost };
       setBlogs((prev) => [mapApiBlogToNewsPost(data.post), ...prev]);
+      setManagedCategories((prev) => {
+        const key = normalizeCategoryName(targetCategory);
+        if (prev.some((item) => normalizeCategoryName(item) === key)) {
+          return prev;
+        }
+        return [...prev, targetCategory];
+      });
+      setHiddenCategories((prev) =>
+        prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(targetCategory)),
+      );
       setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "", content: "" });
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
     } catch {
@@ -900,10 +1151,16 @@ export default function Home() {
     }
     setIsCategoryMenuOpen(false);
     if (value === "home") {
-      scrollToSection("top");
+      // scrollToSection("top");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     scrollToSection(value);
+  };
+
+  const handleMobileNavTabClick = (value: string) => {
+    setIsMobileNavOpen(false);
+    handleNavTabChange(value);
   };
 
   const roleText = currentUser
@@ -923,6 +1180,31 @@ export default function Home() {
       return post.clickCount ?? 0;
     }
     return postClicks[post.id] ?? 0;
+  };
+
+  const getPostTimeLabel = (post: NewsPost) => {
+    if (!post.createdAt) {
+      return post.time;
+    }
+    const parsed = new Date(post.createdAt).getTime();
+    if (Number.isNaN(parsed)) {
+      return post.time;
+    }
+    const diffMs = nowMs - parsed;
+    if (diffMs < 60 * 1000) {
+      return "कुछ पल पहले";
+    }
+    if (diffMs < 60 * 60 * 1000) {
+      return "कुछ मिनट पहले";
+    }
+    if (diffMs < 24 * 60 * 60 * 1000) {
+      return "कुछ घंटे पहले";
+    }
+    return new Date(parsed).toLocaleDateString("hi-IN", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
   };
 
   const handlePostOpen = (post: NewsPost) => {
@@ -948,9 +1230,9 @@ export default function Home() {
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
-          <span>{formatDate()}</span>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
+          <span className="shrink-0 whitespace-nowrap">{formatDate()}</span>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
               <FacebookIcon className="h-4 w-4" />
             </a>
@@ -959,10 +1241,10 @@ export default function Home() {
               <YoutubeIcon className="h-4 w-4" />
             </a>
 
-            <button type="button" className="interactive-link h-10 w-10 hover:cursor-pointer">
+            <button type="button" className="interactive-link hidden rounded-md px-2 py-1 text-xs hover:cursor-pointer sm:inline-flex">
               सदस्यता
             </button>
-            <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link px-2 py-1 text-xs sm:text-sm">
+            <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
             <button
@@ -990,7 +1272,7 @@ export default function Home() {
             }}
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-4 sm:gap-5">
+              <div className="flex items-start gap-3 sm:items-center sm:gap-5">
                 <img
                   src="/vaamki-logo.png"
                   alt="वाम की आवाज़ लोगो"
@@ -1003,7 +1285,7 @@ export default function Home() {
                     height: "calc(80px - 28px * var(--compact-progress))",
                   }}
                 />
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <p
                     className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 font-semibold text-[var(--primary)] hover:cursor-pointer"
                     style={{
@@ -1015,18 +1297,17 @@ export default function Home() {
                     विकल्प की डिजिटल दुनिया
                   </p>
                   <h1
-                    className="font-serif font-bold leading-tight text-[var(--headline)]"
+                    className="break-words font-serif font-bold leading-tight text-[var(--headline)]"
                     style={{
-                      fontSize: "calc(2.45rem - 1.05rem * var(--compact-progress))",
+                      fontSize: "calc(2rem - 0.65rem * var(--compact-progress))",
                     }}
                   >
-                    वाम की आवाज़
+                    वाम की आवाज़ (Vaam ki Aawaz)
                   </h1>
                   <p
-                    className="max-w-2xl overflow-hidden text-[var(--muted)]"
+                    className="max-w-2xl text-[var(--muted)]"
                     style={{
                       opacity: "calc(1 - var(--compact-progress))",
-                      maxHeight: "calc(48px * (1 - var(--compact-progress)))",
                       fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
                     }}
                   >
@@ -1034,9 +1315,9 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <a href="https://www.youtube.com/@VaamKiAawaz">
+              <a href="https://www.youtube.com/@VaamKiAawaz" className="w-full sm:w-auto">
                 <button
-                  className="rise-on-hover w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
+                  className="rise-on-hover w-full sm:w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
                   style={{
                     paddingLeft: "calc(20px - 4px * var(--compact-progress))",
                     paddingRight: "calc(20px - 4px * var(--compact-progress))",
@@ -1059,17 +1340,29 @@ export default function Home() {
               padding: "calc(12px - 4px * var(--compact-progress))",
             }}
           >
-            <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <Tabs
-                tabs={navTabs}
-                onTabChange={handleNavTabChange}
-                hideContent
-                containerClassName="gap-1 lg:flex-1 lg:pr-4"
-                activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
-                tabClassName="rise-on-hover border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              />
+            <div className="relative flex flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-1 pr-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileNavOpen(true)}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] lg:hidden"
+                >
+                  <Menu className="h-4 w-4" />
+                  मेनू
+                </button>
+                <div className="hidden lg:block lg:flex-1">
+                  <Tabs
+                    tabs={navTabs}
+                    onTabChange={handleNavTabChange}
+                    hideContent
+                    containerClassName="gap-1"
+                    activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
+                    tabClassName="rise-on-hover whitespace-nowrap border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  />
+                </div>
+              </div>
               {isCategoryMenuOpen && (
-                <div className="absolute left-0 top-12 z-30 w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg">
+                <div className="absolute left-0 top-12 z-30 hidden w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg lg:block">
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
@@ -1093,11 +1386,15 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto">
+              <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto lg:justify-end">
                 <GooeyInput
                   value={searchTerm}
                   onValueChange={setSearchTerm}
                   placeholder="खबरें खोजें..."
+                  className="w-auto shrink-0"
+                  collapsedWidth={92}
+                  expandedWidth={170}
+                  expandedOffset={40}
                   classNames={{
                     trigger: theme === "dark"
                       ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
@@ -1115,21 +1412,21 @@ export default function Home() {
                     setSelectedNewsDate(event.target.value);
                     setNewsVisibleCount(6);
                   }}
-                  className="h-10 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
+                  className="h-10 min-w-[132px] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
                   aria-label="Select date for news filter"
                 />
                 {selectedNewsDate && (
                   <button
                     type="button"
                     onClick={() => setSelectedNewsDate("")}
-                    className="h-10 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                    className="h-10 shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                   >
                     Reset
                   </button>
                 )}
                 <button
                   onClick={toggleTheme}
-                  className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-2 hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  className="rise-on-hover inline-flex h-10 w-10 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                   aria-label={theme === "light" ? "Night mode" : "Day mode"}
                 >
                   {theme === "light" ? <MoonIcon /> : <SunIcon />}
@@ -1137,6 +1434,50 @@ export default function Home() {
               </div>
             </div>
           </nav>
+          <AnimatePresence>
+            {isMobileNavOpen && (
+              <motion.div
+                className="fixed inset-0 z-[130] bg-black/45 lg:hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                onClick={() => setIsMobileNavOpen(false)}
+              >
+                <motion.aside
+                  className="mr-auto flex h-full w-[82%] max-w-[320px] flex-col border-r border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
+                  initial={{ x: "-100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "-100%" }}
+                  transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-4 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-[var(--headline)]">नेविगेशन</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className="rounded-md border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {navTabs.map((tab) => (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        onClick={() => handleMobileNavTabClick(tab.value)}
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-left text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                      >
+                        {tab.title}
+                      </button>
+                    ))}
+                  </div>
+                </motion.aside>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <section className="my-4 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)]">
@@ -1167,14 +1508,14 @@ export default function Home() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                   {featuredForDisplay[0].category}
                 </p>
-                <h2 className="font-serif text-3xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
+                <h2 className="font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
                   {featuredForDisplay[0].title}
                 </h2>
                 <p className="mt-3 text-base leading-7 text-[var(--muted)]">{featuredForDisplay[0].excerpt}</p>
-                <div className="mt-4 flex items-center gap-4 text-sm text-[var(--muted)]">
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
                   <span>{featuredForDisplay[0].author}</span>
                   <span>•</span>
-                  <span>{featuredForDisplay[0].time}</span>
+                  <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
                   <span>•</span>
                   <span>{getPostClicks(featuredForDisplay[0])} क्लिक</span>
                 </div>
@@ -1198,7 +1539,7 @@ export default function Home() {
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
                   <p className="mt-4 text-xs text-[var(--muted)]">
-                    {story.author} • {story.time} • {getPostClicks(story)} क्लिक
+                    {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                   </p>
                   <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                 </button>
@@ -1206,7 +1547,7 @@ export default function Home() {
             </div>
 
             <section id="latest" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ताज़ा खबरें</h3>
                 <span className="text-sm text-[var(--muted)]">
                   {selectedCategory !== "सभी" ? `${selectedCategory} • ` : ""}
@@ -1227,7 +1568,7 @@ export default function Home() {
                     <h4 className="mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
                     <p className="mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
                     <p className="mt-3 text-xs text-[var(--muted)]">
-                      {story.author} • {story.time} • {getPostClicks(story)} क्लिक
+                      {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                     </p>
                     <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                   </button>
@@ -1318,7 +1659,7 @@ export default function Home() {
         </main>
 
         <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ब्लॉग पोस्ट</h3>
             <button type="button" className="interactive-link text-sm font-semibold text-[var(--primary)]">
               ब्लॉग आर्काइव
@@ -1336,7 +1677,7 @@ export default function Home() {
                 <h4 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
                 <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
                 <p className="mt-3 text-xs text-[var(--muted)]">
-                  {post.author} • {post.time} • {getPostClicks(post)} क्लिक
+                  {post.author} • {getPostTimeLabel(post)} • {getPostClicks(post)} क्लिक
                 </p>
                 <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
               </button>
@@ -1427,7 +1768,7 @@ export default function Home() {
                 {activePost.title}
               </h2>
               <p className="mt-3 text-xs text-[var(--muted)]">
-                {activePost.author} • {activePost.time} • {getPostClicks(activePost)} क्लिक
+                {activePost.author} • {getPostTimeLabel(activePost)} • {getPostClicks(activePost)} क्लिक
               </p>
               <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)]">
                 {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
@@ -1480,7 +1821,7 @@ export default function Home() {
 
         {isAuthModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-            <div className="shadow-input relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+            <div className="shadow-input relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 md:p-7">
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(false)}
@@ -1539,7 +1880,7 @@ export default function Home() {
                         <ShieldCheck className="h-4 w-4 text-[var(--primary)]" />
                         लॉगिन: {currentUser.email}
                       </p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold">
                           {roleText}
                         </span>
@@ -1553,7 +1894,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  {isMaster && (
+                  {canManageUsers && (
                     <section className="rounded-lg border border-[var(--line)] p-4">
                       <h4 className="text-lg font-semibold text-[var(--headline)]">एडमिन सूची</h4>
                       <p className="mt-1 text-xs text-[var(--muted)]">मास्टर: {MASTER_EMAIL}</p>
@@ -1567,14 +1908,15 @@ export default function Home() {
                                   <input
                                     type="checkbox"
                                     checked={admin.permissions[perm.key]}
-                                    onChange={() => handleAdminPermissionToggle(admin.id, perm.key)}
+                                    disabled={!isMaster}
+                                    onChange={() => void handleAdminPermissionToggle(admin.id, perm.key)}
                                   />
                                   {perm.label}
                                 </label>
                               ))}
                             </div>
                             <button
-                              onClick={() => handleRemoveAdmin(admin.id)}
+                              onClick={() => void handleRemoveAdmin(admin.id)}
                               className="rise-on-hover mt-3 rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
                             >
                               Remove Admin
@@ -1603,6 +1945,7 @@ export default function Home() {
                               <input
                                 type="checkbox"
                                 checked={newAdminForm.permissions[perm.key]}
+                                disabled={!isMaster}
                                 onChange={() =>
                                   setNewAdminForm((prev) => ({
                                     ...prev,
@@ -1620,10 +1963,50 @@ export default function Home() {
                         <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                           Add Admin
                         </button>
+                        {!isMaster && (
+                          <p className="text-xs text-[var(--muted)]">
+                            एडमिन परमिशन संशोधन केवल मास्टर एडमिन कर सकता है।
+                          </p>
+                        )}
                       </form>
                     </section>
                   )}
-                  {canManageContributors && (
+                  {canManageCategories && (
+                    <section className="rounded-lg border border-[var(--line)] p-4">
+                      <h4 className="text-lg font-semibold text-[var(--headline)]">कैटेगरी नियंत्रण</h4>
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {allCategories
+                          .filter((category) => category !== "सभी")
+                          .map((category) => (
+                            <div
+                              key={category}
+                              className="flex items-center justify-between rounded-md border border-[var(--line)] px-3 py-2"
+                            >
+                              <span className="text-sm text-[var(--headline)]">{category}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCategory(category)}
+                                className="rise-on-hover rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                      <form onSubmit={handleAddCategory} className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          value={newCategoryName}
+                          onChange={(event) => setNewCategoryName(event.target.value)}
+                          placeholder="नई कैटेगरी नाम"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                          Add Category
+                        </button>
+                      </form>
+                    </section>
+                  )}
+                  {canManageUsers && (
                     <section className="rounded-lg border border-[var(--line)] p-4">
                       <h4 className="text-lg font-semibold text-[var(--headline)]">अधिकृत योगदानकर्ता</h4>
                       <div className="mt-3 space-y-2">
@@ -1631,15 +2014,15 @@ export default function Home() {
                           <div key={contributor.id} className="rounded-md border border-[var(--line)] p-3">
                             <p className="text-sm font-semibold text-[var(--headline)]">{contributor.email}</p>
                             <p className="text-xs text-[var(--muted)]">{contributor.active ? "सक्रिय" : "निष्क्रिय"}</p>
-                            <div className="mt-2 flex gap-2">
+                            <div className="mt-2 flex flex-wrap gap-2">
                               <button
-                                onClick={() => handleToggleContributor(contributor.id)}
+                                onClick={() => void handleToggleContributor(contributor.id)}
                                 className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
                               >
                                 {contributor.active ? "Disable" : "Enable"}
                               </button>
                               <button
-                                onClick={() => handleRemoveContributor(contributor.id)}
+                                onClick={() => void handleRemoveContributor(contributor.id)}
                                 className="rise-on-hover rounded-md border border-[var(--line)] px-3 py-1 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)]"
                               >
                                 Remove
@@ -1686,7 +2069,7 @@ export default function Home() {
         <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <button type="button" className="interactive-link">
                 संपादकीय नीति
               </button>

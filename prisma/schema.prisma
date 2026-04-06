@@ -18,3 +18,20 @@ model BlogPost {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
+
+enum Role {
+  MASTER_ADMIN
+  ADMIN
+  CONTRIBUTOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CONTRIBUTOR)
+  active       Boolean  @default(true)
+  permissions  Json?    // Stores permissions object
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
