@@ -10,9 +10,9 @@ datasource db {
 model BlogPost {
   id         String   @id @default(cuid())
   category   String
-  title      String
-  excerpt    String
-  content    String
+  title      String   @db.Text
+  excerpt    String   @db.Text
+  content    String   @db.LongText
   author     String
   clickCount Int      @default(0)
   createdAt  DateTime @default(now())

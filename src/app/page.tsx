@@ -414,6 +414,9 @@ const formatRelativeTime = (isoDate: string) => {
     return "अभी";
   }
   const diffMs = Date.now() - parsed;
+  if (diffMs <= 20 * 1000) {
+    return "अभी";
+  }
   if (diffMs < 60 * 1000) {
     return "कुछ पल पहले";
   }
@@ -459,8 +462,11 @@ const getPostSortTimestamp = (post: NewsPost) => {
     return createdAtMs;
   }
   const now = Date.now();
-  if (post.time.includes("अभी") || post.time.includes("कुछ पल")) {
-    return now;
+  if (post.time.includes("अभी")) {
+    return now - 30 * 1000;
+  }
+  if (post.time.includes("कुछ पल")) {
+    return now - 60 * 1000;
   }
   if (post.time.includes("आज")) {
     return now - 60 * 60 * 1000;
@@ -587,6 +593,7 @@ export default function Home() {
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
   const [activePost, setActivePost] = useState<NewsPost | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
+  const categoryMenuRef = useRef<HTMLDivElement | null>(null);
   const [formState, setFormState] = useState({
     title: "",
     author: "",
@@ -674,9 +681,31 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 30_000);
+    }, 5_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isCategoryMenuOpen) {
+      return;
+    }
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (categoryMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsCategoryMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [isCategoryMenuOpen]);
 
   useEffect(() => {
     const loadBlogs = async () => {
@@ -732,6 +761,15 @@ export default function Home() {
       return true;
     }
     return currentUser.role === "admin" && currentUser.permissions.manageCategories;
+  }, [currentUser]);
+  const canRemoveArticle = useMemo(() => {
+    if (!currentUser) {
+      return false;
+    }
+    if (currentUser.role === "master") {
+      return true;
+    }
+    return currentUser.role === "admin" && currentUser.permissions.publishBlog && currentUser.permissions.manageHomepage;
   }, [currentUser]);
 
   const isMaster = currentUser?.role === "master";
@@ -1085,22 +1123,35 @@ export default function Home() {
     }
     try {
       const targetCategory = formState.customCategory.trim() || formState.category;
+      const submittedTitle = formState.title.trim();
+      const submittedExcerpt = formState.excerpt.trim();
+      const submittedContent = formState.content.trim();
+      const submittedAuthor = formState.author.trim();
       const response = await fetch("/api/blogs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: targetCategory,
-          title: formState.title,
-          excerpt: formState.excerpt,
-          content: formState.content,
-          author: formState.author,
+          title: submittedTitle,
+          excerpt: submittedExcerpt,
+          content: submittedContent,
+          author: submittedAuthor,
         }),
       });
       if (!response.ok) {
         throw new Error("Unable to publish");
       }
       const data = (await response.json()) as { post: ApiBlogPost };
-      setBlogs((prev) => [mapApiBlogToNewsPost(data.post), ...prev]);
+      const justPublishedPost: NewsPost = {
+        ...mapApiBlogToNewsPost(data.post),
+        title: submittedTitle,
+        excerpt: submittedExcerpt,
+        content: submittedContent,
+        author: submittedAuthor,
+        createdAt: new Date().toISOString(),
+        time: "अभी",
+      };
+      setBlogs((prev) => [justPublishedPost, ...prev]);
       setManagedCategories((prev) => {
         const key = normalizeCategoryName(targetCategory);
         if (prev.some((item) => normalizeCategoryName(item) === key)) {
@@ -1115,6 +1166,30 @@ export default function Home() {
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
     } catch {
       setBlogMessage("पोस्ट सेव नहीं हो सकी। कृपया दोबारा प्रयास करें।");
+    }
+  };
+
+  const handleDeleteArticle = async (post: NewsPost) => {
+    if (!canRemoveArticle) {
+      setBlogMessage("इस पोस्ट को हटाने की अनुमति नहीं है।");
+      return;
+    }
+    if (post.source !== "blog") {
+      setBlogMessage("केवल प्रकाशित ब्लॉग पोस्ट हटाई जा सकती हैं।");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/blogs/${post.id}`, { method: "DELETE" });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setBlogMessage(data.error || "पोस्ट हटाई नहीं जा सकी।");
+        return;
+      }
+      setBlogs((prev) => prev.filter((item) => item.id !== post.id));
+      setActivePost((prev) => (prev?.id === post.id ? null : prev));
+      setBlogMessage("पोस्ट हटा दी गई।");
+    } catch {
+      setBlogMessage("पोस्ट हटाई नहीं जा सकी।");
     }
   };
 
@@ -1159,6 +1234,11 @@ export default function Home() {
   };
 
   const handleMobileNavTabClick = (value: string) => {
+    if (value === "categories") {
+      setIsCategoryMenuOpen((prev) => !prev);
+      return;
+    }
+    setIsCategoryMenuOpen(false);
     setIsMobileNavOpen(false);
     handleNavTabChange(value);
   };
@@ -1191,6 +1271,9 @@ export default function Home() {
       return post.time;
     }
     const diffMs = nowMs - parsed;
+    if (diffMs <= 20 * 1000) {
+      return "अभी";
+    }
     if (diffMs < 60 * 1000) {
       return "कुछ पल पहले";
     }
@@ -1271,7 +1354,7 @@ export default function Home() {
               paddingBottom: "calc(28px - 16px * var(--compact-progress))",
             }}
           >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 px-1 sm:gap-4 sm:px-2 lg:flex-row lg:items-center lg:justify-between lg:px-0">
               <div className="flex items-start gap-3 sm:items-center sm:gap-5">
                 <img
                   src="/vaamki-logo.png"
@@ -1305,7 +1388,7 @@ export default function Home() {
                     वाम की आवाज़ (Vaam ki Aawaz)
                   </h1>
                   <p
-                    className="max-w-2xl text-[var(--muted)]"
+                    className="hidden max-w-2xl text-[var(--muted)] sm:block"
                     style={{
                       opacity: "calc(1 - var(--compact-progress))",
                       fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
@@ -1315,7 +1398,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <a href="https://www.youtube.com/@VaamKiAawaz" className="w-full sm:w-auto">
+              <a href="https://www.youtube.com/@VaamKiAawaz" className="mt-1 w-full px-1 sm:mt-0 sm:w-auto sm:px-0">
                 <button
                   className="rise-on-hover w-full sm:w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
                   style={{
@@ -1333,19 +1416,19 @@ export default function Home() {
           </header>
 
           <nav
-            className="rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-md"
+            className="mx-1 rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-md sm:mx-0"
             style={{
               marginTop: "calc(16px - 8px * var(--compact-progress))",
               marginBottom: "calc(16px - 8px * var(--compact-progress))",
               padding: "calc(12px - 4px * var(--compact-progress))",
             }}
           >
-            <div className="relative flex flex-row items-center justify-between gap-2">
+            <div className="relative flex flex-row items-center justify-between gap-2 px-1 sm:px-0">
               <div className="flex items-center gap-2 flex-1 pr-2">
                 <button
                   type="button"
                   onClick={() => setIsMobileNavOpen(true)}
-                  className="inline-flex h-10 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] lg:hidden"
+                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)] lg:hidden"
                 >
                   <Menu className="h-4 w-4" />
                   मेनू
@@ -1362,7 +1445,10 @@ export default function Home() {
                 </div>
               </div>
               {isCategoryMenuOpen && (
-                <div className="absolute left-0 top-12 z-30 hidden w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg lg:block">
+                <div
+                  ref={categoryMenuRef}
+                  className="absolute left-0 top-12 z-30 hidden w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg lg:block"
+                >
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
@@ -1386,25 +1472,27 @@ export default function Home() {
                   </div>
                 </div>
               )}
-              <div className="ml-auto flex w-full items-center justify-end gap-2 lg:w-auto lg:justify-end">
-                <GooeyInput
-                  value={searchTerm}
-                  onValueChange={setSearchTerm}
-                  placeholder="खबरें खोजें..."
-                  className="w-auto shrink-0"
-                  collapsedWidth={92}
-                  expandedWidth={170}
-                  expandedOffset={40}
-                  classNames={{
-                    trigger: theme === "dark"
-                      ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
-                      : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
+              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 pr-1 sm:pr-0 lg:w-auto lg:flex-none lg:justify-end">
+                <div className="hidden md:block">
+                  <GooeyInput
+                    value={searchTerm}
+                    onValueChange={setSearchTerm}
+                    placeholder="खबरें खोजें..."
+                    className="w-auto shrink"
+                    collapsedWidth={92}
+                    expandedWidth={170}
+                    expandedOffset={40}
+                    classNames={{
+                      trigger: theme === "dark"
+                        ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
 
-                    bubbleSurface: theme === "dark"
-                      ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
-                      : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
-                  }}
-                />
+                      bubbleSurface: theme === "dark"
+                        ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
+                    }}
+                  />
+                </div>
                 <input
                   type="date"
                   value={selectedNewsDate}
@@ -1412,7 +1500,7 @@ export default function Home() {
                     setSelectedNewsDate(event.target.value);
                     setNewsVisibleCount(6);
                   }}
-                  className="h-10 min-w-[132px] shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
+                  className="h-10 w-[110px] shrink rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)] sm:min-w-[132px]"
                   aria-label="Select date for news filter"
                 />
                 {selectedNewsDate && (
@@ -1426,7 +1514,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={toggleTheme}
-                  className="rise-on-hover inline-flex h-10 w-10 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  className="rise-on-hover inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                   aria-label={theme === "light" ? "Night mode" : "Day mode"}
                 >
                   {theme === "light" ? <MoonIcon /> : <SunIcon />}
@@ -1445,7 +1533,7 @@ export default function Home() {
                 onClick={() => setIsMobileNavOpen(false)}
               >
                 <motion.aside
-                  className="mr-auto flex h-full w-[82%] max-w-[320px] flex-col border-r border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
+                  className="mr-auto flex h-full w-[82%] max-w-[320px] flex-col overflow-y-auto overscroll-y-auto border-r border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
                   initial={{ x: "-100%" }}
                   animate={{ x: 0 }}
                   exit={{ x: "-100%" }}
@@ -1462,6 +1550,15 @@ export default function Home() {
                       <X className="h-4 w-4" />
                     </button>
                   </div>
+                  <div className="mb-4">
+                    <input
+                      type="search"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="खबरें खोजें..."
+                      className="h-10 w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
+                    />
+                  </div>
                   <div className="space-y-2">
                     {navTabs.map((tab) => (
                       <button
@@ -1474,6 +1571,34 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+                  {isCategoryMenuOpen && (
+                    <div className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">कैटेगरी</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
+                          <button
+                            key={`mobile-${category}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(category);
+                              setNewsVisibleCount(6);
+                              setBlogVisibleCount(4);
+                              setIsCategoryMenuOpen(false);
+                              setIsMobileNavOpen(false);
+                              scrollToSection("latest");
+                            }}
+                            className={`rounded-md border px-3 py-2 text-left text-sm ${
+                              selectedCategory === category
+                                ? "border-[var(--primary)] text-[var(--primary)]"
+                                : "border-[var(--line)] text-[var(--foreground)]"
+                            }`}
+                          >
+                            {category}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </motion.aside>
               </motion.div>
             )}
@@ -1756,6 +1881,15 @@ export default function Home() {
         {activePost && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              {canRemoveArticle && activePost.source === "blog" && (
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteArticle(activePost)}
+                  className="absolute right-20 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--primary)] hover:border-[var(--primary)]"
+                >
+                  Remove
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setActivePost(null)}
