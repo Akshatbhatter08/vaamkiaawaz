@@ -7,6 +7,7 @@ type AuthorRecord = {
 };
 
 const normalizeAuthorName = (name: string) => name.trim().toLowerCase();
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
 
 export async function GET() {
   try {
@@ -23,15 +24,16 @@ export async function GET() {
 
     users.forEach((user) => {
       const permissions = (user.permissions ?? {}) as Record<string, unknown>;
+      const canUseMasterAdminAsAuthor = user.role === "MASTER_ADMIN";
       const canUseAdminAsAuthor = user.role === "ADMIN" && permissions.publishBlog === true;
       const canUseContributorAsAuthor = user.role === "CONTRIBUTOR";
 
-      if (!canUseAdminAsAuthor && !canUseContributorAsAuthor) {
+      if (!canUseMasterAdminAsAuthor && !canUseAdminAsAuthor && !canUseContributorAsAuthor) {
         return;
       }
 
-      const fallbackName = typeof user.email === "string" ? user.email.trim() : "";
-      const rawName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : fallbackName;
+      const storedName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
+      const rawName = storedName || (canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "");
       if (!rawName) {
         return;
       }

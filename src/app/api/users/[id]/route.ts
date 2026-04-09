@@ -76,16 +76,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: "Target user not found." }, { status: 404 });
   }
 
-  if (target.role === "MASTER_ADMIN") {
-    return NextResponse.json({ error: "Master admin cannot be modified." }, { status: 403 });
-  }
-
   const body = (await request.json()) as {
     permissions?: unknown;
     active?: boolean;
+    authorName?: unknown;
+    authorImage?: unknown;
   };
 
-  const data: { permissions?: Record<PermissionKey, boolean>; active?: boolean } = {};
+  const data: { permissions?: Record<string, unknown>; active?: boolean } = {};
+
+  const isSelfMasterAdminUpdate = target.role === "MASTER_ADMIN" && requester.id === target.id;
+  if (target.role === "MASTER_ADMIN" && !isSelfMasterAdminUpdate) {
+    return NextResponse.json({ error: "Master admin cannot be modified." }, { status: 403 });
+  }
 
   if (body.permissions !== undefined) {
     if (requester.role !== "MASTER_ADMIN" || target.role !== "ADMIN") {
@@ -96,6 +99,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...sanitizePermissions(body.permissions),
       ...(authorProfile.authorName ? { authorName: authorProfile.authorName } : {}),
       ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
+    };
+  }
+
+  if (body.authorName !== undefined || body.authorImage !== undefined) {
+    if (!isSelfMasterAdminUpdate) {
+      return NextResponse.json({ error: "Only master admin can update own author profile." }, { status: 403 });
+    }
+    const nextAuthorName = typeof body.authorName === "string" ? body.authorName.trim() : "";
+    const nextAuthorImage = typeof body.authorImage === "string" ? body.authorImage.trim() : "";
+    if (!nextAuthorName) {
+      return NextResponse.json({ error: "लेखक नाम आवश्यक है।" }, { status: 400 });
+    }
+    if (!nextAuthorImage) {
+      return NextResponse.json({ error: "लेखक फोटो आवश्यक है।" }, { status: 400 });
+    }
+    if (!nextAuthorImage.startsWith("data:image/")) {
+      return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
+    }
+    const basePermissions = ((data.permissions ?? target.permissions ?? {}) as Record<string, unknown>) ?? {};
+    data.permissions = {
+      ...basePermissions,
+      authorName: nextAuthorName,
+      authorImage: nextAuthorImage,
     };
   }
 

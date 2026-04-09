@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
+
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
@@ -24,6 +26,9 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         role: "MASTER_ADMIN",
+        permissions: {
+          authorName: MASTER_ADMIN_AUTHOR_NAME,
+        },
       }
     });
 

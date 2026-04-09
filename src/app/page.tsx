@@ -72,6 +72,7 @@ type UserAccount = {
 
 const MASTER_EMAIL = "lordbuddha.mailing@gmail.com";
 const MASTER_PASSWORD = "@Keshava95";
+const MASTER_AUTHOR_NAME = "केशव कुमार भट्टर";
 const USERS_STORAGE_KEY = "vaamki-aawaz-users";
 const SESSION_STORAGE_KEY = "vaamki-aawaz-session";
 const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
@@ -651,6 +652,10 @@ export default function Home() {
     authorName: "",
     authorImage: "",
   });
+  const [masterAuthorForm, setMasterAuthorForm] = useState({
+    authorName: MASTER_AUTHOR_NAME,
+    authorImage: "",
+  });
   const [availableAuthors, setAvailableAuthors] = useState<AuthorProfile[]>([]);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
@@ -829,6 +834,16 @@ export default function Home() {
     () => users.find((user) => user.email.toLowerCase() === sessionEmail.toLowerCase()),
     [sessionEmail, users],
   );
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "master") {
+      return;
+    }
+    setMasterAuthorForm({
+      authorName: currentUser.authorName.trim() || MASTER_AUTHOR_NAME,
+      authorImage: currentUser.authorImage?.trim() || "",
+    });
+  }, [currentUser]);
 
   const canPublishBlog = useMemo(() => {
     if (!currentUser) {
@@ -1188,6 +1203,40 @@ export default function Home() {
     }
   };
 
+  const handleSaveMasterAuthorProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!currentUser || currentUser.role !== "master") {
+      return;
+    }
+    const authorName = masterAuthorForm.authorName.trim();
+    const authorImage = masterAuthorForm.authorImage.trim();
+    if (!authorName) {
+      setAdminMessage("मास्टर एडमिन के लिए लेखक नाम आवश्यक है।");
+      return;
+    }
+    if (!authorImage) {
+      setAdminMessage("मास्टर एडमिन के लिए लेखक फोटो आवश्यक है।");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/users/${currentUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authorName, authorImage }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setAdminMessage(data.error || "मास्टर लेखक प्रोफ़ाइल अपडेट नहीं हो सकी।");
+        return;
+      }
+      setAdminMessage("मास्टर एडमिन लेखक प्रोफ़ाइल अपडेट हो गई।");
+      void fetchUsers();
+      void fetchAuthors();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
   const handleAddCategory = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageCategories) {
@@ -1391,14 +1440,16 @@ export default function Home() {
 
   const handleUserAuthorImageInputChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    target: "admin" | "contributor",
+    target: "admin" | "contributor" | "master",
   ) => {
     const file = event.target.files?.[0];
     if (!file) {
       if (target === "admin") {
         setNewAdminForm((prev) => ({ ...prev, authorImage: "" }));
-      } else {
+      } else if (target === "contributor") {
         setNewContributorForm((prev) => ({ ...prev, authorImage: "" }));
+      } else {
+        setMasterAuthorForm((prev) => ({ ...prev, authorImage: "" }));
       }
       return;
     }
@@ -1410,8 +1461,10 @@ export default function Home() {
       const encoded = await readImageAsDataUrl(file);
       if (target === "admin") {
         setNewAdminForm((prev) => ({ ...prev, authorImage: encoded }));
-      } else {
+      } else if (target === "contributor") {
         setNewContributorForm((prev) => ({ ...prev, authorImage: encoded }));
+      } else {
+        setMasterAuthorForm((prev) => ({ ...prev, authorImage: encoded }));
       }
     } catch {
       setAdminMessage("फोटो अपलोड नहीं हो सकी।");
@@ -2324,6 +2377,40 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                  {isMaster && (
+                    <section className="rounded-lg border border-[var(--line)] p-4">
+                      <h4 className="text-lg font-semibold text-[var(--headline)]">मास्टर एडमिन लेखक प्रोफ़ाइल</h4>
+                      <form onSubmit={handleSaveMasterAuthorProfile} className="mt-3 space-y-2">
+                        <input
+                          value={masterAuthorForm.authorName}
+                          onChange={(event) =>
+                            setMasterAuthorForm((prev) => ({ ...prev, authorName: event.target.value }))
+                          }
+                          placeholder="लेखक नाम"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+                          लेखक फोटो
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => void handleUserAuthorImageInputChange(event, "master")}
+                            className="w-full text-xs"
+                          />
+                        </label>
+                        {masterAuthorForm.authorImage && (
+                          <img
+                            src={masterAuthorForm.authorImage}
+                            alt={masterAuthorForm.authorName || "Master author"}
+                            className="h-16 w-16 rounded-full object-cover"
+                          />
+                        )}
+                        <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                          प्रोफ़ाइल अपडेट करें
+                        </button>
+                      </form>
+                    </section>
+                  )}
                   {canManageUsers && (
                     <section className="rounded-lg border border-[var(--line)] p-4">
                       <h4 className="text-lg font-semibold text-[var(--headline)]">एडमिन सूची</h4>

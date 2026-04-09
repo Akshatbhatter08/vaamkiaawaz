@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/password";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
 
 const sanitizePermissions = (input: unknown) =>
   permissionKeys.reduce<Record<PermissionKey, boolean>>(
@@ -114,7 +115,10 @@ export async function POST(request: NextRequest) {
               authorName: normalizedAuthorName,
               authorImage: normalizedAuthorImage,
             }
-          : undefined;
+          : {
+              authorName: normalizedAuthorName || MASTER_ADMIN_AUTHOR_NAME,
+              ...(normalizedAuthorImage ? { authorImage: normalizedAuthorImage } : {}),
+            };
 
     const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
