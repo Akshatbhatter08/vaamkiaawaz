@@ -1343,6 +1343,7 @@ export default function Home() {
       const submittedAuthorImage = selectedAuthorProfile.image?.trim() ?? "";
       const response = await fetch("/api/blogs", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: targetCategory,
