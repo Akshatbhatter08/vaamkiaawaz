@@ -24,13 +24,14 @@ export async function GET() {
     users.forEach((user) => {
       const permissions = (user.permissions ?? {}) as Record<string, unknown>;
       const canUseAdminAsAuthor = user.role === "ADMIN" && permissions.publishBlog === true;
-      const canUseContributorAsAuthor = user.role === "CONTRIBUTOR" && user.active;
+      const canUseContributorAsAuthor = user.role === "CONTRIBUTOR";
 
       if (!canUseAdminAsAuthor && !canUseContributorAsAuthor) {
         return;
       }
 
-      const rawName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
+      const fallbackName = typeof user.email === "string" ? user.email.trim() : "";
+      const rawName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : fallbackName;
       if (!rawName) {
         return;
       }
@@ -45,7 +46,9 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ authors: Array.from(authorMap.values()) });
+    return NextResponse.json({
+      authors: Array.from(authorMap.values()).sort((a, b) => a.name.localeCompare(b.name, "hi")),
+    });
   } catch {
     return NextResponse.json({ error: "लेखक सूची लोड नहीं हो सकी।" }, { status: 500 });
   }

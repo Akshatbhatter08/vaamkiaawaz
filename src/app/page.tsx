@@ -1530,7 +1530,7 @@ export default function Home() {
 
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
-      <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
         <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span className="shrink-0 whitespace-nowrap">{formatDate()}</span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
