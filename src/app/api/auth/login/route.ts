@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signToken } from "@/lib/auth";
 import { verifyPassword } from "@/lib/password";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
 
@@ -45,10 +45,15 @@ export async function POST(request: Request) {
       { status: 200 },
     );
 
+    const requestUrl = new URL(request.url);
+    const isHttps = requestUrl.protocol === "https:";
+    const isLocalhost = requestUrl.hostname === "localhost" || requestUrl.hostname === "127.0.0.1";
+    const shouldUseSecureCookie = process.env.NODE_ENV === "production" && isHttps && !isLocalhost;
+
     response.cookies.set("auth_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: shouldUseSecureCookie,
+      sameSite: "lax",
       maxAge: 60 * 60 * 24, // 1 day
       path: "/",
     });

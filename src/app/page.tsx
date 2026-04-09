@@ -79,6 +79,14 @@ const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
 const POST_CLICKS_STORAGE_KEY = "vaamki-aawaz-post-clicks";
 const MANAGED_CATEGORIES_STORAGE_KEY = "vaamki-aawaz-managed-categories";
 const HIDDEN_CATEGORIES_STORAGE_KEY = "vaamki-aawaz-hidden-categories";
+const DEFAULT_CATEGORIES = ["साहित्य-संस्कृति", "अतिथि लेखन"] as const;
+const CATEGORY_LABEL_MAP: Record<string, string> = {
+  "महिला मुद्दे": "आधी आबादी",
+};
+const normalizeCategoryLabel = (value: string) => {
+  const normalizedValue = value.trim();
+  return CATEGORY_LABEL_MAP[normalizedValue] ?? normalizedValue;
+};
 
 const allPermissionsEnabled = (): Permissions => ({
   manageHomepage: true,
@@ -200,7 +208,7 @@ const allNewsPosts: NewsPost[] = [
   },
   {
     id: "ln3",
-    category: "महिला मुद्दे",
+    category: "आधी आबादी",
     title: "महिला श्रमिकों की सुरक्षा और समान वेतन पर राष्ट्रीय सम्मेलन में 18 प्रस्ताव पारित",
     excerpt: "अनौपचारिक क्षेत्र की महिलाओं के लिए सामाजिक सुरक्षा कोष की मांग प्रमुख रही।",
     author: "महिला डेस्क",
@@ -240,7 +248,7 @@ const allNewsPosts: NewsPost[] = [
   },
   {
     id: "ln8",
-    category: "महिला मुद्दे",
+    category: "आधी आबादी",
     title: "कार्यस्थल पर लैंगिक सुरक्षा कानून के क्रियान्वयन पर राष्ट्रीय ऑडिट रिपोर्ट जारी",
     excerpt: "अनौपचारिक क्षेत्र में शिकायत निवारण तंत्र कमजोर होने की बात प्रमुख रूप से सामने आई।",
     author: "महिला डेस्क",
@@ -472,7 +480,7 @@ const formatRelativeTime = (isoDate: string) => {
 
 const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   id: post.id,
-  category: post.category,
+  category: normalizeCategoryLabel(post.category),
   title: post.title,
   excerpt: post.excerpt,
   content: post.content,
@@ -601,7 +609,7 @@ export default function Home() {
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
   const [nowMs, setNowMs] = useState(Date.now());
   const [users, setUsers] = useState<UserAccount[]>([]);
-  const [managedCategories, setManagedCategories] = useState<string[]>([]);
+  const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -708,14 +716,21 @@ export default function Home() {
     if (savedManagedCategories) {
       const parsed = JSON.parse(savedManagedCategories) as unknown;
       if (Array.isArray(parsed)) {
-        setManagedCategories(parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0));
+        const sanitized = parsed
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .map((item) => normalizeCategoryLabel(item));
+        setManagedCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...sanitized])));
       }
     }
     const savedHiddenCategories = localStorage.getItem(HIDDEN_CATEGORIES_STORAGE_KEY);
     if (savedHiddenCategories) {
       const parsed = JSON.parse(savedHiddenCategories) as unknown;
       if (Array.isArray(parsed)) {
-        setHiddenCategories(parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0));
+        setHiddenCategories(
+          parsed
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .map((item) => normalizeCategoryLabel(item)),
+        );
       }
     }
   }, []);
@@ -938,10 +953,13 @@ export default function Home() {
   const allCategories = useMemo(() => {
     const set = new Set<string>();
     [...featuredPosts, ...allNewsPosts, ...blogs].forEach((post) => {
-      set.add(post.category);
+      set.add(normalizeCategoryLabel(post.category));
+    });
+    DEFAULT_CATEGORIES.forEach((category) => {
+      set.add(category);
     });
     managedCategories.forEach((category) => {
-      set.add(category);
+      set.add(normalizeCategoryLabel(category));
     });
     const hidden = new Set(hiddenCategories.map(normalizeCategoryName));
     const sorted = Array.from(set).filter((category) => !hidden.has(normalizeCategoryName(category)));
@@ -1000,6 +1018,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: loginForm.email.trim(), password: loginForm.password.trim() }),
       });
@@ -1023,7 +1042,7 @@ export default function Home() {
   };
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     setSessionEmail("");
     setLoginMessage("सफलतापूर्वक लॉगआउट किया गया।");
   };
@@ -1046,6 +1065,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: newAdminForm.email.trim(),
@@ -1075,7 +1095,7 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch(`/api/users/${adminId}`, { method: "DELETE" });
+      const res = await fetch(`/api/users/${adminId}`, { method: "DELETE", credentials: "include" });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setAdminMessage(data.error || "एडमिन हटाया नहीं जा सका।");
@@ -1104,6 +1124,7 @@ export default function Home() {
     try {
       const res = await fetch(`/api/users/${adminId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ permissions: nextPermissions }),
       });
@@ -1134,6 +1155,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: newContributorForm.email.trim(),
@@ -1168,6 +1190,7 @@ export default function Home() {
     try {
       const res = await fetch(`/api/users/${contributorId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !contributor.active }),
       });
@@ -1189,7 +1212,7 @@ export default function Home() {
       return;
     }
     try {
-      const res = await fetch(`/api/users/${contributorId}`, { method: "DELETE" });
+      const res = await fetch(`/api/users/${contributorId}`, { method: "DELETE", credentials: "include" });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setAdminMessage(data.error || "योगदानकर्ता हटाया नहीं जा सका।");
@@ -1221,6 +1244,7 @@ export default function Home() {
     try {
       const response = await fetch(`/api/users/${currentUser.id}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ authorName, authorImage }),
       });
