@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
@@ -29,6 +30,13 @@ const extractAuthorProfile = (input: unknown) => {
     authorName,
     authorImage,
   };
+};
+
+const extractPermissionsObject = (input: unknown): Record<string, unknown> => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
+  return input as Record<string, unknown>;
 };
 
 const getRequester = async (request: NextRequest) => {
@@ -83,7 +91,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     authorImage?: unknown;
   };
 
-  const data: { permissions?: Record<string, unknown>; active?: boolean } = {};
+  const data: Prisma.UserUpdateInput = {};
 
   const isSelfMasterAdminUpdate = target.role === "MASTER_ADMIN" && requester.id === target.id;
   if (target.role === "MASTER_ADMIN" && !isSelfMasterAdminUpdate) {
@@ -99,7 +107,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...sanitizePermissions(body.permissions),
       ...(authorProfile.authorName ? { authorName: authorProfile.authorName } : {}),
       ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
-    };
+    } as Prisma.InputJsonValue;
   }
 
   if (body.authorName !== undefined || body.authorImage !== undefined) {
@@ -117,12 +125,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!nextAuthorImage.startsWith("data:image/")) {
       return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
-    const basePermissions = ((data.permissions ?? target.permissions ?? {}) as Record<string, unknown>) ?? {};
+    const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});
     data.permissions = {
       ...basePermissions,
       authorName: nextAuthorName,
       authorImage: nextAuthorImage,
-    };
+    } as Prisma.InputJsonValue;
   }
 
   if (body.active !== undefined) {
