@@ -3,6 +3,7 @@
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, LogOut, Menu, ShieldCheck, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 
@@ -13,6 +14,8 @@ type NewsPost = {
   excerpt: string;
   content?: string;
   author: string;
+  postImage?: string | null;
+  authorImage?: string | null;
   time: string;
   createdAt?: string;
   clickCount?: number;
@@ -26,6 +29,8 @@ type ApiBlogPost = {
   excerpt: string;
   content: string;
   author: string;
+  postImage: string | null;
+  authorImage: string | null;
   clickCount: number;
   createdAt: string;
 };
@@ -35,7 +40,12 @@ type ApiAuthUser = {
   email: string;
   role: "MASTER_ADMIN" | "ADMIN" | "CONTRIBUTOR";
   active?: boolean;
-  permissions?: Partial<Permissions> | null;
+  permissions?: Record<string, unknown> | null;
+};
+
+type AuthorProfile = {
+  name: string;
+  image: string | null;
 };
 
 type Role = "master" | "admin" | "contributor";
@@ -56,6 +66,8 @@ type UserAccount = {
   password: string;
   active: boolean;
   permissions: Permissions;
+  authorName: string;
+  authorImage: string | null;
 };
 
 const MASTER_EMAIL = "lordbuddha.mailing@gmail.com";
@@ -83,17 +95,39 @@ const noPermissions = (): Permissions => ({
   manageUsers: false,
 });
 
-const mapApiUserToAccount = (user: ApiAuthUser): UserAccount => ({
-  id: user.id,
-  role: user.role === "MASTER_ADMIN" ? "master" : user.role === "ADMIN" ? "admin" : "contributor",
-  email: user.email,
-  password: "",
-  active: user.active ?? true,
-  permissions: {
-    ...noPermissions(),
-    ...(user.permissions ?? {}),
-  },
+const normalizeAuthorName = (value: string) => value.trim().toLowerCase();
+
+const parsePermissionFlags = (permissions: Record<string, unknown> | null | undefined): Permissions => ({
+  manageHomepage: permissions?.manageHomepage === true,
+  publishBlog: permissions?.publishBlog === true,
+  manageCategories: permissions?.manageCategories === true,
+  manageNewsletter: permissions?.manageNewsletter === true,
+  manageUsers: permissions?.manageUsers === true,
 });
+
+const parseAuthorProfileFromPermissions = (permissions: Record<string, unknown> | null | undefined) => {
+  const rawName = typeof permissions?.authorName === "string" ? permissions.authorName.trim() : "";
+  const rawImage = typeof permissions?.authorImage === "string" ? permissions.authorImage.trim() : "";
+  return {
+    authorName: rawName,
+    authorImage: rawImage || null,
+  };
+};
+
+const mapApiUserToAccount = (user: ApiAuthUser): UserAccount => {
+  const permissionsObject = (user.permissions ?? null) as Record<string, unknown> | null;
+  const authorProfile = parseAuthorProfileFromPermissions(permissionsObject);
+  return {
+    id: user.id,
+    role: user.role === "MASTER_ADMIN" ? "master" : user.role === "ADMIN" ? "admin" : "contributor",
+    email: user.email,
+    password: "",
+    active: user.active ?? true,
+    permissions: parsePermissionFlags(permissionsObject),
+    authorName: authorProfile.authorName,
+    authorImage: authorProfile.authorImage,
+  };
+};
 
 const permissionLabels: { key: PermissionKey; label: string }[] = [
   { key: "manageHomepage", label: "होमपेज नियंत्रण" },
@@ -111,6 +145,8 @@ const seedUsers = (): UserAccount[] => [
     password: MASTER_PASSWORD,
     active: true,
     permissions: allPermissionsEnabled(),
+    authorName: "",
+    authorImage: null,
   },
 ];
 
@@ -440,6 +476,8 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   excerpt: post.excerpt,
   content: post.content,
   author: post.author,
+  postImage: post.postImage,
+  authorImage: post.authorImage,
   time: formatRelativeTime(post.createdAt),
   createdAt: post.createdAt,
   clickCount: post.clickCount,
@@ -554,6 +592,7 @@ export default function Home() {
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
+  const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [newsVisibleCount, setNewsVisibleCount] = useState(6);
@@ -567,12 +606,33 @@ export default function Home() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch("/api/users");
+      const res = await fetch("/api/users", { cache: "no-store", credentials: "include" });
       if (res.ok) {
         const data = (await res.json()) as { users: ApiAuthUser[] };
         setUsers(data.users.map(mapApiUserToAccount));
       }
     } catch (err) {}
+  };
+  const fetchAuthors = async () => {
+    try {
+      const response = await fetch("/api/authors", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to fetch authors");
+      }
+      const data = (await response.json()) as { authors?: AuthorProfile[] };
+      if (!Array.isArray(data.authors)) {
+        throw new Error("Invalid author payload");
+      }
+      const sanitizedAuthors = data.authors
+        .map((author) => ({
+          name: author.name.trim(),
+          image: author.image && author.image.trim() ? author.image.trim() : null,
+        }))
+        .filter((author) => author.name.length > 0);
+      setAvailableAuthors(sanitizedAuthors);
+    } catch {
+      setAvailableAuthors([]);
+    }
   };
   const [sessionEmail, setSessionEmail] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -582,14 +642,20 @@ export default function Home() {
     email: "",
     password: "",
     permissions: noPermissions(),
+    authorName: "",
+    authorImage: "",
   });
   const [newContributorForm, setNewContributorForm] = useState({
     email: "",
     password: "",
+    authorName: "",
+    authorImage: "",
   });
+  const [availableAuthors, setAvailableAuthors] = useState<AuthorProfile[]>([]);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
   const [blogMessage, setBlogMessage] = useState("");
+  const [blogSyncMessage, setBlogSyncMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
   const [activePost, setActivePost] = useState<NewsPost | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
@@ -601,6 +667,8 @@ export default function Home() {
     customCategory: "",
     excerpt: "",
     content: "",
+    postImage: "",
+    authorImage: "",
   });
 
   useEffect(() => {
@@ -610,16 +678,19 @@ export default function Home() {
     }
     
     fetchUsers();
-    fetch("/api/auth/me").then(res => res.json()).then(data => {
-      if (data.user) {
-        const currentUser = mapApiUserToAccount(data.user as ApiAuthUser);
-        setSessionEmail(currentUser.email);
-        setUsers((prev) => {
-          const withoutCurrent = prev.filter((item) => item.email.toLowerCase() !== currentUser.email.toLowerCase());
-          return [currentUser, ...withoutCurrent];
-        });
-      }
-    }).catch(() => {});
+    fetch("/api/auth/me", { cache: "no-store", credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          const currentUser = mapApiUserToAccount(data.user as ApiAuthUser);
+          setSessionEmail(currentUser.email);
+          setUsers((prev) => {
+            const withoutCurrent = prev.filter((item) => item.email.toLowerCase() !== currentUser.email.toLowerCase());
+            return [currentUser, ...withoutCurrent];
+          });
+        }
+      })
+      .catch(() => {});
 
     const savedPostClicks = localStorage.getItem(POST_CLICKS_STORAGE_KEY);
     if (savedPostClicks) {
@@ -643,6 +714,29 @@ export default function Home() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    void fetchAuthors();
+  }, []);
+
+  useEffect(() => {
+    if (!formState.author && availableAuthors.length > 0) {
+      setFormState((prev) => ({
+        ...prev,
+        author: availableAuthors[0].name,
+        authorImage: availableAuthors[0].image ?? "",
+      }));
+      return;
+    }
+    if (formState.author) {
+      const matchedAuthor = availableAuthors.find(
+        (author) => normalizeAuthorName(author.name) === normalizeAuthorName(formState.author),
+      );
+      if (matchedAuthor && formState.authorImage !== (matchedAuthor.image ?? "")) {
+        setFormState((prev) => ({ ...prev, authorImage: matchedAuthor.image ?? "" }));
+      }
+    }
+  }, [availableAuthors, formState.author, formState.authorImage]);
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -715,11 +809,17 @@ export default function Home() {
           throw new Error("Failed to fetch blogs");
         }
         const data = (await response.json()) as { posts: ApiBlogPost[] };
-        if (Array.isArray(data.posts) && data.posts.length > 0) {
+        if (Array.isArray(data.posts)) {
           setBlogs(data.posts.map(mapApiBlogToNewsPost));
+          setBlogSyncMessage("");
         }
-      } catch {
+      } catch (error) {
         setBlogs(initialBlogs);
+        const message =
+          error instanceof Error && error.message
+            ? `सर्वर से लाइव पोस्ट लोड नहीं हो सकीं (${error.message}). इस डिवाइस पर फिलहाल डिफॉल्ट पोस्ट दिखाई जा रही हैं।`
+            : "सर्वर से लाइव पोस्ट लोड नहीं हो सकीं। इस डिवाइस पर फिलहाल डिफॉल्ट पोस्ट दिखाई जा रही हैं।";
+        setBlogSyncMessage(message);
       }
     };
     void loadBlogs();
@@ -797,8 +897,11 @@ export default function Home() {
         });
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
+    const authorFiltered = selectedAuthor
+      ? categoryFiltered.filter((post) => normalizeCategoryName(post.author) === normalizeCategoryName(selectedAuthor))
+      : categoryFiltered;
     const dateFiltered = selectedNewsDate
-      ? categoryFiltered.filter((post) => {
+      ? authorFiltered.filter((post) => {
           if (post.createdAt) {
             const parsed = new Date(post.createdAt);
             if (!Number.isNaN(parsed.getTime())) {
@@ -807,9 +910,9 @@ export default function Home() {
           }
           return inferDateKeyFromTime(post.time) === selectedNewsDate;
         })
-      : categoryFiltered;
+      : authorFiltered;
     return [...dateFiltered].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
-  }, [blogs, searchTerm, selectedCategory, selectedNewsDate]);
+  }, [blogs, searchTerm, selectedAuthor, selectedCategory, selectedNewsDate]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   const feedPosts = useMemo(() => filteredNews.slice(3), [filteredNews]);
@@ -858,11 +961,20 @@ export default function Home() {
         });
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
-    return [...categoryFiltered].sort((a, b) => getPostCreatedAtMs(b) - getPostCreatedAtMs(a));
-  }, [blogs, searchTerm, selectedCategory]);
+    const authorFiltered = selectedAuthor
+      ? categoryFiltered.filter((post) => normalizeCategoryName(post.author) === normalizeCategoryName(selectedAuthor))
+      : categoryFiltered;
+    return [...authorFiltered].sort((a, b) => getPostCreatedAtMs(b) - getPostCreatedAtMs(a));
+  }, [blogs, searchTerm, selectedAuthor, selectedCategory]);
   const visibleBlogs = useMemo(() => filteredBlogs.slice(0, blogVisibleCount), [filteredBlogs, blogVisibleCount]);
   const adminAccounts = useMemo(() => users.filter((user) => user.role === "admin"), [users]);
   const contributorAccounts = useMemo(() => users.filter((user) => user.role === "contributor"), [users]);
+  const authorProfilesByName = useMemo(() => {
+    return availableAuthors.reduce<Map<string, AuthorProfile>>((acc, author) => {
+      acc.set(normalizeAuthorName(author.name), author);
+      return acc;
+    }, new Map());
+  }, [availableAuthors]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -908,6 +1020,14 @@ export default function Home() {
       setAdminMessage("नए एडमिन के लिए ईमेल और पासवर्ड आवश्यक है।");
       return;
     }
+    if (!newAdminForm.authorName.trim()) {
+      setAdminMessage("एडमिन के लिए नाम आवश्यक है।");
+      return;
+    }
+    if (newAdminForm.permissions.publishBlog && (!newAdminForm.authorName.trim() || !newAdminForm.authorImage.trim())) {
+      setAdminMessage("ब्लॉग प्रकाशित करना परमिशन वाले एडमिन के लिए लेखक नाम और फोटो आवश्यक हैं।");
+      return;
+    }
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -916,7 +1036,9 @@ export default function Home() {
           email: newAdminForm.email.trim(),
           password: newAdminForm.password.trim(),
           role: "ADMIN",
-          permissions: newAdminForm.permissions
+          permissions: newAdminForm.permissions,
+          authorName: newAdminForm.authorName.trim(),
+          authorImage: newAdminForm.permissions.publishBlog ? newAdminForm.authorImage.trim() : undefined,
         })
       });
       const data = await res.json();
@@ -925,8 +1047,9 @@ export default function Home() {
         return;
       }
       setAdminMessage("नया एडमिन जोड़ा गया।");
-      setNewAdminForm({ email: "", password: "", permissions: noPermissions() });
+      setNewAdminForm({ email: "", password: "", permissions: noPermissions(), authorName: "", authorImage: "" });
       void fetchUsers();
+      void fetchAuthors();
     } catch (err) {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -945,6 +1068,7 @@ export default function Home() {
       }
       setAdminMessage("एडमिन हटाया गया।");
       void fetchUsers();
+      void fetchAuthors();
     } catch {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -975,6 +1099,7 @@ export default function Home() {
       }
       setAdminMessage("एडमिन परमिशन अपडेट हो गई।");
       void fetchUsers();
+      void fetchAuthors();
     } catch {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -987,6 +1112,10 @@ export default function Home() {
       setAdminMessage("योगदानकर्ता के लिए ईमेल और पासवर्ड आवश्यक है।");
       return;
     }
+    if (!newContributorForm.authorName.trim() || !newContributorForm.authorImage.trim()) {
+      setAdminMessage("योगदानकर्ता के लिए लेखक नाम और फोटो आवश्यक है।");
+      return;
+    }
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -994,7 +1123,9 @@ export default function Home() {
         body: JSON.stringify({
           email: newContributorForm.email.trim(),
           password: newContributorForm.password.trim(),
-          role: "CONTRIBUTOR"
+          role: "CONTRIBUTOR",
+          authorName: newContributorForm.authorName.trim(),
+          authorImage: newContributorForm.authorImage.trim(),
         })
       });
       const data = await res.json();
@@ -1003,8 +1134,9 @@ export default function Home() {
         return;
       }
       setAdminMessage("अधिकृत योगदानकर्ता जोड़ा गया।");
-      setNewContributorForm({ email: "", password: "" });
+      setNewContributorForm({ email: "", password: "", authorName: "", authorImage: "" });
       void fetchUsers();
+      void fetchAuthors();
     } catch (err) {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -1031,6 +1163,7 @@ export default function Home() {
       }
       setAdminMessage("योगदानकर्ता स्थिति अपडेट हो गई।");
       void fetchUsers();
+      void fetchAuthors();
     } catch {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -1049,6 +1182,7 @@ export default function Home() {
       }
       setAdminMessage("योगदानकर्ता हटाया गया।");
       void fetchUsers();
+      void fetchAuthors();
     } catch {
       setAdminMessage("नेटवर्क त्रुटि");
     }
@@ -1121,12 +1255,19 @@ export default function Home() {
       setBlogMessage("शीर्षक, लेखक, सारांश और पूरा लेख भरना आवश्यक है।");
       return;
     }
+    const selectedAuthorProfile = authorProfilesByName.get(normalizeAuthorName(formState.author));
+    if (!selectedAuthorProfile) {
+      setBlogMessage("कृपया सूची से मान्य लेखक चुनें।");
+      return;
+    }
     try {
       const targetCategory = formState.customCategory.trim() || formState.category;
       const submittedTitle = formState.title.trim();
       const submittedExcerpt = formState.excerpt.trim();
       const submittedContent = formState.content.trim();
       const submittedAuthor = formState.author.trim();
+      const submittedPostImage = formState.postImage.trim();
+      const submittedAuthorImage = selectedAuthorProfile.image?.trim() ?? "";
       const response = await fetch("/api/blogs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1136,21 +1277,18 @@ export default function Home() {
           excerpt: submittedExcerpt,
           content: submittedContent,
           author: submittedAuthor,
+          postImage: submittedPostImage || undefined,
+          authorImage: submittedAuthorImage || undefined,
         }),
       });
+      const data = (await response.json()) as { post?: ApiBlogPost; error?: string };
       if (!response.ok) {
-        throw new Error("Unable to publish");
+        throw new Error(data.error || "Unable to publish");
       }
-      const data = (await response.json()) as { post: ApiBlogPost };
-      const justPublishedPost: NewsPost = {
-        ...mapApiBlogToNewsPost(data.post),
-        title: submittedTitle,
-        excerpt: submittedExcerpt,
-        content: submittedContent,
-        author: submittedAuthor,
-        createdAt: new Date().toISOString(),
-        time: "अभी",
-      };
+      if (!data.post) {
+        throw new Error("पोस्ट सेव नहीं हो सकी।");
+      }
+      const justPublishedPost: NewsPost = mapApiBlogToNewsPost(data.post);
       setBlogs((prev) => [justPublishedPost, ...prev]);
       setManagedCategories((prev) => {
         const key = normalizeCategoryName(targetCategory);
@@ -1162,10 +1300,20 @@ export default function Home() {
       setHiddenCategories((prev) =>
         prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(targetCategory)),
       );
-      setFormState({ title: "", author: "", category: "ब्लॉग", customCategory: "", excerpt: "", content: "" });
+      setFormState({
+        title: "",
+        author: availableAuthors[0]?.name ?? "",
+        category: "ब्लॉग",
+        customCategory: "",
+        excerpt: "",
+        content: "",
+        postImage: "",
+        authorImage: availableAuthors[0]?.image ?? "",
+      });
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
-    } catch {
-      setBlogMessage("पोस्ट सेव नहीं हो सकी। कृपया दोबारा प्रयास करें।");
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : "पोस्ट सेव नहीं हो सकी। कृपया दोबारा प्रयास करें।";
+      setBlogMessage(message);
     }
   };
 
@@ -1207,6 +1355,76 @@ export default function Home() {
     if (section) {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  };
+
+  const readImageAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Image read failed"));
+      };
+      reader.onerror = () => reject(new Error("Image read failed"));
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>, key: "postImage") => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setFormState((prev) => ({ ...prev, [key]: "" }));
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setBlogMessage("कृपया वैध image file चुनें।");
+      return;
+    }
+    try {
+      const encoded = await readImageAsDataUrl(file);
+      setFormState((prev) => ({ ...prev, [key]: encoded }));
+    } catch {
+      setBlogMessage("फोटो अपलोड नहीं हो सकी।");
+    }
+  };
+
+  const handleUserAuthorImageInputChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    target: "admin" | "contributor",
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      if (target === "admin") {
+        setNewAdminForm((prev) => ({ ...prev, authorImage: "" }));
+      } else {
+        setNewContributorForm((prev) => ({ ...prev, authorImage: "" }));
+      }
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setAdminMessage("कृपया वैध image file चुनें।");
+      return;
+    }
+    try {
+      const encoded = await readImageAsDataUrl(file);
+      if (target === "admin") {
+        setNewAdminForm((prev) => ({ ...prev, authorImage: encoded }));
+      } else {
+        setNewContributorForm((prev) => ({ ...prev, authorImage: encoded }));
+      }
+    } catch {
+      setAdminMessage("फोटो अपलोड नहीं हो सकी।");
+    }
+  };
+
+  const handleAuthorSelectionChange = (name: string) => {
+    const matchedAuthor = authorProfilesByName.get(normalizeAuthorName(name));
+    setFormState((prev) => ({
+      ...prev,
+      author: name,
+      authorImage: matchedAuthor?.image ?? "",
+    }));
   };
 
   const handleNavTabChange = (value: string) => {
@@ -1676,6 +1894,7 @@ export default function Home() {
                 <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ताज़ा खबरें</h3>
                 <span className="text-sm text-[var(--muted)]">
                   {selectedCategory !== "सभी" ? `${selectedCategory} • ` : ""}
+                  {selectedAuthor ? `${selectedAuthor} • ` : ""}
                   {filteredNews.length} परिणाम
                 </span>
               </div>
@@ -1786,26 +2005,60 @@ export default function Home() {
         <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ब्लॉग पोस्ट</h3>
-            <button type="button" className="interactive-link text-sm font-semibold text-[var(--primary)]">
-              ब्लॉग आर्काइव
-            </button>
+            <div className="flex items-center gap-3">
+              {selectedAuthor && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedAuthor("")}
+                  className="rounded-full border border-[var(--line)] px-3 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                >
+                  लेखक फ़िल्टर हटाएं
+                </button>
+              )}
+              <button type="button" className="interactive-link text-sm font-semibold text-[var(--primary)]">
+                ब्लॉग आर्काइव
+              </button>
+            </div>
           </div>
+          {blogSyncMessage && (
+            <p className="mb-4 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
+              {blogSyncMessage}
+            </p>
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
             {visibleBlogs.map((post) => (
-              <button
-                type="button"
-                key={post.id}
-                onClick={() => handlePostOpen(post)}
-                className="rise-on-hover rounded-lg border border-[var(--line)] p-4 text-left"
-              >
+              <article key={post.id} className="rise-on-hover rounded-lg border border-[var(--line)] p-4">
+                {post.postImage && (
+                  <img src={post.postImage} alt={post.title} className="mb-3 h-40 w-full rounded-md object-cover" />
+                )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
                 <h4 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
                 <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
-                <p className="mt-3 text-xs text-[var(--muted)]">
-                  {post.author} • {getPostTimeLabel(post)} • {getPostClicks(post)} क्लिक
-                </p>
-                <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
-              </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                  <div className="inline-flex items-center gap-2">
+                    {post.authorImage && (
+                      <img src={post.authorImage} alt={post.author} className="h-5 w-5 rounded-full object-cover" />
+                    )}
+                    <Link
+                      href={`/author/${encodeURIComponent(post.author)}`}
+                      className="interactive-link font-semibold text-[var(--primary)]"
+                    >
+                      {post.author}
+                    </Link>
+                  </div>
+                  <span>•</span>
+                  <span>{getPostTimeLabel(post)}</span>
+                  <span>•</span>
+                  <span>{getPostClicks(post)} क्लिक</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePostOpen(post)}
+                  className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]"
+                >
+                  पूरा लेख पढ़ें →
+                </button>
+              </article>
             ))}
           </div>
           {visibleBlogs.length < filteredBlogs.length && (
@@ -1819,7 +2072,7 @@ export default function Home() {
         </section>
 
         <section className="my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई खबर या ब्लॉग पोस्ट जोड़ें</h3>
+          <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई खबर जोड़ें</h3>
           {!canPublishBlog && (
             <p className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
               ब्लॉग पोस्ट जोड़ने के लिए एडमिन या एडमिन द्वारा अधिकृत योगदानकर्ता लॉगिन करें।
@@ -1833,12 +2086,18 @@ export default function Home() {
                 placeholder="हेडलाइन / शीर्षक"
                 className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               />
-              <input
+              <select
                 value={formState.author}
-                onChange={(event) => setFormState((prev) => ({ ...prev, author: event.target.value }))}
-                placeholder="लेखक नाम"
+                onChange={(event) => handleAuthorSelectionChange(event.target.value)}
                 className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
-              />
+              >
+                <option value="">लेखक चुनें</option>
+                {availableAuthors.map((author) => (
+                  <option key={author.name} value={author.name}>
+                    {author.name}
+                  </option>
+                ))}
+              </select>
               <select
                 value={formState.category}
                 onChange={(event) => setFormState((prev) => ({ ...prev, category: event.target.value }))}
@@ -1858,6 +2117,25 @@ export default function Home() {
                 placeholder="नई कैटेगरी (optional)"
                 className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               />
+              <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
+                पोस्ट फोटो
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => void handleImageInputChange(event, "postImage")}
+                  className="w-full text-xs"
+                />
+              </label>
+              {(formState.postImage || formState.authorImage) && (
+                <div className="md:col-span-2 flex gap-3">
+                  {formState.postImage && (
+                    <img src={formState.postImage} alt="Post preview" className="h-16 w-24 rounded-md object-cover" />
+                  )}
+                  {formState.authorImage && (
+                    <img src={formState.authorImage} alt="Author preview" className="h-16 w-16 rounded-full object-cover" />
+                  )}
+                </div>
+              )}
               <button className="rise-on-hover rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                 ब्लॉग प्रकाशित करें
               </button>
@@ -1901,9 +2179,27 @@ export default function Home() {
               <h2 className="pr-14 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-3xl">
                 {activePost.title}
               </h2>
-              <p className="mt-3 text-xs text-[var(--muted)]">
-                {activePost.author} • {getPostTimeLabel(activePost)} • {getPostClicks(activePost)} क्लिक
-              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                <div className="inline-flex items-center gap-2">
+                  {activePost.authorImage && (
+                    <img src={activePost.authorImage} alt={activePost.author} className="h-6 w-6 rounded-full object-cover" />
+                  )}
+                  <Link
+                    href={`/author/${encodeURIComponent(activePost.author)}`}
+                    onClick={() => setActivePost(null)}
+                    className="interactive-link font-semibold text-[var(--primary)]"
+                  >
+                    {activePost.author}
+                  </Link>
+                </div>
+                <span>•</span>
+                <span>{getPostTimeLabel(activePost)}</span>
+                <span>•</span>
+                <span>{getPostClicks(activePost)} क्लिक</span>
+              </div>
+              {activePost.postImage && (
+                <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
+              )}
               <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)]">
                 {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
                   <p key={`${activePost.id}-${index}`}>{paragraph}</p>
@@ -2073,6 +2369,12 @@ export default function Home() {
                           placeholder="पासवर्ड"
                           className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
                         />
+                        <input
+                          value={newAdminForm.authorName}
+                          onChange={(event) => setNewAdminForm((prev) => ({ ...prev, authorName: event.target.value }))}
+                          placeholder="एडमिन नाम"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
                         <div className="grid grid-cols-1 gap-1">
                           {permissionLabels.map((perm) => (
                             <label key={perm.key} className="flex items-center gap-2 text-xs text-[var(--muted)]">
@@ -2087,6 +2389,9 @@ export default function Home() {
                                       ...prev.permissions,
                                       [perm.key]: !prev.permissions[perm.key],
                                     },
+                                    ...(perm.key === "publishBlog" && prev.permissions.publishBlog
+                                      ? { authorImage: "" }
+                                      : {}),
                                   }))
                                 }
                               />
@@ -2094,6 +2399,19 @@ export default function Home() {
                             </label>
                           ))}
                         </div>
+                        {newAdminForm.permissions.publishBlog && (
+                          <>
+                            <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+                              लेखक फोटो
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(event) => void handleUserAuthorImageInputChange(event, "admin")}
+                                className="w-full text-xs"
+                              />
+                            </label>
+                          </>
+                        )}
                         <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                           Add Admin
                         </button>
@@ -2182,6 +2500,23 @@ export default function Home() {
                           placeholder="पासवर्ड"
                           className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
                         />
+                        <input
+                          value={newContributorForm.authorName}
+                          onChange={(event) =>
+                            setNewContributorForm((prev) => ({ ...prev, authorName: event.target.value }))
+                          }
+                          placeholder="लेखक नाम"
+                          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+                          लेखक फोटो
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => void handleUserAuthorImageInputChange(event, "contributor")}
+                            className="w-full text-xs"
+                          />
+                        </label>
                         <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                           Add Contributor
                         </button>

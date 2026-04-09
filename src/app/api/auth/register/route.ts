@@ -22,6 +22,16 @@ const sanitizePermissions = (input: unknown) =>
     },
   );
 
+const extractAuthorName = (input: unknown) => {
+  const value = typeof input === "string" ? input.trim() : "";
+  return value;
+};
+
+const extractAuthorImage = (input: unknown) => {
+  const value = typeof input === "string" ? input.trim() : "";
+  return value;
+};
+
 export async function POST(request: NextRequest) {
   try {
     const authPayload = await requireAuth(request);
@@ -45,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Only admins can add new users." }, { status: 403 });
     }
 
-    const { email, password, role, permissions } = await request.json();
+    const { email, password, role, permissions, authorName, authorImage } = await request.json();
 
     if (!email || !password || !role) {
       return NextResponse.json({ error: "Email, password, and role are required." }, { status: 400 });
@@ -74,13 +84,45 @@ export async function POST(request: NextRequest) {
     }
 
     const sanitizedPermissions = role === "ADMIN" ? sanitizePermissions(permissions) : undefined;
+    const normalizedAuthorName = extractAuthorName(authorName);
+    const normalizedAuthorImage = extractAuthorImage(authorImage);
+
+    if (normalizedAuthorImage && !normalizedAuthorImage.startsWith("data:image/")) {
+      return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
+    }
+
+    const shouldSetAuthorProfile =
+      role === "CONTRIBUTOR" || (role === "ADMIN" && sanitizedPermissions?.publishBlog === true);
+
+    if (role === "ADMIN" && !normalizedAuthorName) {
+      return NextResponse.json({ error: "एडमिन के लिए नाम आवश्यक है।" }, { status: 400 });
+    }
+
+    if (shouldSetAuthorProfile && (!normalizedAuthorName || !normalizedAuthorImage)) {
+      return NextResponse.json({ error: "लेखक नाम और लेखक फोटो आवश्यक हैं।" }, { status: 400 });
+    }
+
+    const storedPermissions =
+      role === "ADMIN"
+        ? {
+            ...sanitizedPermissions,
+            ...(normalizedAuthorName ? { authorName: normalizedAuthorName } : {}),
+            ...(shouldSetAuthorProfile ? { authorImage: normalizedAuthorImage } : {}),
+          }
+        : role === "CONTRIBUTOR"
+          ? {
+              authorName: normalizedAuthorName,
+              authorImage: normalizedAuthorImage,
+            }
+          : undefined;
+
     const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         passwordHash,
         role,
-        permissions: sanitizedPermissions,
+        permissions: storedPermissions,
       },
     });
 

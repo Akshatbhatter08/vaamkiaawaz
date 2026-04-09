@@ -21,6 +21,16 @@ const sanitizePermissions = (input: unknown) =>
     },
   );
 
+const extractAuthorProfile = (input: unknown) => {
+  const source = (input as Record<string, unknown> | null | undefined) ?? {};
+  const authorName = typeof source.authorName === "string" ? source.authorName.trim() : "";
+  const authorImage = typeof source.authorImage === "string" ? source.authorImage.trim() : "";
+  return {
+    authorName,
+    authorImage,
+  };
+};
+
 const getRequester = async (request: NextRequest) => {
   const authPayload = await requireAuth(request);
   if (authPayload instanceof NextResponse) {
@@ -81,7 +91,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (requester.role !== "MASTER_ADMIN" || target.role !== "ADMIN") {
       return NextResponse.json({ error: "Only master admin can update admin permissions." }, { status: 403 });
     }
-    data.permissions = sanitizePermissions(body.permissions);
+    const authorProfile = extractAuthorProfile(target.permissions);
+    data.permissions = {
+      ...sanitizePermissions(body.permissions),
+      ...(authorProfile.authorName ? { authorName: authorProfile.authorName } : {}),
+      ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
+    };
   }
 
   if (body.active !== undefined) {
