@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { Tabs } from "@/components/ui/tabs";
@@ -508,7 +508,8 @@ const getPostSortTimestamp = (post: NewsPost) => {
   if (createdAtMs > 0) {
     return createdAtMs;
   }
-  const now = Date.now();
+  // Offset dummy content by 1 year so real uploaded articles appear first
+  const now = Date.now() - 365 * 24 * 60 * 60 * 1000;
   if (post.time.includes("अभी")) {
     return now - 30 * 1000;
   }
@@ -565,6 +566,12 @@ const FacebookIcon = ({ className = "" }) => (
   </svg>
 );
 
+const WhatsappIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+  </svg>
+);
+
 // const YoutubeIcon = () => (
 //   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
 //     <path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2A30 30 0 0 0 2 12a30 30 0 0 0 .4 4.8 2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2A30 30 0 0 0 22 12a30 30 0 0 0-.4-4.8zM10 15.1V8.9l5.2 3.1L10 15.1z" />
@@ -604,8 +611,8 @@ export default function Home() {
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [newsVisibleCount, setNewsVisibleCount] = useState(6);
-  const [blogVisibleCount, setBlogVisibleCount] = useState(4);
+  const [newsVisibleCount, setNewsVisibleCount] = useState(24);
+  const [blogVisibleCount, setBlogVisibleCount] = useState(24);
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
   const [nowMs, setNowMs] = useState(Date.now());
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -1606,6 +1613,25 @@ export default function Home() {
     setPostClicks((prev) => ({ ...prev, [post.id]: (prev[post.id] ?? 0) + 1 }));
   };
 
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleShareAction = (platform: "whatsapp" | "facebook" | "copy") => {
+    if (!activePost) return;
+    const url = `${window.location.origin}/?post=${activePost.id}`;
+    const text = `${activePost.title}\n\n`;
+
+    if (platform === "copy") {
+      void navigator.clipboard.writeText(url).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      });
+    } else if (platform === "whatsapp") {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + url)}`, "_blank");
+    } else if (platform === "facebook") {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
+    }
+  };
+
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
@@ -1752,8 +1778,8 @@ export default function Home() {
                         key={category}
                         onClick={() => {
                           setSelectedCategory(category);
-                          setNewsVisibleCount(6);
-                          setBlogVisibleCount(4);
+                          setNewsVisibleCount(24);
+                          setBlogVisibleCount(24);
                           setIsCategoryMenuOpen(false);
                         }}
                         className={`rise-on-hover rounded-md border px-3 py-2 text-left text-sm ${
@@ -1794,7 +1820,7 @@ export default function Home() {
                   value={selectedNewsDate}
                   onChange={(event) => {
                     setSelectedNewsDate(event.target.value);
-                    setNewsVisibleCount(6);
+                    setNewsVisibleCount(24);
                   }}
                   className="h-10 w-[110px] shrink rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-xs text-[var(--foreground)] outline-none transition focus:border-[var(--primary)] sm:min-w-[132px]"
                   aria-label="Select date for news filter"
@@ -1877,8 +1903,8 @@ export default function Home() {
                             type="button"
                             onClick={() => {
                               setSelectedCategory(category);
-                              setNewsVisibleCount(6);
-                              setBlogVisibleCount(4);
+                              setNewsVisibleCount(24);
+                              setBlogVisibleCount(24);
                               setIsCategoryMenuOpen(false);
                               setIsMobileNavOpen(false);
                               scrollToSection("latest");
@@ -1929,10 +1955,10 @@ export default function Home() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                   {featuredForDisplay[0].category}
                 </p>
-                <h2 className="font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
+                <h2 className="line-clamp-3 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
                   {featuredForDisplay[0].title}
                 </h2>
-                <p className="mt-3 text-base leading-7 text-[var(--muted)]">{featuredForDisplay[0].excerpt}</p>
+                <p className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)]">{featuredForDisplay[0].excerpt}</p>
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
                   <span>{featuredForDisplay[0].author}</span>
                   <span>•</span>
@@ -1955,10 +1981,10 @@ export default function Home() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                     {story.category}
                   </p>
-                  <h3 className="mt-2 font-serif text-xl font-semibold leading-snug text-[var(--headline)]">
+                  <h3 className="line-clamp-2 mt-2 font-serif text-xl font-semibold leading-snug text-[var(--headline)]">
                     {story.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
+                  <p className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
                   <p className="mt-4 text-xs text-[var(--muted)]">
                     {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                   </p>
@@ -1987,8 +2013,8 @@ export default function Home() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                       {story.category}
                     </p>
-                    <h4 className="mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
-                    <p className="mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
+                    <h4 className="line-clamp-2 mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
+                    <p className="line-clamp-3 mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
                     <p className="mt-3 text-xs text-[var(--muted)]">
                       {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                     </p>
@@ -1998,7 +2024,7 @@ export default function Home() {
               </div>
               {visibleFeedPosts.length < feedPosts.length && (
                 <button
-                  onClick={() => setNewsVisibleCount((prev) => prev + 4)}
+                  onClick={() => setNewsVisibleCount((prev) => prev + 12)}
                   className="rise-on-hover mt-5 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]"
                 >
                   More Posts
@@ -2105,13 +2131,17 @@ export default function Home() {
           )}
           <div className="grid gap-4 lg:grid-cols-2">
             {visibleBlogs.map((post) => (
-              <article key={post.id} className="rise-on-hover rounded-lg border border-[var(--line)] p-4">
+              <article 
+                key={post.id} 
+                onClick={() => handlePostOpen(post)}
+                className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all"
+              >
                 {post.postImage && (
                   <img src={post.postImage} alt={post.title} className="mb-3 h-40 w-full rounded-md object-cover" />
                 )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
-                <h4 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
-                <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
+                <h4 className="line-clamp-2 mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
+                <p className="line-clamp-3 mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
                   <div className="inline-flex items-center gap-2">
                     {post.authorImage && (
@@ -2119,6 +2149,7 @@ export default function Home() {
                     )}
                     <Link
                       href={`/author/${encodeURIComponent(post.author)}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="interactive-link font-semibold text-[var(--primary)]"
                     >
                       {post.author}
@@ -2129,19 +2160,15 @@ export default function Home() {
                   <span>•</span>
                   <span>{getPostClicks(post)} क्लिक</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handlePostOpen(post)}
-                  className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]"
-                >
+                <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">
                   पूरा लेख पढ़ें →
-                </button>
+                </span>
               </article>
             ))}
           </div>
           {visibleBlogs.length < filteredBlogs.length && (
             <button
-              onClick={() => setBlogVisibleCount((prev) => prev + 4)}
+              onClick={() => setBlogVisibleCount((prev) => prev + 12)}
               className="rise-on-hover mt-5 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]"
             >
               More Posts
@@ -2274,6 +2301,33 @@ export default function Home() {
                 <span>{getPostTimeLabel(activePost)}</span>
                 <span>•</span>
                 <span>{getPostClicks(activePost)} क्लिक</span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[var(--line)] py-3">
+                <span className="text-sm font-semibold text-[var(--muted)]">शेयर करें:</span>
+                <button
+                  type="button"
+                  onClick={() => handleShareAction("copy")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)] hover: cursor-pointer"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  {isCopied ? "कॉपी किया गया" : "लिंक कॉपी करें"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleShareAction("whatsapp")}
+                  className="inline-flex items-center justify-center rounded-md border border-[#25D366] bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#25D366] shadow-sm transition hover:bg-[#25D366] hover:text-white hover: cursor-pointer"
+                  title="Share on WhatsApp"
+                >
+                  <WhatsappIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleShareAction("facebook")}
+                  className="inline-flex items-center justify-center rounded-md border border-[#1877F2] bg-[#1877F2]/10 px-3 py-1.5 text-xs font-semibold text-[#1877F2] shadow-sm transition hover:bg-[#1877F2] hover:text-white hover: cursor-pointer"
+                  title="Share on Facebook"
+                >
+                  <FacebookIcon className="h-4 w-4" />
+                </button>
               </div>
               {activePost.postImage && (
                 <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
