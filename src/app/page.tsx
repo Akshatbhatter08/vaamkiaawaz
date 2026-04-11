@@ -1632,6 +1632,22 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get("post");
+    if (!postId) return;
+
+    const allAvailablePosts = [...featuredPosts, ...allNewsPosts, ...blogs];
+    const match = allAvailablePosts.find((p) => p.id === postId);
+    
+    if (match) {
+      handlePostOpen(match);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blogs]);
+
   return (
     <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
