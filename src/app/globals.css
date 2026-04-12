@@ -87,7 +87,7 @@ body {
 }
 
 .ticker-move {
-  animation: ticker-move 18s linear infinite;
+  animation: ticker-move 45s linear infinite;
 }
 
 .no-visible-scrollbar {
@@ -128,5 +128,17 @@ body {
   }
   100% {
     transform: translateX(-50%);
+  }
+}
+
+input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 1; }
+.theme-dark input::placeholder, .theme-dark textarea::placeholder { color: #9ca3af !important; opacity: 1; }
+
+@media print {
+  @page { margin: 0; }
+  html, body {
+    background-color: #f7f6f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

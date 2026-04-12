@@ -16,9 +16,10 @@ model BlogPost {
   author     String
   postImage  String?  @db.LongText
   authorImage String? @db.LongText
-  clickCount Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  clickCount  Int      @default(0)
+  uploaderName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum Role {

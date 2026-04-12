@@ -1,11 +1,12 @@
 "use client";
 
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X, Share2 } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 type NewsPost = {
   id: string;
@@ -19,6 +20,7 @@ type NewsPost = {
   time: string;
   createdAt?: string;
   clickCount?: number;
+  uploaderName?: string | null;
   source?: "static" | "blog";
 };
 
@@ -32,6 +34,7 @@ type ApiBlogPost = {
   postImage: string | null;
   authorImage: string | null;
   clickCount: number;
+  uploaderName?: string | null;
   createdAt: string;
 };
 
@@ -490,6 +493,7 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   time: formatRelativeTime(post.createdAt),
   createdAt: post.createdAt,
   clickCount: post.clickCount,
+  uploaderName: post.uploaderName,
   source: "blog",
 });
 
@@ -508,8 +512,7 @@ const getPostSortTimestamp = (post: NewsPost) => {
   if (createdAtMs > 0) {
     return createdAtMs;
   }
-  // Offset dummy content by 1 year so real uploaded articles appear first
-  const now = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
   if (post.time.includes("अभी")) {
     return now - 30 * 1000;
   }
@@ -673,7 +676,31 @@ export default function Home() {
   });
   const [availableAuthors, setAvailableAuthors] = useState<AuthorProfile[]>([]);
   const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterName, setNewsletterName] = useState("");
+  const [newsletterPhone, setNewsletterPhone] = useState("");
   const [newsletterMessage, setNewsletterMessage] = useState("");
+  const [otpModalState, setOtpModalState] = useState<{
+    isOpen: boolean;
+    email: string;
+    context: "newsletter" | "admin" | "contributor";
+    payload?: any;
+    isLoading?: boolean;
+    error?: string;
+  }>({ isOpen: false, email: "", context: "newsletter" });
+  const [otpCode, setOtpCode] = useState("");
+
+  type AbhiyanEvent = {
+    id: string;
+    title: string;
+    date: string;
+    time: string;
+    location: string;
+    details: string;
+  };
+  const [events, setEvents] = useState<AbhiyanEvent[]>([]);
+  const [activeEvent, setActiveEvent] = useState<AbhiyanEvent | null>(null);
+  const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '' });
+
   const [blogMessage, setBlogMessage] = useState("");
   const [blogSyncMessage, setBlogSyncMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
@@ -696,6 +723,17 @@ export default function Home() {
     if (savedTheme) {
       setTheme(savedTheme);
     }
+    
+    const loadEvents = async () => {
+      try {
+        const res = await fetch("/api/events");
+        const data = await res.json();
+        if (data.events) {
+          setEvents(data.events);
+        }
+      } catch {}
+    };
+    loadEvents();
     
     fetchUsers();
     fetch("/api/auth/me", { cache: "no-store", credentials: "include" })
@@ -957,6 +995,17 @@ export default function Home() {
     () => feedPosts.slice(0, newsVisibleCount),
     [feedPosts, newsVisibleCount],
   );
+
+  const topReadPosts = useMemo(() => {
+    return [...featuredPosts, ...allNewsPosts, ...blogs]
+      .sort((a, b) => {
+        const clicksA = a.source === "blog" ? (a.clickCount ?? 0) : (postClicks[a.id] ?? 0);
+        const clicksB = b.source === "blog" ? (b.clickCount ?? 0) : (postClicks[b.id] ?? 0);
+        return clicksB - clicksA;
+      })
+      .slice(0, 4);
+  }, [blogs, postClicks]);
+
   const allCategories = useMemo(() => {
     const set = new Set<string>();
     [...featuredPosts, ...allNewsPosts, ...blogs].forEach((post) => {
@@ -1054,21 +1103,7 @@ export default function Home() {
     setLoginMessage("सफलतापूर्वक लॉगआउट किया गया।");
   };
 
-  const handleAddAdmin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canManageUsers) return;
-    if (!newAdminForm.email.trim() || !newAdminForm.password.trim()) {
-      setAdminMessage("नए एडमिन के लिए ईमेल और पासवर्ड आवश्यक है।");
-      return;
-    }
-    if (!newAdminForm.authorName.trim()) {
-      setAdminMessage("एडमिन के लिए नाम आवश्यक है।");
-      return;
-    }
-    if (newAdminForm.permissions.publishBlog && (!newAdminForm.authorName.trim() || !newAdminForm.authorImage.trim())) {
-      setAdminMessage("ब्लॉग प्रकाशित करना परमिशन वाले एडमिन के लिए लेखक नाम और फोटो आवश्यक हैं।");
-      return;
-    }
+  const executeAddAdmin = async () => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -1094,6 +1129,38 @@ export default function Home() {
       void fetchAuthors();
     } catch (err) {
       setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleAddAdmin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManageUsers) return;
+    if (!newAdminForm.email.trim() || !newAdminForm.password.trim()) {
+      setAdminMessage("नए एडमिन के लिए ईमेल और पासवर्ड आवश्यक है।");
+      return;
+    }
+    if (!newAdminForm.authorName.trim()) {
+      setAdminMessage("एडमिन के लिए नाम आवश्यक है।");
+      return;
+    }
+    if (newAdminForm.permissions.publishBlog && (!newAdminForm.authorName.trim() || !newAdminForm.authorImage.trim())) {
+      setAdminMessage("ब्लॉग प्रकाशित करना परमिशन वाले एडमिन के लिए लेखक नाम और फोटो आवश्यक हैं।");
+      return;
+    }
+    setAdminMessage("सत्यापन OTP भेजा जा रहा है...");
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newAdminForm.email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
+      
+      setOtpModalState({ isOpen: true, email: newAdminForm.email.trim(), context: "admin" });
+      setAdminMessage("");
+    } catch (err: any) {
+      setAdminMessage(err.message);
     }
   };
 
@@ -1148,17 +1215,7 @@ export default function Home() {
     }
   };
 
-  const handleAddContributor = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canManageUsers) return;
-    if (!newContributorForm.email.trim() || !newContributorForm.password.trim()) {
-      setAdminMessage("योगदानकर्ता के लिए ईमेल और पासवर्ड आवश्यक है।");
-      return;
-    }
-    if (!newContributorForm.authorName.trim() || !newContributorForm.authorImage.trim()) {
-      setAdminMessage("योगदानकर्ता के लिए लेखक नाम और फोटो आवश्यक है।");
-      return;
-    }
+  const executeAddContributor = async () => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -1183,6 +1240,34 @@ export default function Home() {
       void fetchAuthors();
     } catch (err) {
       setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleAddContributor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManageUsers) return;
+    if (!newContributorForm.email.trim() || !newContributorForm.password.trim()) {
+      setAdminMessage("योगदानकर्ता के लिए ईमेल और पासवर्ड आवश्यक है।");
+      return;
+    }
+    if (!newContributorForm.authorName.trim() || !newContributorForm.authorImage.trim()) {
+      setAdminMessage("योगदानकर्ता के लिए लेखक नाम और फोटो आवश्यक है।");
+      return;
+    }
+    setAdminMessage("सत्यापन OTP भेजा जा रहा है...");
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newContributorForm.email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
+      
+      setOtpModalState({ isOpen: true, email: newContributorForm.email.trim(), context: "contributor" });
+      setAdminMessage("");
+    } catch (err: any) {
+      setAdminMessage(err.message);
     }
   };
 
@@ -1231,6 +1316,33 @@ export default function Home() {
     } catch {
       setAdminMessage("नेटवर्क त्रुटि");
     }
+  };
+
+  const handleAddEvent = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isMaster) return;
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEventForm)
+      });
+      if (res.ok) {
+        const loadRes = await fetch("/api/events");
+        const data = await loadRes.json();
+        if (data.events) setEvents(data.events);
+        setNewEventForm({ title: '', date: '', time: '', location: '', details: '' });
+      }
+    } catch {}
+  };
+
+  const handleRemoveEvent = async (id: string) => {
+    if (!isMaster) return;
+    try {
+      const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setEvents((prev) => prev.filter(ev => ev.id !== id));
+      }
+    } catch {}
   };
 
   const handleSaveMasterAuthorProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -1315,14 +1427,60 @@ export default function Home() {
     setAdminMessage("कैटेगरी हटा दी गई।");
   };
 
-  const handleNewsletter = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!newsletterEmail.trim()) {
-      setNewsletterMessage("कृपया वैध ईमेल दर्ज करें।");
-      return;
-    }
+  const executeNewsletterSubscription = () => {
     setNewsletterMessage("धन्यवाद! आप सफलतापूर्वक न्यूज़लेटर से जुड़ गए हैं।");
     setNewsletterEmail("");
+    setNewsletterName("");
+    setNewsletterPhone("");
+  };
+
+  const handleNewsletter = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newsletterName.trim() || !newsletterPhone.trim() || !newsletterEmail.trim()) {
+      setNewsletterMessage("कृपया नाम, फ़ोन नंबर और वैध ईमेल दर्ज करें।");
+      return;
+    }
+    setNewsletterMessage("सत्यापन OTP भेजा जा रहा है...");
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newsletterEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
+      
+      setOtpModalState({ isOpen: true, email: newsletterEmail.trim(), context: "newsletter" });
+      setNewsletterMessage("");
+    } catch (err: any) {
+      setNewsletterMessage(err.message);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setOtpModalState((prev) => ({ ...prev, isLoading: true, error: "" }));
+    try {
+      const res = await fetch("/api/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpModalState.email, code: otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "अमान्य OTP");
+      
+      if (otpModalState.context === "newsletter") {
+        executeNewsletterSubscription();
+      } else if (otpModalState.context === "admin") {
+        await executeAddAdmin();
+      } else if (otpModalState.context === "contributor") {
+        await executeAddContributor();
+      }
+      
+      setOtpModalState({ isOpen: false, email: "", context: "newsletter" });
+      setOtpCode("");
+    } catch (error: any) {
+      setOtpModalState((prev) => ({ ...prev, isLoading: false, error: error.message }));
+    }
   };
 
   const handleBlogSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1425,10 +1583,10 @@ export default function Home() {
   const navTabs = [
     { title: "होम", value: "home" },
     { title: "ताज़ा खबरें", value: "latest" },
-    { title: "परिचय", value: "parichay" },
-    { title: "कैटेगरी", value: "categories" },
     { title: "ब्लॉग", value: "blogs" },
     { title: "न्यूज़लेटर", value: "newsletter" },
+    { title: "कैटेगरी", value: "categories" },
+    { title: "परिचय", value: "parichay" },
   ];
 
   const scrollToSection = (id: string) => {
@@ -1649,7 +1807,8 @@ export default function Home() {
   }, [blogs]);
 
   return (
-    <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
+    <>
+    <div className={`print:hidden ${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
         <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span className="shrink-0 whitespace-nowrap">{formatDate()}</span>
@@ -1700,10 +1859,10 @@ export default function Home() {
                   onError={(event) => {
                     event.currentTarget.src = "/vercel.svg";
                   }}
-                  className="shrink-0 rounded-lg border border-[var(--line)] object-cover"
+                  className="shrink-0 rounded-lg border border-[var(--line)] object-contain bg-white"
                   style={{
-                    width: "calc(80px - 28px * var(--compact-progress))",
-                    height: "calc(80px - 28px * var(--compact-progress))",
+                    width: "calc(120px - 40px * var(--compact-progress))",
+                    height: "calc(120px - 40px * var(--compact-progress))",
                   }}
                 />
                 <div className="space-y-2 min-w-0">
@@ -1726,7 +1885,7 @@ export default function Home() {
                     वाम की आवाज़ (Vaam ki Aawaz)
                   </h1>
                   <p
-                    className="hidden max-w-2xl text-[var(--muted)] sm:block"
+                    className="hidden text-[var(--muted)] sm:block whitespace-nowrap overflow-hidden text-ellipsis"
                     style={{
                       opacity: "calc(1 - var(--compact-progress))",
                       fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
@@ -1950,11 +2109,24 @@ export default function Home() {
             </span>
             <div className="overflow-hidden">
               <div className="ticker-move flex min-w-max gap-10 text-sm text-[var(--muted)]">
-                <span>जनविरोधी नीतियों के खिलाफ देशव्यापी हस्ताक्षर अभियान शुरू</span>
-                <span>शिक्षा और स्वास्थ्य बजट में वृद्धि की मांग पर राज्यव्यापी धरना</span>
-                <span>युवा रोजगार गारंटी पर संसद में विशेष चर्चा की तैयारी</span>
-                <span>जनविरोधी नीतियों के खिलाफ देशव्यापी हस्ताक्षर अभियान शुरू</span>
-                <span>शिक्षा और स्वास्थ्य बजट में वृद्धि की मांग पर राज्यव्यापी धरना</span>
+                {filteredNews.slice(0, 8).map((story, i) => (
+                  <span 
+                    key={`ticker-${story.id}-${i}`} 
+                    onClick={() => handlePostOpen(story)} 
+                    className="cursor-pointer hover:text-[var(--primary)] hover:underline"
+                  >
+                    {story.title}
+                  </span>
+                ))}
+                {filteredNews.slice(0, 8).map((story, i) => (
+                  <span 
+                    key={`ticker-dup-${story.id}-${i}`} 
+                    onClick={() => handlePostOpen(story)} 
+                    className="cursor-pointer hover:text-[var(--primary)] hover:underline"
+                  >
+                    {story.title}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
@@ -2068,19 +2240,18 @@ export default function Home() {
             <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="mb-3 font-serif text-xl font-bold text-[var(--headline)]">सबसे ज्यादा पढ़ी गईं</h3>
               <div className="space-y-3">
-                {[
-                  "लोकसभा में बेरोज़गारी पर विशेष चर्चा की मांग",
-                  "आंगनवाड़ी और आशा कार्यकर्ताओं के मानदेय पर राज्यों की रिपोर्ट",
-                  "शहरी परिवहन में निजीकरण के प्रभाव पर जनसुनवाई",
-                  "कैंपस लोकतंत्र और छात्र चुनाव: नई बहस",
-                ].map((item, index) => (
+                {topReadPosts.map((story, index) => (
                   <button
                     type="button"
-                    key={item}
-                    className="rise-on-hover flex gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-3"
+                    key={story.id}
+                    onClick={() => handlePostOpen(story)}
+                    className="rise-on-hover flex w-full text-left gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-3"
                   >
                     <span className="text-xl font-bold text-[var(--primary)]">{index + 1}</span>
-                    <span className="text-sm leading-6 text-[var(--foreground)]">{item}</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-sm font-semibold leading-5 text-[var(--foreground)] line-clamp-2">{story.title}</span>
+                      <span className="text-xs text-[var(--muted)]">{story.source === "blog" ? (story.clickCount ?? 0) : (postClicks[story.id] ?? 0)} क्लिक</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -2092,6 +2263,20 @@ export default function Home() {
                 रोज़ शाम 7 बजे दिनभर की प्रमुख खबरें और विश्लेषण सीधे आपके ईमेल पर।
               </p>
               <form onSubmit={handleNewsletter} className="mt-4 space-y-3">
+                <input
+                  type="text"
+                  value={newsletterName}
+                  onChange={(event) => setNewsletterName(event.target.value)}
+                  placeholder="आपका नाम"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                />
+                <input
+                  type="tel"
+                  value={newsletterPhone}
+                  onChange={(event) => setNewsletterPhone(event.target.value)}
+                  placeholder="फ़ोन नंबर"
+                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                />
                 <input
                   type="email"
                   value={newsletterEmail}
@@ -2106,17 +2291,19 @@ export default function Home() {
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section className="rounded-xl border border-[var(--line)] bg-white dark:bg-[var(--surface-soft)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
               <div className="mt-3 space-y-3 text-sm">
-                <div className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-3">
-                  <p className="font-semibold text-[var(--headline)]">जनसंवाद यात्रा</p>
-                  <p className="text-[var(--muted)]">05 अप्रैल • भोपाल</p>
-                </div>
-                <div className="rise-on-hover rounded-md border border-[var(--line)] bg-[var(--surface)] p-3">
-                  <p className="font-semibold text-[var(--headline)]">महिला अधिकार सम्मेलन</p>
-                  <p className="text-[var(--muted)]">09 अप्रैल • कोलकाता</p>
-                </div>
+                {events.length === 0 ? (
+                  <p className="text-[var(--muted)]">कोई आगामी ईवेंट नहीं</p>
+                ) : (
+                  events.map(ev => (
+                    <div onClick={() => setActiveEvent(ev)} key={ev.id} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
+                      <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
+                      <p className="text-[var(--muted)] text-xs mt-0.5">{ev.date} • {ev.time}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </section>
           </aside>
@@ -2124,7 +2311,7 @@ export default function Home() {
 
         <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ब्लॉग पोस्ट</h3>
+            <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">समाचार</h3>
             <div className="flex items-center gap-3">
               {selectedAuthor && (
                 <button
@@ -2257,21 +2444,23 @@ export default function Home() {
                   )}
                 </div>
               )}
-              <button className="rise-on-hover rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                ब्लॉग प्रकाशित करें
-              </button>
               <textarea
                 value={formState.excerpt}
                 onChange={(event) => setFormState((prev) => ({ ...prev, excerpt: event.target.value }))}
                 placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
                 className="min-h-24 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
               />
-              <textarea
+              <RichTextEditor
                 value={formState.content}
-                onChange={(event) => setFormState((prev) => ({ ...prev, content: event.target.value }))}
+                onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
                 placeholder="पूरी विस्तृत खबर / लेख"
-                className="min-h-48 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
+                className="md:col-span-2"
               />
+              <div className="md:col-span-2 flex justify-end">
+                <button className="rise-on-hover rounded-md bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                  ब्लॉग प्रकाशित करें
+                </button>
+              </div>
             </form>
           )}
           {blogMessage && <p className="mt-3 text-sm font-medium text-[var(--primary)]">{blogMessage}</p>}
@@ -2344,14 +2533,54 @@ export default function Home() {
                 >
                   <FacebookIcon className="h-4 w-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)] hover:cursor-pointer"
+                  title="Print to PDF"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
+                </button>
               </div>
               {activePost.postImage && (
                 <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
-              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)]">
-                {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
-                  <p key={`${activePost.id}-${index}`}>{paragraph}</p>
-                ))}
+              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)] quill-article-content">
+                {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
+                  <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                ) : (
+                  getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
+                    <p key={`${activePost.id}-${index}`}>{paragraph}</p>
+                  ))
+                )}
+              </div>
+              {activePost.uploaderName && (
+                <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
+                  <span className="text-xs text-[var(--muted)]">अप्लोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{activePost.uploaderName}</span></span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeEvent && (
+          <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              <button
+                type="button"
+                onClick={() => setActiveEvent(null)}
+                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-white"
+              >
+                Close
+              </button>
+              <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">{activeEvent.title}</h3>
+              <div className="mt-4 flex flex-col gap-2 border-b border-[var(--line)] pb-4 text-sm font-semibold text-[var(--muted)]">
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date} {activeEvent.time}</span>
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location}</span>
+              </div>
+              <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+                {activeEvent.details}
               </div>
             </div>
           </div>
@@ -2473,7 +2702,35 @@ export default function Home() {
                     </div>
                   </div>
                   {isMaster && (
-                    <section className="rounded-lg border border-[var(--line)] p-4">
+                    <>
+                      <section className="rounded-lg border border-[var(--line)] p-4">
+                        <h4 className="text-lg font-semibold text-[var(--headline)]">अभियान कैलेंडर नियंत्रण</h4>
+                        <form onSubmit={handleAddEvent} className="mt-4 space-y-3">
+                          <input required value={newEventForm.title} onChange={e => setNewEventForm({...newEventForm, title: e.target.value})} placeholder="इवेंट का नाम (Title)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <div className="grid grid-cols-2 gap-3">
+                            <input required type="date" value={newEventForm.date} onChange={e => setNewEventForm({...newEventForm, date: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                            <input required type="time" value={newEventForm.time} onChange={e => setNewEventForm({...newEventForm, time: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          </div>
+                          <input required value={newEventForm.location} onChange={e => setNewEventForm({...newEventForm, location: e.target.value})} placeholder="स्थान (Location)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <textarea required value={newEventForm.details} onChange={e => setNewEventForm({...newEventForm, details: e.target.value})} placeholder="पूरी जानकारी" className="w-full h-20 resize-none rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                            + नया इवेंट जोड़ें
+                          </button>
+                        </form>
+                        <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {events.map((ev) => (
+                            <div key={ev.id} className="flex items-center justify-between rounded border border-[var(--line)] p-2">
+                              <div>
+                                <p className="text-sm font-semibold">{ev.title}</p>
+                                <p className="text-xs text-[var(--muted)]">{ev.date} | {ev.time}</p>
+                              </div>
+                              <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="rounded-lg border border-[var(--line)] p-4">
                       <h4 className="text-lg font-semibold text-[var(--headline)]">मास्टर एडमिन लेखक प्रोफ़ाइल</h4>
                       <form onSubmit={handleSaveMasterAuthorProfile} className="mt-3 space-y-2">
                         <input
@@ -2505,6 +2762,7 @@ export default function Home() {
                         </button>
                       </form>
                     </section>
+                    </>
                   )}
                   {canManageUsers && (
                     <section className="rounded-lg border border-[var(--line)] p-4">
@@ -2735,5 +2993,91 @@ export default function Home() {
         </footer>
       </div>
     </div>
+
+    {otpModalState.isOpen && (
+      <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="relative w-full max-w-sm rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-2xl">
+          <button
+            type="button"
+            onClick={() => setOtpModalState((prev) => ({ ...prev, isOpen: false }))}
+            className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-white"
+          >
+            Close
+          </button>
+          <h3 className="font-serif text-xl font-bold text-[var(--headline)] mb-2">OTP Verification</h3>
+          <p className="text-sm text-[var(--muted)] mb-5">
+            एक सत्यापन कोड <strong>{otpModalState.email}</strong> पर भेजा गया है। कृपया उसे नीचे दर्ज करें।
+          </p>
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={otpCode}
+              disabled={otpModalState.isLoading}
+              onChange={(e) => setOtpCode(e.target.value)}
+              placeholder="6-digit code"
+              className="w-full text-center tracking-widest font-mono text-xl rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 outline-none focus:border-[var(--primary)]"
+              maxLength={6}
+            />
+            {otpModalState.error && <p className="text-xs text-[var(--primary)]">{otpModalState.error}</p>}
+            <button
+              disabled={otpModalState.isLoading || otpCode.length < 6}
+              onClick={handleVerifyOtp}
+              id="verifyOtpBtn"
+              className="rise-on-hover w-full rounded-md bg-[var(--primary)] px-4 py-2 font-semibold text-white hover:bg-[var(--primary-dark)] disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {otpModalState.isLoading ? "सत्यापन हो रहा है..." : "सत्यापित करें"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {activePost && (
+      <div className="hidden print:block text-black font-serif w-full min-h-screen" style={{ backgroundColor: '#f7f6f2', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <table className="w-full border-collapse">
+          <thead className="table-header-group">
+            <tr><td className="h-[20mm] p-0 border-none"></td></tr>
+          </thead>
+          <tfoot className="table-footer-group">
+            <tr><td className="h-[20mm] p-0 border-none"></td></tr>
+          </tfoot>
+          <tbody>
+            <tr>
+              <td className="p-0 border-none">
+                <div className="px-12 pb-8 max-w-[210mm] mx-auto">
+                  <header className="mb-8 w-full border-b-[6px] border-[var(--primary)] pb-6 text-center">
+                    <a href="https://vaamkiaawaz.in" className="block w-full bg-black pt-1">
+                      <img src="/fbpage.png" alt="वाम की आवाज़ - Vaam ki Aawaz" className="mx-auto w-full max-h-[160px] object-cover object-center rounded-t-sm" />
+                    </a>
+                    <div className="mt-6 flex flex-col items-center gap-3">
+                      <h2 className="text-4xl font-extrabold leading-snug text-gray-900 tracking-tight" style={{ fontFamily: 'Georgia, serif' }}>
+                        {activePost.title}
+                      </h2>
+                      <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-700 italic font-medium bg-[#f3efea] px-6 py-2 rounded-full border border-gray-300 shadow-sm mt-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                        <span className="font-bold text-gray-900">{activePost.author}</span>
+                        {activePost.uploaderName && <span className="text-gray-500">| {activePost.uploaderName}</span>}
+                      </div>
+                    </div>
+                  </header>
+                {activePost.postImage && (
+                  <img src={activePost.postImage} alt={activePost.title} className="w-full max-h-[400px] object-cover rounded-md mb-6" />
+                )}
+                <div className="text-base leading-relaxed quill-article-content">
+                  {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
+                    <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                  ) : (
+                    getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
+                      <p key={`print-${activePost.id}-${index}`} className="mb-4">{paragraph}</p>
+                    ))
+                  )}
+                </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )}
+    </>
   );
 }

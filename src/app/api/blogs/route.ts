@@ -13,6 +13,7 @@ const mapBlog = (post: {
   postImage: string | null;
   authorImage: string | null;
   clickCount: number;
+  uploaderName?: string | null;
   createdAt: Date;
 }) => ({
   id: post.id,
@@ -24,6 +25,7 @@ const mapBlog = (post: {
   postImage: post.postImage,
   authorImage: post.authorImage,
   clickCount: post.clickCount,
+  uploaderName: post.uploaderName ?? null,
   createdAt: post.createdAt.toISOString(),
 });
 
@@ -41,7 +43,7 @@ const ensureBlogPostStorageColumns = async () => {
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'BlogPost'
-      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage')
+      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage', 'uploaderName')
   `);
 
   const byName = new Map(columns.map((item) => [item.COLUMN_NAME, item]));
@@ -50,6 +52,7 @@ const ensureBlogPostStorageColumns = async () => {
   const content = byName.get("content");
   const postImage = byName.get("postImage");
   const authorImage = byName.get("authorImage");
+  const uploaderName = byName.get("uploaderName");
 
   if (!title || !excerpt || !content) {
     throw new Error("BlogPost table is missing required columns.");
@@ -80,6 +83,10 @@ const ensureBlogPostStorageColumns = async () => {
     alterOps.push("ADD COLUMN `authorImage` LONGTEXT NULL");
   } else if (authorImage.DATA_TYPE.toLowerCase() !== "longtext") {
     alterOps.push("MODIFY `authorImage` LONGTEXT NULL");
+  }
+
+  if (!uploaderName) {
+    alterOps.push("ADD COLUMN `uploaderName` VARCHAR(191) NULL");
   }
 
   if (alterOps.length === 0) {
@@ -200,7 +207,16 @@ export async function POST(request: NextRequest) {
   }
 
   const created = await prisma.blogPost.create({
-    data: { category, title, excerpt, content, author, postImage, authorImage },
+    data: { 
+      category, 
+      title, 
+      excerpt, 
+      content, 
+      author, 
+      postImage, 
+      authorImage,
+      uploaderName: (typeof (user.permissions as any)?.authorName === 'string' ? (user.permissions as any).authorName.trim() : null) || (user.role === 'MASTER_ADMIN' ? 'मास्टर एडमिन' : 'अज्ञात')
+    },
   });
 
   if (created.content.trim() !== content) {
