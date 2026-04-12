@@ -2291,7 +2291,7 @@ export default function Home() {
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section className="rounded-xl border border-[var(--line)] bg-white dark:bg-[var(--surface-soft)] p-5">
+            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
               <div className="mt-3 space-y-3 text-sm">
                 {events.length === 0 ? (
@@ -2570,7 +2570,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setActiveEvent(null)}
-                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-white"
+                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
               >
                 Close
               </button>
