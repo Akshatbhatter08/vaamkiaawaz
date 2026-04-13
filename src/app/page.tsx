@@ -3034,28 +3034,61 @@ export default function Home() {
 
     {activePost && (
       <div className="hidden print:block text-black font-serif w-full min-h-screen" style={{ backgroundColor: '#f7f6f2', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            .print-table {
+              /* Ensure the table layout behaves correctly for printing */
+            }
+          }
+        `}} />
         <table className="w-full border-collapse">
           <thead className="table-header-group">
-            <tr><td className="h-[20mm] p-0 border-none"></td></tr>
+            <tr><td className="h-[15mm] p-0 border-none"></td></tr>
           </thead>
           <tfoot className="table-footer-group">
-            <tr><td className="h-[20mm] p-0 border-none"></td></tr>
+            <tr>
+              <td className="p-0 border-none align-bottom">
+                <div className="px-12 max-w-[210mm] mx-auto w-full pt-[5mm] pb-[15mm]">
+                  <div className="w-full border-t-[3px] border-gray-900 pt-3 pb-1 flex justify-between items-start text-[11px] text-gray-800 font-sans" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                    <div className="text-left w-[60%] pr-4">
+                      <p className="font-bold text-sm leading-tight mb-1 truncate">{activePost.title}</p>
+                      <p>प्रकाशन: {new Date(activePost.createdAt || Date.now()).toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    </div>
+                    <div className="text-right w-[40%] pl-4 border-l border-gray-300">
+                      <p>प्रिंट: {new Date().toLocaleString('hi-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                      <p className="mt-1 font-semibold text-gray-900">Page No: <span className="inline-block w-6 border-b border-gray-500"></span></p>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </tfoot>
           <tbody>
             <tr>
               <td className="p-0 border-none">
                 <div className="px-12 pb-8 max-w-[210mm] mx-auto">
-                  <header className="mb-8 w-full border-b-[6px] border-[var(--primary)] pb-6 text-center">
-                    <a href="https://vaamkiaawaz.in" className="block w-full bg-black pt-1">
-                      <img src="/fbpage.png" alt="वाम की आवाज़ - Vaam ki Aawaz" className="mx-auto w-full max-h-[160px] object-cover object-center rounded-t-sm" />
-                    </a>
-                    <div className="mt-6 flex flex-col items-center gap-3">
-                      <h2 className="text-4xl font-extrabold leading-snug text-gray-900 tracking-tight" style={{ fontFamily: 'Georgia, serif' }}>
+                  <header className="mb-8 w-full border-b-[4px] border-[#9f171b] pb-6 text-center">
+                    <div className="flex items-center gap-6 justify-start text-left py-2 mb-6">
+                      <img src="/vaamki-logo.png" width={100} height={100} alt="Logo" className="rounded-xl shadow-lg border border-gray-300 bg-black shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="bg-white border-[1.5px] border-[#9f171b] text-[#9f171b] text-[11px] font-bold px-3 py-0.5 rounded-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                          विकल्प की डिजिटल दुनिया
+                        </span>
+                        <div className="text-3xl font-black text-black leading-none mt-1 flex items-baseline gap-2">
+                          वाम की आवाज़ <span className="font-serif font-bold text-2xl">(Vaam ki Aawaz)</span>
+                        </div>
+                        <p className="max-w-[140mm] text-gray-700 text-[12px] font-semibold italic mt-1.5 leading-snug">
+                          अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, न्याय, समानता और प्रगति में हैं विश्वास तो — उठो ! बोलो ! बदलो !
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center gap-3 mt-4 border-t-2 border-gray-200 pt-6">
+                      <h2 className="text-3xl font-extrabold leading-snug text-gray-900 tracking-tight mt-2" style={{ fontFamily: 'Georgia, serif' }}>
                         {activePost.title}
                       </h2>
-                      <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-700 italic font-medium bg-[#f3efea] px-6 py-2 rounded-full border border-gray-300 shadow-sm mt-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                        <span className="font-bold text-gray-900">{activePost.author}</span>
-                        {activePost.uploaderName && <span className="text-gray-500">| {activePost.uploaderName}</span>}
+                      <div className="flex flex-wrap items-center justify-center gap-3 text-sm italic font-bold bg-[#fcfbf9] px-6 py-2 rounded-full border-[1.5px] border-[#9f171b] text-[#9f171b] shadow-sm mt-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+                        <span>{activePost.author}</span>
+                        {activePost.uploaderName && <span className="text-[#9f171b] opacity-80 text-xs mt-0.5">| {activePost.uploaderName}</span>}
                       </div>
                     </div>
                   </header>
