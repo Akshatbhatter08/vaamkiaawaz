@@ -1135,8 +1135,10 @@ export default function Home() {
   const handleAddAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageUsers) return;
-    if (!newAdminForm.email.trim() || !newAdminForm.password.trim()) {
-      setAdminMessage("नए एडमिन के लिए ईमेल और पासवर्ड आवश्यक है।");
+
+    const emailInput = newAdminForm.email.trim();
+    if (!newAdminForm.password.trim()) {
+      setAdminMessage("एडमिन के लिए पासवर्ड आवश्यक है।");
       return;
     }
     if (!newAdminForm.authorName.trim()) {
@@ -1147,6 +1149,40 @@ export default function Home() {
       setAdminMessage("ब्लॉग प्रकाशित करना परमिशन वाले एडमिन के लिए लेखक नाम और फोटो आवश्यक हैं।");
       return;
     }
+
+    if (!emailInput) {
+      if (currentUser?.role !== "master") {
+        setAdminMessage("ईमेल के बिना यूजर बनाने की अनुमति केवल मास्टर एडमिन को है।");
+        return;
+      }
+      setAdminMessage("एडमिन जनरेट किया जा रहा है...");
+      try {
+        const usernameEmailFallback = newAdminForm.authorName.trim();
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: usernameEmailFallback,
+            password: newAdminForm.password.trim(),
+            role: "ADMIN",
+            permissions: newAdminForm.permissions,
+            authorName: newAdminForm.authorName.trim(),
+            authorImage: newAdminForm.permissions.publishBlog ? newAdminForm.authorImage.trim() : undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "एडमिन जनरेट करने में विफल");
+        
+        setNewAdminForm({ email: "", password: "", permissions: noPermissions(), authorName: "", authorImage: "" });
+        setAdminMessage("एडमिन सफलतापूर्वक जोड़ा गया!");
+        void fetchUsers();
+        void fetchAuthors();
+      } catch (err: any) {
+        setAdminMessage(err.message);
+      }
+      return;
+    }
+
     setAdminMessage("सत्यापन OTP भेजा जा रहा है...");
     try {
       const res = await fetch("/api/otp/send", {
@@ -1246,14 +1282,49 @@ export default function Home() {
   const handleAddContributor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageUsers) return;
-    if (!newContributorForm.email.trim() || !newContributorForm.password.trim()) {
-      setAdminMessage("योगदानकर्ता के लिए ईमेल और पासवर्ड आवश्यक है।");
+
+    const emailInput = newContributorForm.email.trim();
+    if (!newContributorForm.password.trim()) {
+      setAdminMessage("योगदानकर्ता के लिए पासवर्ड आवश्यक है।");
       return;
     }
     if (!newContributorForm.authorName.trim() || !newContributorForm.authorImage.trim()) {
       setAdminMessage("योगदानकर्ता के लिए लेखक नाम और फोटो आवश्यक है।");
       return;
     }
+
+    if (!emailInput) {
+      if (currentUser?.role !== "master") {
+        setAdminMessage("ईमेल के बिना यूजर बनाने की अनुमति केवल मास्टर एडमिन को है।");
+        return;
+      }
+      setAdminMessage("योगदानकर्ता जनरेट किया जा रहा है...");
+      try {
+        const usernameEmailFallback = newContributorForm.authorName.trim();
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: usernameEmailFallback,
+            password: newContributorForm.password.trim(),
+            role: "CONTRIBUTOR",
+            authorName: newContributorForm.authorName.trim(),
+            authorImage: newContributorForm.authorImage.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "योगदानकर्ता जनरेट करने में विफल");
+        
+        setNewContributorForm({ email: "", password: "", authorName: "", authorImage: "" });
+        setAdminMessage("योगदानकर्ता सफलतापूर्वक जोड़ा गया!");
+        void fetchUsers();
+        void fetchAuthors();
+      } catch (err: any) {
+        setAdminMessage(err.message);
+      }
+      return;
+    }
+
     setAdminMessage("सत्यापन OTP भेजा जा रहा है...");
     try {
       const res = await fetch("/api/otp/send", {
@@ -2645,11 +2716,11 @@ export default function Home() {
                   <form onSubmit={handleLogin} className="my-8 space-y-4">
                     <div className="space-y-2">
                       <label htmlFor="auth-email" className="text-sm font-medium text-[var(--headline)]">
-                        Email Address
+                        Email Address / Username
                       </label>
                       <input
                         id="auth-email"
-                        type="email"
+                        type="text"
                         value={loginForm.email}
                         onChange={(event) => setLoginForm((prev) => ({ ...prev, email: event.target.value }))}
                         placeholder="admin@site.com"
@@ -2796,10 +2867,10 @@ export default function Home() {
                       </div>
                       <form onSubmit={handleAddAdmin} className="mt-4 space-y-2">
                         <input
-                          type="email"
+                          type="text"
                           value={newAdminForm.email}
                           onChange={(event) => setNewAdminForm((prev) => ({ ...prev, email: event.target.value }))}
-                          placeholder="नया एडमिन ईमेल"
+                          placeholder="ईमेल (वैकल्पिक यदि मास्टर एडमिन है)"
                           className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
                         />
                         <input
@@ -2925,10 +2996,10 @@ export default function Home() {
                       </div>
                       <form onSubmit={handleAddContributor} className="mt-4 space-y-2">
                         <input
-                          type="email"
+                          type="text"
                           value={newContributorForm.email}
                           onChange={(event) => setNewContributorForm((prev) => ({ ...prev, email: event.target.value }))}
-                          placeholder="योगदानकर्ता ईमेल"
+                          placeholder="ईमेल (वैकल्पिक यदि मास्टर एडमिन है)"
                           className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
                         />
                         <input

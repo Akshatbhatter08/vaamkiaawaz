@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const normalizedIdentifier = String(email).trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedIdentifier } });
 
     if (!user) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
