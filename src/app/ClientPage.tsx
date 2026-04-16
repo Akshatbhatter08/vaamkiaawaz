@@ -24,6 +24,15 @@ export type NewsPost = {
   source?: "static" | "blog";
 };
 
+export type PlatformResource = {
+  id: string;
+  title: string;
+  type: string;
+  url?: string | null;
+  fileData?: string | null;
+  createdAt: string;
+};
+
 type ApiBlogPost = {
   id: string;
   category: string;
@@ -526,6 +535,10 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [activeEvent, setActiveEvent] = useState<AbhiyanEvent | null>(null);
   const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '' });
 
+  const [resources, setResources] = useState<PlatformResource[]>([]);
+  const [newResourceForm, setNewResourceForm] = useState({ title: '', type: 'link', url: '', fileData: '' });
+  const [activeResource, setActiveResource] = useState<PlatformResource | null>(null);
+
   const [blogMessage, setBlogMessage] = useState("");
   const [blogSyncMessage, setBlogSyncMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
@@ -559,6 +572,17 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       } catch {}
     };
     loadEvents();
+    
+    const loadResources = async () => {
+      try {
+        const res = await fetch("/api/resources");
+        const data = await res.json();
+        if (data.resources) {
+          setResources(data.resources);
+        }
+      } catch {}
+    };
+    loadResources();
     
     fetchUsers();
     fetch("/api/auth/me", { cache: "no-store", credentials: "include" })
@@ -1241,6 +1265,63 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     } catch {}
   };
 
+  const [resourceMessage, setResourceMessage] = useState("");
+  const [isResourceLoading, setIsResourceLoading] = useState(false);
+
+  const handlePdfUploadTarget = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setResourceMessage("कृपया केवल PDF अपलोड करें।");
+      return;
+    }
+    if (file.size > 3.5 * 1024 * 1024) {
+      setResourceMessage("फ़ाइल 3.5MB से कम होनी चाहिए।");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewResourceForm(prev => ({ ...prev, fileData: reader.result as string, type: 'pdf', url: '' }));
+      setResourceMessage("");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddResource = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isMaster) return;
+    setIsResourceLoading(true);
+    setResourceMessage("");
+    try {
+      const res = await fetch("/api/resources", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newResourceForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResources(prev => [data.resource, ...prev]);
+        setNewResourceForm({ title: '', type: 'link', url: '', fileData: '' });
+        setResourceMessage("संसाधन सफलतापूर्वक जोड़ा गया!");
+      } else {
+        setResourceMessage(data.error || "संसाधन जोड़ने में त्रुटि");
+      }
+    } catch {
+      setResourceMessage("नेटवर्क त्रुटि");
+    } finally {
+      setIsResourceLoading(false);
+    }
+  };
+
+  const handleRemoveResource = async (id: string) => {
+    if (!isMaster) return;
+    try {
+      const res = await fetch(`/api/resources/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setResources((prev) => prev.filter(r => r.id !== id));
+      }
+    } catch {}
+  };
+
   const handleSaveMasterAuthorProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentUser || currentUser.role !== "master") {
@@ -1480,6 +1561,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     { title: "होम", value: "home" },
     { title: "ताज़ा खबरें", value: "latest" },
     { title: "ब्लॉग", value: "blogs" },
+    { title: "संसाधन", value: "resources" },
     { title: "न्यूज़लेटर", value: "newsletter" },
     { title: "कैटेगरी", value: "categories" },
     { title: "परिचय", value: "parichay" },
@@ -1701,6 +1783,21 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blogs]);
+
+  useEffect(() => {
+    if (activeResource && activeResource.type === 'pdf' && !activeResource.fileData) {
+      const loadCompleteResource = async () => {
+        try {
+          const res = await fetch(`/api/resources/${activeResource.id}`);
+          const data = await res.json();
+          if (data.resource && data.resource.fileData) {
+            setActiveResource(data.resource);
+          }
+        } catch {}
+      };
+      loadCompleteResource();
+    }
+  }, [activeResource]);
 
   return (
     <>
@@ -2151,6 +2248,92 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   </button>
                 ))}
               </div>
+            </section>
+
+            <section id="resources" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+              <h3 className="font-serif text-xl font-bold text-[var(--headline)]">संसाधन</h3>
+              <div className="mt-3 space-y-3 text-sm">
+                {resources.length === 0 ? (
+                  <p className="text-[var(--muted)]">कोई संसाधन नहीं</p>
+                ) : (
+                  resources.map(res => (
+                    <div onClick={() => setActiveResource(res)} key={res.id} className="cursor-pointer rise-on-hover flex items-center justify-between rounded-md border border-[var(--line)] bg-[var(--surface)] p-3">
+                      <div>
+                        <p className="font-semibold text-[var(--headline)]">{res.title} {res.type === 'pdf' ? '(PDF)' : '(Link)'}</p>
+                      </div>
+                      {isMaster && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveResource(res.id);
+                          }}
+                          className="text-red-500 text-xs ml-2 rounded border border-red-500 px-2 py-1"
+                        >
+                          X
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {isMaster && (
+                <div className="mt-5 border-t border-[var(--line)] pt-4">
+                  <p className="mb-2 text-sm font-semibold text-[var(--headline)]">संसाधन जोड़ें</p>
+                  <form onSubmit={handleAddResource} className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="शीर्षक"
+                      required
+                      value={newResourceForm.title}
+                      onChange={e => setNewResourceForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                    />
+                    <select
+                      value={newResourceForm.type}
+                      onChange={e => setNewResourceForm(prev => ({ ...prev, type: e.target.value, fileData: '', url: '' }))}
+                      className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                    >
+                      <option value="link">लिंक</option>
+                      <option value="pdf">PDF विवरण</option>
+                    </select>
+
+                    {newResourceForm.type === 'link' && (
+                      <input
+                        type="url"
+                        placeholder="यूआरएल (URL)"
+                        required={newResourceForm.type === 'link'}
+                        value={newResourceForm.url}
+                        onChange={e => setNewResourceForm(prev => ({ ...prev, url: e.target.value }))}
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                      />
+                    )}
+
+                    {newResourceForm.type === 'pdf' && (
+                      <div>
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          required={newResourceForm.type === 'pdf'}
+                          onChange={handlePdfUploadTarget}
+                          className="w-full text-xs"
+                        />
+                        <p className="mt-1 text-[10px] text-[var(--muted)]">अधिकतम साइज़: 3.5MB</p>
+                      </div>
+                    )}
+                    
+                    <button
+                      type="submit"
+                      disabled={isResourceLoading}
+                      className="rise-on-hover w-full rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      {isResourceLoading ? 'प्रोसेसिंग...' : 'जोड़ें'}
+                    </button>
+                    {resourceMessage && <p className="text-xs text-[var(--primary)]">{resourceMessage}</p>}
+                  </form>
+                </div>
+              )}
             </section>
 
             <section id="newsletter" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -3004,6 +3187,43 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             </tr>
           </tbody>
         </table>
+      </div>
+    )}
+
+    {activeResource && (
+      <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+        <div className="flex w-[95%] max-w-5xl items-center justify-between bg-[var(--surface)] p-3 rounded-t-xl border-b border-[var(--line)]">
+          <h2 className="text-lg font-bold text-[var(--headline)] truncate">{activeResource.title}</h2>
+          <div className="flex gap-2">
+            {activeResource.type === 'link' && activeResource.url && (
+              <a href={activeResource.url} target="_blank" rel="noopener noreferrer" className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                ओपन न्यू टैब (New Tab)
+              </a>
+            )}
+            {activeResource.type === 'pdf' && activeResource.fileData && (
+              <a href={activeResource.fileData} download={`${activeResource.title}.pdf`} className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                डाउनलोड (Download)
+              </a>
+            )}
+            <button
+              onClick={() => setActiveResource(null)}
+              className="rounded-md bg-gray-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="w-[95%] max-w-5xl flex-1 bg-[white] rounded-b-xl overflow-hidden relative">
+          {activeResource.type === 'link' && activeResource.url ? (
+            <iframe src={activeResource.url} className="w-full h-full border-none" title={activeResource.title} />
+          ) : activeResource.type === 'pdf' && activeResource.fileData ? (
+            <iframe src={activeResource.fileData} className="w-full h-full border-none" title={activeResource.title} />
+          ) : activeResource.type === 'pdf' && !activeResource.fileData ? (
+            <div className="flex w-full h-full items-center justify-center text-black font-semibold">
+              PDF लोड हो रहा है... कृपया प्रतीक्षा करें।
+            </div>
+          ) : null}
+        </div>
       </div>
     )}
     </>

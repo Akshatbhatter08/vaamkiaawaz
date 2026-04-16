@@ -8,18 +8,54 @@ datasource db {
 }
 
 model BlogPost {
-  id         String   @id @default(cuid())
-  category   String
-  title      String   @db.Text
-  excerpt    String   @db.Text
-  content    String   @db.LongText
-  author     String
-  postImage  String?  @db.LongText
-  authorImage String? @db.LongText
-  clickCount  Int      @default(0)
+  id           String   @id @default(cuid())
+  category     String
+  title        String   @db.Text
+  excerpt      String   @db.Text
+  content      String   @db.LongText
+  author       String
+  clickCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  postImage    String?  @db.LongText
+  authorImage  String?  @db.LongText
+  authorUserId String?
   uploaderName String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  User         User?    @relation(fields: [authorUserId], references: [id])
+
+  @@index([authorUserId], map: "BlogPost_authorUserId_fkey")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(CONTRIBUTOR)
+  active       Boolean    @default(true)
+  permissions  String?    @db.LongText
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  BlogPost     BlogPost[]
+}
+
+model AbhiyanEvent {
+  id        String   @id
+  title     String
+  date      String
+  time      String
+  location  String
+  details   String   @db.LongText
+  createdAt DateTime @default(now())
+}
+
+model Otp {
+  id        String   @id
+  email     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+
+  @@index([email])
 }
 
 enum Role {
@@ -28,13 +64,12 @@ enum Role {
   CONTRIBUTOR
 }
 
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(CONTRIBUTOR)
-  active       Boolean  @default(true)
-  permissions  Json?    // Stores permissions object
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Resource {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   // "pdf" | "link"
+  url       String?  
+  fileData  String?  @db.LongText 
+  createdAt DateTime @default(now())
 }
+
