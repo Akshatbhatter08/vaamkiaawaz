@@ -32,7 +32,7 @@ model User {
   passwordHash String
   role         Role       @default(CONTRIBUTOR)
   active       Boolean    @default(true)
-  permissions  String?    @db.LongText
+  permissions  Json?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   BlogPost     BlogPost[]
