@@ -1733,6 +1733,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     if (Number.isNaN(parsed)) {
       return post.time;
     }
+    const nowMs = Date.now();
     const diffMs = nowMs - parsed;
     if (diffMs <= 20 * 1000) {
       return "अभी";
@@ -1751,6 +1752,13 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       month: "long",
       year: "numeric",
     });
+  };
+
+  const getPreviewImage = (post: NewsPost) => {
+    if (post.postImage) return post.postImage;
+    if (!post.content) return null;
+    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    return match ? match[1] : null;
   };
 
   const handlePostOpen = (post: NewsPost) => {
@@ -1894,7 +1902,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     विकल्प की डिजिटल दुनिया
                   </p>
                   <h1
-                    className="break-words font-serif font-bold leading-tight text-[var(--headline)]"
+                    className="[word-break:normal] [overflow-wrap:anywhere] font-serif font-bold leading-tight text-[var(--headline)]"
                     style={{
                       fontSize: "calc(2rem - 0.65rem * var(--compact-progress))",
                     }}
@@ -2157,6 +2165,9 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 onClick={() => handlePostOpen(featuredForDisplay[0])}
                 className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left"
               >
+                {getPreviewImage(featuredForDisplay[0]) && (
+                  <img src={getPreviewImage(featuredForDisplay[0])!} alt={featuredForDisplay[0].title} className="mb-4 h-64 w-full rounded-lg object-cover" />
+                )}
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                   {featuredForDisplay[0].category}
                 </p>
@@ -2183,6 +2194,9 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   onClick={() => handlePostOpen(story)}
                   className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left"
                 >
+                  {getPreviewImage(story) && (
+                    <img src={getPreviewImage(story)!} alt={story.title} className="mb-3 h-48 w-full rounded-lg object-cover" />
+                  )}
                   <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                     {story.category}
                   </p>
@@ -2215,6 +2229,9 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     onClick={() => handlePostOpen(story)}
                     className="rise-on-hover rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-all"
                   >
+                    {getPreviewImage(story) && (
+                      <img src={getPreviewImage(story)!} alt={story.title} className="mb-3 h-40 w-full rounded-md object-cover" />
+                    )}
                     <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                       {story.category}
                     </p>
@@ -2675,7 +2692,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               {activePost.postImage && (
                 <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
-              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)] quill-article-content whitespace-pre-wrap break-words">
+              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)] quill-article-content whitespace-pre-wrap [word-break:normal] [overflow-wrap:anywhere]">
                 {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
                   <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                 ) : (
@@ -3229,7 +3246,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 {activePost.postImage && (
                   <img src={activePost.postImage} alt={activePost.title} className="w-full max-h-[400px] object-cover rounded-md mb-6" />
                 )}
-                <div className="text-base leading-relaxed quill-article-content whitespace-pre-wrap break-words">
+                <div className="text-base leading-relaxed quill-article-content whitespace-pre-wrap [word-break:normal] [overflow-wrap:anywhere]">
                   {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
                     <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                   ) : (
