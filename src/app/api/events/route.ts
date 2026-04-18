@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
 
   const { title, date, time, location, details } = body;
   
-  if (!title || !date || !time || !location || !details) {
-    return NextResponse.json({ error: "सभी फील्ड्स आवश्यक हैं।" }, { status: 400 });
+  if (!title || !details) {
+    return NextResponse.json({ error: "शीर्षक और विवरण आवश्यक हैं।" }, { status: 400 });
   }
 
   const id = crypto.randomUUID();

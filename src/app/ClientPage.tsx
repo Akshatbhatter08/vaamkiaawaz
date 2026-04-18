@@ -534,10 +534,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [events, setEvents] = useState<AbhiyanEvent[]>([]);
   const [activeEvent, setActiveEvent] = useState<AbhiyanEvent | null>(null);
   const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '' });
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
   const [resources, setResources] = useState<PlatformResource[]>([]);
   const [newResourceForm, setNewResourceForm] = useState({ title: '', type: 'link', url: '', fileData: '' });
   const [activeResource, setActiveResource] = useState<PlatformResource | null>(null);
+  const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
 
   const [blogMessage, setBlogMessage] = useState("");
   const [blogSyncMessage, setBlogSyncMessage] = useState("");
@@ -567,7 +569,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         const res = await fetch("/api/events");
         const data = await res.json();
         if (data.events) {
-          setEvents(data.events);
+          const sorted = data.events.sort((a: any, b: any) => {
+            const dA = (a.date && a.time) ? new Date(`${a.date}T${a.time}`).getTime() : Infinity;
+            const dB = (b.date && b.time) ? new Date(`${b.date}T${b.time}`).getTime() : Infinity;
+            return dA - dB;
+          });
+          setEvents(sorted);
         }
       } catch {}
     };
@@ -1242,15 +1249,25 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     e.preventDefault();
     if (!isMaster) return;
     try {
-      const res = await fetch("/api/events", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const url = editingEventId ? `/api/events/${editingEventId}` : "/api/events";
+      const method = editingEventId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newEventForm)
       });
       if (res.ok) {
         const loadRes = await fetch("/api/events");
         const data = await loadRes.json();
-        if (data.events) setEvents(data.events);
+        if (data.events) {
+          const sorted = data.events.sort((a: any, b: any) => {
+            const dA = (a.date && a.time) ? new Date(`${a.date}T${a.time}`).getTime() : Infinity;
+            const dB = (b.date && b.time) ? new Date(`${b.date}T${b.time}`).getTime() : Infinity;
+            return dA - dB;
+          });
+          setEvents(sorted);
+        }
         setNewEventForm({ title: '', date: '', time: '', location: '', details: '' });
+        setEditingEventId(null);
       }
     } catch {}
   };
@@ -1293,15 +1310,22 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     setIsResourceLoading(true);
     setResourceMessage("");
     try {
-      const res = await fetch("/api/resources", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const url = editingResourceId ? `/api/resources/${editingResourceId}` : "/api/resources";
+      const method = editingResourceId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newResourceForm)
       });
       const data = await res.json();
       if (res.ok) {
-        setResources(prev => [data.resource, ...prev]);
+        if (editingResourceId) {
+          setResources(prev => prev.map(r => r.id === editingResourceId ? data.resource : r));
+        } else {
+          setResources(prev => [data.resource, ...prev]);
+        }
         setNewResourceForm({ title: '', type: 'link', url: '', fileData: '' });
-        setResourceMessage("संसाधन सफलतापूर्वक जोड़ा गया!");
+        setEditingResourceId(null);
+        setResourceMessage(editingResourceId ? "संसाधन सफलतापूर्वक अपडेट किया गया!" : "संसाधन सफलतापूर्वक जोड़ा गया!");
       } else {
         setResourceMessage(data.error || "संसाधन जोड़ने में त्रुटि");
       }
@@ -2262,16 +2286,34 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                         <p className="font-semibold text-[var(--headline)]">{res.title} {res.type === 'pdf' ? '(PDF)' : '(Link)'}</p>
                       </div>
                       {isMaster && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveResource(res.id);
-                          }}
-                          className="text-red-500 text-xs ml-2 rounded border border-red-500 px-2 py-1"
-                        >
-                          X
-                        </button>
+                        <div className="flex gap-1 ml-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingResourceId(res.id);
+                              setNewResourceForm({
+                                title: res.title,
+                                type: res.type,
+                                url: res.url || '',
+                                fileData: '' // Leave empty so we don't accidentally send a large file unless re-uploaded
+                              });
+                            }}
+                            className="text-blue-500 text-xs rounded border border-blue-500 px-2 py-1"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveResource(res.id);
+                            }}
+                            className="text-red-500 text-xs rounded border border-red-500 px-2 py-1"
+                          >
+                            X
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))
@@ -2280,7 +2322,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
 
               {isMaster && (
                 <div className="mt-5 border-t border-[var(--line)] pt-4">
-                  <p className="mb-2 text-sm font-semibold text-[var(--headline)]">संसाधन जोड़ें</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-[var(--headline)]">{editingResourceId ? "संसाधन अपडेट करें" : "संसाधन जोड़ें"}</p>
+                    {editingResourceId && (
+                      <button type="button" onClick={() => { setEditingResourceId(null); setNewResourceForm({ title: '', type: 'link', url: '', fileData: '' }); }} className="text-xs text-red-500 underline">Cancel Edit</button>
+                    )}
+                  </div>
                   <form onSubmit={handleAddResource} className="space-y-3">
                     <input
                       type="text"
@@ -2328,7 +2375,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                       disabled={isResourceLoading}
                       className="rise-on-hover w-full rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
-                      {isResourceLoading ? 'प्रोसेसिंग...' : 'जोड़ें'}
+                      {isResourceLoading ? 'प्रोसेसिंग...' : editingResourceId ? 'अपडेट करें' : 'जोड़ें'}
                     </button>
                     {resourceMessage && <p className="text-xs text-[var(--primary)]">{resourceMessage}</p>}
                   </form>
@@ -2379,7 +2426,10 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   events.map(ev => (
                     <div onClick={() => setActiveEvent(ev)} key={ev.id} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
                       <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
-                      <p className="text-[var(--muted)] text-xs mt-0.5">{ev.date} • {ev.time}</p>
+                      <p className="text-[var(--muted)] text-xs mt-0.5">
+                        {ev.date ? `${ev.date} • ${ev.time}` : 'तय होना बाकी है'}
+                        {ev.location ? ` | ${ev.location}` : ''}
+                      </p>
                     </div>
                   ))
                 )}
@@ -2655,8 +2705,8 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               </button>
               <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">{activeEvent.title}</h3>
               <div className="mt-4 flex flex-col gap-2 border-b border-[var(--line)] pb-4 text-sm font-semibold text-[var(--muted)]">
-                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date} {activeEvent.time}</span>
-                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location}</span>
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date ? `${activeEvent.date} ${activeEvent.time}` : 'तय होना बाकी है'}</span>
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location || 'तय होना बाकी है'}</span>
               </div>
               <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
                 {activeEvent.details}
@@ -2783,17 +2833,20 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   {isMaster && (
                     <>
                       <section className="rounded-lg border border-[var(--line)] p-4">
-                        <h4 className="text-lg font-semibold text-[var(--headline)]">अभियान कैलेंडर नियंत्रण</h4>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-lg font-semibold text-[var(--headline)]">अभियान कैलेंडर नियंत्रण</h4>
+                          {editingEventId && <button type="button" onClick={() => { setEditingEventId(null); setNewEventForm({ title: '', date: '', time: '', location: '', details: '' }); }} className="text-xs text-red-500 underline">Cancel Edit</button>}
+                        </div>
                         <form onSubmit={handleAddEvent} className="mt-4 space-y-3">
                           <input required value={newEventForm.title} onChange={e => setNewEventForm({...newEventForm, title: e.target.value})} placeholder="इवेंट का नाम (Title)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <div className="grid grid-cols-2 gap-3">
-                            <input required type="date" value={newEventForm.date} onChange={e => setNewEventForm({...newEventForm, date: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
-                            <input required type="time" value={newEventForm.time} onChange={e => setNewEventForm({...newEventForm, time: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                            <input type="date" value={newEventForm.date} onChange={e => setNewEventForm({...newEventForm, date: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                            <input type="time" value={newEventForm.time} onChange={e => setNewEventForm({...newEventForm, time: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           </div>
-                          <input required value={newEventForm.location} onChange={e => setNewEventForm({...newEventForm, location: e.target.value})} placeholder="स्थान (Location)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <input value={newEventForm.location} onChange={e => setNewEventForm({...newEventForm, location: e.target.value})} placeholder="स्थान (Location) (वैकल्पिक)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <textarea required value={newEventForm.details} onChange={e => setNewEventForm({...newEventForm, details: e.target.value})} placeholder="पूरी जानकारी" className="w-full h-20 resize-none rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                            + नया इवेंट जोड़ें
+                            {editingEventId ? "इवेंट अपडेट करें" : "+ नया इवेंट जोड़ें"}
                           </button>
                         </form>
                         <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -2801,9 +2854,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                             <div key={ev.id} className="flex items-center justify-between rounded border border-[var(--line)] p-2">
                               <div>
                                 <p className="text-sm font-semibold">{ev.title}</p>
-                                <p className="text-xs text-[var(--muted)]">{ev.date} | {ev.time}</p>
+                                <p className="text-xs text-[var(--muted)]">{ev.date ? `${ev.date} | ${ev.time}` : 'तय होना बाकी है'}</p>
                               </div>
-                              <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
+                              <div className="flex gap-2">
+                                <button onClick={() => { setEditingEventId(ev.id); setNewEventForm({ title: ev.title, date: ev.date, time: ev.time, location: ev.location, details: ev.details }); }} className="text-xs text-blue-500 hover:underline">संपादित करें</button>
+                                <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
+                              </div>
                             </div>
                           ))}
                         </div>
