@@ -2,7 +2,20 @@ import React from "react";
 import dynamic from "next/dynamic";
 import "react-quill-new/dist/quill.snow.css";
 
-const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
+const ReactQuillWrapper = dynamic(
+  async () => {
+    const ReactQuillModule = await import("react-quill-new");
+    const { Quill } = ReactQuillModule;
+    const { default: ImageResize } = await import("quill-resize-image");
+    
+    Quill.register("modules/resize", ImageResize);
+    
+    return function ForwardedRefComponent(props: any) {
+      return <ReactQuillModule.default {...props} />;
+    };
+  },
+  { ssr: false, loading: () => <div className="min-h-[250px]" /> }
+);
 
 interface RichTextEditorProps {
   value: string;
@@ -12,6 +25,9 @@ interface RichTextEditorProps {
 }
 
 const modules = {
+  resize: {
+    locale: {},
+  },
   toolbar: [
     [{ header: [1, 2, 3, 4, 5, 6, false] }],
     [{ font: [] }],
@@ -52,7 +68,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 }) => {
   return (
     <div className={`overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)] [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-[var(--line)] [&_.ql-container]:border-none [&_.ql-editor]:min-h-[250px] [&_.ql-editor]:text-base [&_.ql-editor]:text-[var(--foreground)] [&_.ql-editor.ql-blank::before]:text-[#6b7280] dark:[&_.ql-editor.ql-blank::before]:text-[#9ca3af] [&_.ql-snow_.ql-stroke]:stroke-[var(--foreground)] [&_.ql-snow_.ql-fill]:fill-[var(--foreground)] [&_.ql-snow_.ql-picker]:text-[var(--foreground)] ${className || ""}`}>
-      <ReactQuill
+      <ReactQuillWrapper
         theme="snow"
         value={value}
         onChange={onChange}

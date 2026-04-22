@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import "react-quill-new/dist/quill.snow.css";
 
 export type NewsPost = {
   id: string;
@@ -2692,13 +2693,15 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               {activePost.postImage && (
                 <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
-              <div className="mt-5 space-y-4 text-sm leading-7 text-[var(--foreground)] quill-article-content whitespace-pre-wrap [word-break:normal] [overflow-wrap:anywhere]">
+              <div className="mt-5 text-[var(--foreground)] ql-snow">
                 {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                  <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                  <div className="ql-editor [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                 ) : (
-                  getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
-                    <p key={`${activePost.id}-${index}`}>{paragraph}</p>
-                  ))
+                  <div className="ql-editor space-y-4 [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }}>
+                    {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
+                      <p key={`${activePost.id}-${index}`}>{paragraph}</p>
+                    ))}
+                  </div>
                 )}
               </div>
               {activePost.uploaderName && (
@@ -3246,13 +3249,15 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 {activePost.postImage && (
                   <img src={activePost.postImage} alt={activePost.title} className="w-full max-h-[400px] object-cover rounded-md mb-6" />
                 )}
-                <div className="text-base leading-relaxed quill-article-content whitespace-pre-wrap [word-break:normal] [overflow-wrap:anywhere]">
+                <div className="text-base leading-relaxed ql-snow">
                   {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                    <div dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                    <div className="ql-editor [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                   ) : (
-                    getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
-                      <p key={`print-${activePost.id}-${index}`} className="mb-4">{paragraph}</p>
-                    ))
+                    <div className="ql-editor space-y-4 [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }}>
+                      {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
+                        <p key={`print-${activePost.id}-${index}`} className="mb-4">{paragraph}</p>
+                      ))}
+                    </div>
                   )}
                 </div>
                 </div>
