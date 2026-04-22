@@ -2,8 +2,28 @@ import { NextResponse, NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const ensureResourceTable = async () => {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`Resource\` (
+        \`id\` VARCHAR(191) NOT NULL,
+        \`title\` VARCHAR(191) NOT NULL,
+        \`type\` VARCHAR(191) NOT NULL,
+        \`url\` VARCHAR(191) NULL,
+        \`fileData\` LONGTEXT NULL,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    `);
+  } catch (err) {
+    console.error("Resource table creation error:", err);
+    throw err;
+  }
+};
+
 export async function GET(request: NextRequest) {
   try {
+    await ensureResourceTable();
     const resources = await prisma.resource.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -15,9 +35,12 @@ export async function GET(request: NextRequest) {
       }
     });
     return NextResponse.json({ resources });
-  } catch (error) {
+  } catch (error: any) {
     console.error("GET /api/resources error:", error);
-    return NextResponse.json({ error: "Failed to fetch resources" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Failed to fetch resources",
+      details: error.message || String(error)
+    }, { status: 500 });
   }
 }
 

@@ -31,9 +31,13 @@ export async function GET() {
       `SELECT * FROM \`AbhiyanEvent\` ORDER BY \`createdAt\` DESC`
     );
     return NextResponse.json({ events }, { status: 200 });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ events: [] }, { status: 200 });
+  } catch (error: any) {
+    console.error("GET /api/events error:", error);
+    return NextResponse.json({ 
+      events: [], 
+      error: "डेटाबेस त्रुटि।",
+      details: error.message || String(error)
+    }, { status: 500 });
   }
 }
 

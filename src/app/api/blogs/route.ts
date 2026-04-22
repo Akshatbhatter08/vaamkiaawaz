@@ -55,6 +55,56 @@ const ensureBlogPostStorageColumns = async () => {
   const uploaderName = byName.get("uploaderName");
 
   if (!title || !excerpt || !content) {
+    // If the table is missing basic columns, it might not exist at all.
+    // We try to create it if it's completely missing.
+    const tableExists = await prisma.$queryRawUnsafe<{ COUNT: number }[]>(`
+      SELECT COUNT(*) as COUNT
+      FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'BlogPost'
+    `);
+    
+    if (tableExists[0]?.COUNT === 0) {
+      console.log("BlogPost table missing, creating...");
+      // We also need the User table for the foreign key, or we create a simplified version
+      // For now, let's create BlogPost without the foreign key constraint if it's just for display
+      // Or better, create User first.
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS \`User\` (
+          \`id\` VARCHAR(191) NOT NULL,
+          \`email\` VARCHAR(191) NOT NULL,
+          \`passwordHash\` VARCHAR(191) NOT NULL,
+          \`role\` ENUM('MASTER_ADMIN', 'ADMIN', 'CONTRIBUTOR') NOT NULL DEFAULT 'CONTRIBUTOR',
+          \`active\` BOOLEAN NOT NULL DEFAULT TRUE,
+          \`permissions\` JSON NULL,
+          \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          \`updatedAt\` DATETIME(3) NOT NULL,
+          UNIQUE INDEX \`User_email_key\`(\`email\`),
+          PRIMARY KEY (\`id\`)
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS \`BlogPost\` (
+          \`id\` VARCHAR(191) NOT NULL,
+          \`category\` VARCHAR(191) NOT NULL,
+          \`title\` TEXT NOT NULL,
+          \`excerpt\` TEXT NOT NULL,
+          \`content\` LONGTEXT NOT NULL,
+          \`author\` VARCHAR(191) NOT NULL,
+          \`clickCount\` INTEGER NOT NULL DEFAULT 0,
+          \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+          \`updatedAt\` DATETIME(3) NOT NULL,
+          \`postImage\` LONGTEXT NULL,
+          \`authorImage\` LONGTEXT NULL,
+          \`authorUserId\` VARCHAR(191) NULL,
+          \`uploaderName\` VARCHAR(191) NULL,
+          PRIMARY KEY (\`id\`),
+          CONSTRAINT \`BlogPost_authorUserId_fkey\` FOREIGN KEY (\`authorUserId\`) REFERENCES \`User\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE
+        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      `);
+      return; // Table created, columns will be fine
+    }
     throw new Error("BlogPost table is missing required columns.");
   }
 
@@ -109,8 +159,12 @@ const ensureBlogSchema = async () => {
 export async function GET() {
   try {
     await ensureBlogSchema();
-  } catch {
-    return NextResponse.json({ error: "डेटाबेस स्कीमा असंगत है।" }, { status: 500 });
+  } catch (err: any) {
+    console.error("GET /api/blogs schema error:", err);
+    return NextResponse.json({ 
+      error: "डेटाबेस स्कीमा असंगत है।", 
+      details: err.message || String(err) 
+    }, { status: 500 });
   }
   const count = await prisma.blogPost.count();
   if (count === 0) {

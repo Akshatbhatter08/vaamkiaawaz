@@ -27,9 +27,12 @@ const ensureOtpSchema = async () => {
 export async function POST(request: NextRequest) {
   try {
     await ensureOtpSchema();
-  } catch (error) {
-    console.error("Schema error:", error);
-    return NextResponse.json({ error: "डेटाबेस त्रुटि।" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Schema error in OTP:", error);
+    return NextResponse.json({ 
+      error: "डेटाबेस त्रुटि।",
+      details: error.message || String(error)
+    }, { status: 500 });
   }
 
   const { email } = await request.json() as { email?: string };
