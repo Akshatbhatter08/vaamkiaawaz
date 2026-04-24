@@ -142,3 +142,80 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
     print-color-adjust: exact;
   }
 }
+
+/* Enforce strict word breaking — prevent mid-word splits */
+*, *::before, *::after {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+}
+
+/* Force all article content to stay within container */
+.ql-editor img,
+.ql-editor iframe,
+.ql-editor video,
+.ql-editor table,
+.ql-editor pre {
+  max-width: 100% !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+}
+.ql-editor {
+  overflow-x: hidden !important;
+  word-wrap: break-word !important;
+}
+
+/* Elegant styling for Google Translate widget */
+.goog-te-combo {
+  background-color: var(--surface) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 13px !important;
+  font-family: var(--font-noto-devanagari), system-ui, sans-serif !important;
+  outline: none !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.goog-te-combo:hover, .goog-te-combo:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 20%, transparent) !important;
+}
+
+/* Hide the ugly Google top banner and original text popups */
+.skiptranslate > iframe.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+#goog-gt-tt {
+  display: none !important;
+}
+
+/* Hide the "Powered by Google" text and logo */
+.goog-logo-link,
+.goog-logo-link img {
+  display: none !important;
+}
+.goog-te-gadget {
+  color: transparent !important;
+  font-size: 0px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+.goog-te-gadget > span,
+.goog-te-gadget > a,
+.goog-te-gadget img {
+  display: none !important;
+}
+.goog-te-gadget .goog-te-combo {
+  margin: 0 !important;
+  color: var(--foreground) !important;
+  font-size: 13px !important;
+}
+

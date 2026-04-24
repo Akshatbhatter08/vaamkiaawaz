@@ -546,6 +546,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [blogSyncMessage, setBlogSyncMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
   const [activePost, setActivePost] = useState<NewsPost | null>(null);
+  const [previewPost, setPreviewPost] = useState<NewsPost | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
   const categoryMenuRef = useRef<HTMLDivElement | null>(null);
   const [formState, setFormState] = useState({
@@ -1485,8 +1486,44 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     }
   };
 
-  const handleBlogSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handlePreviewBlog = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canPublishBlog) {
+      setBlogMessage("नई पोस्ट केवल अधिकृत एडमिन या अधिकृत योगदानकर्ता ही जोड़ सकते हैं।");
+      return;
+    }
+    if (!formState.title || !formState.author || !formState.excerpt || !formState.content) {
+      setBlogMessage("शीर्षक, लेखक, सारांश और पूरा लेख भरना आवश्यक है।");
+      return;
+    }
+    const selectedAuthorProfile = authorProfilesByName.get(normalizeAuthorName(formState.author));
+    if (!selectedAuthorProfile) {
+      setBlogMessage("कृपया सूची से मान्य लेखक चुनें।");
+      return;
+    }
+    
+    const targetCategory = formState.customCategory.trim() || formState.category;
+    const tempPost: NewsPost = {
+      id: "preview-id",
+      title: formState.title.trim(),
+      excerpt: formState.excerpt.trim(),
+      content: formState.content.trim(),
+      category: targetCategory,
+      author: formState.author.trim(),
+      postImage: formState.postImage,
+      authorImage: selectedAuthorProfile.image?.trim() ?? "",
+      time: "अभी-अभी",
+      createdAt: new Date().toISOString(),
+      clickCount: 0,
+      source: "blog",
+      uploaderName: currentUser?.authorName || currentUser?.email || "",
+    };
+    
+    setPreviewPost(tempPost);
+    setBlogMessage(""); // clear any existing message
+  };
+
+  const publishBlog = async () => {
     if (!canPublishBlog) {
       setBlogMessage("नई पोस्ट केवल अधिकृत एडमिन या अधिकृत योगदानकर्ता ही जोड़ सकते हैं।");
       return;
@@ -1853,6 +1890,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
+            <div id="google_translate_element" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
@@ -1903,7 +1941,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     विकल्प की डिजिटल दुनिया
                   </p>
                   <h1
-                    className="[word-break:normal] [overflow-wrap:anywhere] font-serif font-bold leading-tight text-[var(--headline)]"
+                    className="font-serif font-bold leading-tight text-[var(--headline)]"
                     style={{
                       fontSize: "calc(2rem - 0.65rem * var(--compact-progress))",
                     }}
@@ -2534,7 +2572,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             </p>
           )}
           {canPublishBlog && (
-            <form onSubmit={handleBlogSubmit} className="mt-5 grid gap-3 md:grid-cols-2">
+            <form onSubmit={handlePreviewBlog} className="mt-5 grid gap-3 md:grid-cols-2">
               <input
                 value={formState.title}
                 onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
@@ -2604,8 +2642,8 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 className="md:col-span-2"
               />
               <div className="md:col-span-2 flex justify-end">
-                <button className="rise-on-hover rounded-md bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                  ब्लॉग प्रकाशित करें
+                <button type="submit" className="rise-on-hover rounded-md bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                  प्रीव्यू देखें
                 </button>
               </div>
             </form>
@@ -2615,7 +2653,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
 
         {activePost && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="relative max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+            <div className="relative max-h-[88vh] w-full max-w-3xl rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
               {canRemoveArticle && activePost.source === "blog" && (
                 <button
                   type="button"
@@ -2693,11 +2731,11 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               {activePost.postImage && (
                 <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
-              <div className="mt-5 text-[var(--foreground)] ql-snow">
+              <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
                 {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                  <div className="ql-editor [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                  <div className="ql-editor" style={{ padding: 0, maxWidth: '100%', overflowX: 'hidden', whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                 ) : (
-                  <div className="ql-editor space-y-4 [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }}>
+                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
                     {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
                       <p key={`${activePost.id}-${index}`}>{paragraph}</p>
                     ))}
@@ -2707,6 +2745,74 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               {activePost.uploaderName && (
                 <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
                   <span className="text-xs text-[var(--muted)]">अप्लोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{activePost.uploaderName}</span></span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {previewPost && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[88vh] w-full max-w-3xl rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+              <div className="mb-4 flex flex-col sm:flex-row items-center justify-between rounded-lg bg-[var(--surface-soft)] p-3 text-sm text-[var(--muted)] gap-3">
+                <span className="font-semibold text-[var(--primary)] flex items-center gap-2">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--primary)] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--primary)]"></span>
+                  </span>
+                  पोस्ट का प्रीव्यू
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPost(null)}
+                    className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 font-semibold transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  >
+                    वापस जाएं (Edit)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void publishBlog()}
+                    className="rounded-md bg-[var(--primary)] px-3 py-1.5 font-semibold text-white transition hover:bg-[var(--primary-dark)]"
+                  >
+                    प्रकाशित करें (Publish)
+                  </button>
+                </div>
+              </div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{previewPost.category}</p>
+              <h2 className="font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-3xl">
+                {previewPost.title}
+              </h2>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                <div className="inline-flex items-center gap-2">
+                  {previewPost.authorImage && (
+                    <img src={previewPost.authorImage} alt={previewPost.author} className="h-6 w-6 rounded-full object-cover" />
+                  )}
+                  <span className="font-semibold text-[var(--primary)]">{previewPost.author}</span>
+                </div>
+                <span>•</span>
+                <span>{getPostTimeLabel(previewPost)}</span>
+                <span>•</span>
+                <span>0 क्लिक</span>
+              </div>
+              <div className="mt-4 border-t border-[var(--line)] pt-4"></div>
+              {previewPost.postImage && (
+                <img src={previewPost.postImage} alt={previewPost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
+              )}
+              <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+                {(getFullArticle(previewPost).includes("<p>") || getFullArticle(previewPost).includes("<h")) ? (
+                  <div className="ql-editor" style={{ padding: 0, maxWidth: '100%', overflowX: 'hidden', whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(previewPost) }} />
+                ) : (
+                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
+                    {getFullArticle(previewPost).split("\n\n").map((paragraph, index) => (
+                      <p key={`${previewPost.id}-${index}`}>{paragraph}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {previewPost.uploaderName && (
+                <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
+                  <span className="text-xs text-[var(--muted)]">अप्लोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{previewPost.uploaderName}</span></span>
                 </div>
               )}
             </div>
@@ -3249,11 +3355,11 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 {activePost.postImage && (
                   <img src={activePost.postImage} alt={activePost.title} className="w-full max-h-[400px] object-cover rounded-md mb-6" />
                 )}
-                <div className="text-base leading-relaxed ql-snow">
+                <div className="text-base leading-relaxed ql-snow" style={{ overflowX: 'hidden' }}>
                   {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                    <div className="ql-editor [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
+                    <div className="ql-editor" style={{ padding: 0, whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
                   ) : (
-                    <div className="ql-editor space-y-4 [&_*]:![word-break:normal] [&_*]:![overflow-wrap:break-word]" style={{ padding: 0 }}>
+                    <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
                       {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
                         <p key={`print-${activePost.id}-${index}`} className="mb-4">{paragraph}</p>
                       ))}
