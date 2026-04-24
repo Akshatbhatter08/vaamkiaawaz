@@ -452,7 +452,6 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [newsVisibleCount, setNewsVisibleCount] = useState(24);
   const [blogVisibleCount, setBlogVisibleCount] = useState(24);
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
-  const [nowMs, setNowMs] = useState(Date.now());
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -695,12 +694,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     };
   }, []);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 5_000);
-    return () => window.clearInterval(timer);
-  }, []);
+
 
   useEffect(() => {
     if (!isCategoryMenuOpen) {
