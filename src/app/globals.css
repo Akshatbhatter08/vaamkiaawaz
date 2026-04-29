@@ -143,11 +143,28 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
   }
 }
 
-/* Enforce strict word breaking — prevent mid-word splits */
-*, *::before, *::after {
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
+/* ── Article content typography ──
+   word-break: keep-all  →  never split inside a word (fixes Devanagari mid-word breaks)
+   overflow-wrap: anywhere  →  wrap long unbreakable tokens (URLs, etc.) at container edge
+   white-space: normal  →  collapse whitespace and allow wrapping
+   hyphens: none  →  no automatic hyphenation
+*/
+.ql-editor,
+.ql-editor p,
+.ql-editor li,
+.ql-editor h1,
+.ql-editor h2,
+.ql-editor h3,
+.ql-editor h4,
+.ql-editor h5,
+.ql-editor h6,
+.ql-editor blockquote,
+.ql-editor span {
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
   hyphens: none !important;
+  line-height: 1.8 !important;
 }
 
 /* Force all article content to stay within container */
@@ -162,7 +179,8 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 }
 .ql-editor {
   overflow-x: hidden !important;
-  word-wrap: break-word !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* Elegant styling for Google Translate widget */

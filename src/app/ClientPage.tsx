@@ -858,6 +858,11 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       .slice(0, 4);
   }, [blogs, postClicks]);
 
+  const filteredEvents = useMemo(() => {
+    if (!selectedNewsDate) return events;
+    return events.filter((ev) => ev.date === selectedNewsDate);
+  }, [events, selectedNewsDate]);
+
   const allCategories = useMemo(() => {
     const set = new Set<string>();
     blogs.forEach((post) => {
@@ -1817,7 +1822,8 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
 
   const handleShareAction = (platform: "whatsapp" | "facebook" | "copy") => {
     if (!activePost) return;
-    const url = `${window.location.origin}/?post=${activePost.id}`;
+    // Use /post/{id} route so WhatsApp/Facebook crawlers see OG meta tags
+    const url = `${window.location.origin}/post/${activePost.id}`;
     const text = `${activePost.title}\n\n`;
 
     if (platform === "copy") {
@@ -2470,10 +2476,10 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
               <div className="mt-3 space-y-3 text-sm">
-                {events.length === 0 ? (
-                  <p className="text-[var(--muted)]">कोई आगामी ईवेंट नहीं</p>
+                {filteredEvents.length === 0 ? (
+                  <p className="text-[var(--muted)]">{selectedNewsDate ? 'इस तिथि पर कोई ईवेंट नहीं' : 'कोई आगामी ईवेंट नहीं'}</p>
                 ) : (
-                  events.map(ev => (
+                  filteredEvents.map(ev => (
                     <div onClick={() => setActiveEvent(ev)} key={ev.id} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
                       <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
                       <p className="text-[var(--muted)] text-xs mt-0.5">
