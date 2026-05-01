@@ -30,6 +30,19 @@ export default function RootLayout({
       className={`${notoSansDevanagari.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-7RC0RY6QDQ"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){window.dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-7RC0RY6QDQ');
+          `}
+        </Script>
         {children}
         <Script id="google-translate-init" strategy="afterInteractive">
           {`
