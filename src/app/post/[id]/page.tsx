@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import ClientRedirect from "./ClientRedirect";
 
 export const dynamic = "force-dynamic";
 
@@ -97,5 +97,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  */
 export default async function PostPage({ params }: Props) {
   const { id } = await params;
-  redirect(`/?post=${encodeURIComponent(id)}`);
+  return <ClientRedirect id={id} />;
 }
