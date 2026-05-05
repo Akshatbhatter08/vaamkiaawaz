@@ -33,7 +33,7 @@ function getOgImage(post: { postImage: string | null; content: string }): string
   }
 
   // 3. Fallback to website logo
-  return "/vaamki-logo.png";
+  return "/vaamki-logo-sm.png";
 }
 
 /**
@@ -65,11 +65,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage = getOgImage(post);
 
   return {
-    title: `${post.title} — वाम की आवाज़`,
-    description: post.excerpt,
+    title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
+    description: `${post.excerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
     openGraph: {
-      title: post.title,
-      description: post.excerpt,
+      title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
+      description: `${post.excerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       images: [
         {
@@ -83,8 +83,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
-      description: post.excerpt,
+      title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
+      description: `${post.excerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
       images: [ogImage],
     },
   };
