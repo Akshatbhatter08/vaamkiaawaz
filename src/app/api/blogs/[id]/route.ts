@@ -6,6 +6,133 @@ type Context = {
   params: Promise<{ id: string }>;
 };
 
+const mapBlog = (post: {
+  id: string;
+  category: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  author: string;
+  postImage: string | null;
+  authorImage: string | null;
+  clickCount: number;
+  uploaderName?: string | null;
+  authorUserId?: string | null;
+  createdAt: Date;
+}) => ({
+  id: post.id,
+  category: post.category,
+  title: post.title,
+  excerpt: post.excerpt,
+  content: post.content,
+  author: post.author,
+  postImage: post.postImage,
+  authorImage: post.authorImage,
+  clickCount: post.clickCount,
+  uploaderName: post.uploaderName ?? null,
+  authorUserId: post.authorUserId ?? null,
+  createdAt: post.createdAt.toISOString(),
+});
+
+/** GET /api/blogs/[id] — Fetch a single blog post by ID */
+export async function GET(_request: NextRequest, context: Context) {
+  const { id } = await context.params;
+  try {
+    const post = await prisma.blogPost.findUnique({ where: { id } });
+    if (!post) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+    return NextResponse.json({ post: mapBlog(post) });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: "Internal server error", details: err.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/blogs/[id] — Edit a blog post.
+ * Allowed only for: Master Admin OR the original author (matched by author name from user permissions).
+ */
+export async function PATCH(request: NextRequest, context: Context) {
+  const authPayload = await requireAuth(request);
+  if (authPayload instanceof NextResponse) return authPayload;
+
+  const userId = authPayload.id as string | undefined;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, permissions: true, id: true },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const { id } = await context.params;
+  const existing = await prisma.blogPost.findUnique({
+    where: { id },
+    select: { id: true, author: true, authorUserId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  }
+
+  // Determine if user can edit this post
+  const userAuthorName =
+    typeof (user.permissions as any)?.authorName === "string"
+      ? ((user.permissions as any).authorName as string).trim().toLowerCase()
+      : "";
+  const postAuthorName = existing.author.trim().toLowerCase();
+  const isMaster = user.role === "MASTER_ADMIN";
+  const isPostAuthor =
+    userAuthorName.length > 0 && userAuthorName === postAuthorName;
+
+  if (!isMaster && !isPostAuthor) {
+    return NextResponse.json(
+      {
+        error:
+          "इस लेख को केवल मास्टर एडमिन या इसके लेखक ही संपादित कर सकते हैं।",
+      },
+      { status: 403 }
+    );
+  }
+
+  const body = (await request.json()) as {
+    title?: string;
+    excerpt?: string;
+    content?: string;
+    category?: string;
+    postImage?: string | null;
+  };
+
+  const updateData: Record<string, unknown> = {};
+  if (body.title?.trim()) updateData.title = body.title.trim();
+  if (body.excerpt?.trim()) updateData.excerpt = body.excerpt.trim();
+  if (body.content?.trim()) updateData.content = body.content.trim();
+  if (body.category?.trim()) updateData.category = body.category.trim();
+  if (body.postImage !== undefined) updateData.postImage = body.postImage;
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json(
+      { error: "कम से कम एक फ़ील्ड अपडेट करें।" },
+      { status: 400 }
+    );
+  }
+
+  const updated = await prisma.blogPost.update({
+    where: { id },
+    data: updateData,
+  });
+
+  return NextResponse.json({ post: mapBlog(updated) });
+}
+
 export async function DELETE(request: NextRequest, context: Context) {
   const authPayload = await requireAuth(request);
   if (authPayload instanceof NextResponse) return authPayload;
@@ -24,10 +151,14 @@ export async function DELETE(request: NextRequest, context: Context) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const permissions = (user.permissions ?? {}) as Partial<Record<"publishBlog" | "manageHomepage", boolean>>;
+  const permissions = (user.permissions ?? {}) as Partial<
+    Record<"publishBlog" | "manageHomepage", boolean>
+  >;
   const canRemove =
     user.role === "MASTER_ADMIN" ||
-    (user.role === "ADMIN" && permissions.publishBlog === true && permissions.manageHomepage === true);
+    (user.role === "ADMIN" &&
+      permissions.publishBlog === true &&
+      permissions.manageHomepage === true);
 
   if (!canRemove) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

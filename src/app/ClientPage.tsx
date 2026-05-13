@@ -4,9 +4,11 @@ import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } f
 import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
 export type NewsPost = {
@@ -544,7 +546,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [blogMessage, setBlogMessage] = useState("");
   const [blogSyncMessage, setBlogSyncMessage] = useState("");
   const [postClicks, setPostClicks] = useState<Record<string, number>>({});
-  const [activePost, setActivePost] = useState<NewsPost | null>(null);
+  const router = useRouter();
   const [previewPost, setPreviewPost] = useState<NewsPost | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
   const categoryMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1611,7 +1613,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         return;
       }
       setBlogs((prev) => prev.filter((item) => item.id !== post.id));
-      setActivePost((prev) => (prev?.id === post.id ? null : prev));
+
       setBlogMessage("पोस्ट हटा दी गई।");
     } catch {
       setBlogMessage("पोस्ट हटाई नहीं जा सकी।");
@@ -1803,56 +1805,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       setBlogs((prev) =>
         prev.map((item) => (item.id === post.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)),
       );
-      const optimistic = { ...post, clickCount: (post.clickCount ?? 0) + 1 };
-      setActivePost(optimistic);
-      void fetch(`/api/blogs/${post.id}/click`, { method: "POST" })
-        .then((res) => res.json() as Promise<{ id: string; clickCount: number }>)
-        .then((data) => {
-          setBlogs((prev) => prev.map((item) => (item.id === data.id ? { ...item, clickCount: data.clickCount } : item)));
-          setActivePost((prev) => (prev?.id === data.id ? { ...prev, clickCount: data.clickCount } : prev));
-        })
-        .catch(() => undefined);
+      router.push(`/post/${post.id}`);
       return;
     }
-    setActivePost(post);
-    setPostClicks((prev) => ({ ...prev, [post.id]: (prev[post.id] ?? 0) + 1 }));
+    router.push(`/post/${post.id}`);
   };
 
-  const [isCopied, setIsCopied] = useState(false);
-
-  const handleShareAction = (platform: "whatsapp" | "facebook" | "copy") => {
-    if (!activePost) return;
-    // Use /post/{id} route so WhatsApp/Facebook crawlers see OG meta tags
-    const url = `${window.location.origin}/post/${activePost.id}`;
-    const text = `${activePost.title}\n\n`;
-
-    if (platform === "copy") {
-      void navigator.clipboard.writeText(url).then(() => {
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-      });
-    } else if (platform === "whatsapp") {
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + url)}`, "_blank");
-    } else if (platform === "facebook") {
-      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const postId = urlParams.get("post");
-    if (!postId) return;
-
-    const allAvailablePosts = [...blogs];
-    const match = allAvailablePosts.find((p) => p.id === postId);
-    
-    if (match) {
-      handlePostOpen(match);
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blogs]);
 
   useEffect(() => {
     if (activeResource && activeResource.type === 'pdf' && !activeResource.fileData) {
@@ -2174,22 +2132,28 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             <div className="overflow-hidden">
               <div className="ticker-move flex min-w-max gap-10 text-sm text-[var(--muted)]">
                 {filteredNews.slice(0, 8).map((story, i) => (
-                  <span 
+                  <Link 
                     key={`ticker-${story.id}-${i}`} 
-                    onClick={() => handlePostOpen(story)} 
+                    href={`/post/${story.id}`}
+                    onClick={() => {
+                      setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                    }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
                     {story.title}
-                  </span>
+                  </Link>
                 ))}
                 {filteredNews.slice(0, 8).map((story, i) => (
-                  <span 
+                  <Link 
                     key={`ticker-dup-${story.id}-${i}`} 
-                    onClick={() => handlePostOpen(story)} 
+                    href={`/post/${story.id}`}
+                    onClick={() => {
+                      setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                    }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
                     {story.title}
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -2199,10 +2163,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <section className="space-y-6 lg:col-span-8">
             {featuredForDisplay[0] && (
-              <button
-                type="button"
-                onClick={() => handlePostOpen(featuredForDisplay[0])}
-                className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left"
+              <Link
+                href={`/post/${featuredForDisplay[0].id}`}
+                onClick={() => {
+                  setBlogs((prev) => prev.map((item) => (item.id === featuredForDisplay[0].id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                }}
+                className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left block"
               >
                 {getPreviewImage(featuredForDisplay[0]) && (
                   <img src={getPreviewImage(featuredForDisplay[0])!} alt={featuredForDisplay[0].title} className="mb-4 h-64 w-full rounded-lg object-cover" />
@@ -2222,16 +2188,18 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   <span>{getPostClicks(featuredForDisplay[0])} क्लिक</span>
                 </div>
                 <span className="mt-4 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
-              </button>
+              </Link>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {featuredForDisplay.slice(1).map((story) => (
-                <button
-                  type="button"
+                <Link
                   key={story.id}
-                  onClick={() => handlePostOpen(story)}
-                  className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left"
+                  href={`/post/${story.id}`}
+                  onClick={() => {
+                    setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                  }}
+                  className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left block"
                 >
                   {getPreviewImage(story) && (
                     <img src={getPreviewImage(story)!} alt={story.title} className="mb-3 h-48 w-full rounded-lg object-cover" />
@@ -2247,7 +2215,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                   </p>
                   <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
-                </button>
+                </Link>
               ))}
             </div>
 
@@ -2519,10 +2487,13 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
           )}
           <div className="grid gap-4 lg:grid-cols-2">
             {visibleBlogs.map((post) => (
-              <article 
+              <Link 
                 key={post.id} 
-                onClick={() => handlePostOpen(post)}
-                className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all"
+                href={`/post/${post.id}`}
+                onClick={() => {
+                  setBlogs((prev) => prev.map((item) => (item.id === post.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                }}
+                className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block"
               >
                 {post.postImage && (
                   <img src={post.postImage} alt={post.title} className="mb-3 h-40 w-full rounded-md object-cover" />
@@ -2551,7 +2522,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">
                   पूरा लेख पढ़ें →
                 </span>
-              </article>
+              </Link>
             ))}
           </div>
           {visibleBlogs.length < filteredBlogs.length && (
@@ -2651,105 +2622,6 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
           {blogMessage && <p className="mt-3 text-sm font-medium text-[var(--primary)]">{blogMessage}</p>}
         </section>
 
-        {activePost && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="relative max-h-[88vh] w-full max-w-3xl rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
-              {canRemoveArticle && activePost.source === "blog" && (
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteArticle(activePost)}
-                  className="absolute right-20 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--primary)] hover:border-[var(--primary)]"
-                >
-                  Remove
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setActivePost(null)}
-                className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                Close
-              </button>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{activePost.category}</p>
-              <h2 className="pr-14 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-3xl">
-                {activePost.title}
-              </h2>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-                <div className="inline-flex items-center gap-2">
-                  {activePost.authorImage && (
-                    <img src={activePost.authorImage} alt={activePost.author} className="h-6 w-6 rounded-full object-cover" />
-                  )}
-                  <Link
-                    href={`/author/${encodeURIComponent(activePost.author)}`}
-                    onClick={() => setActivePost(null)}
-                    className="interactive-link font-semibold text-[var(--primary)]"
-                  >
-                    {activePost.author}
-                  </Link>
-                </div>
-                <span>•</span>
-                <span>{getPostTimeLabel(activePost)}</span>
-                <span>•</span>
-                <span>{getPostClicks(activePost)} क्लिक</span>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3 border-y border-[var(--line)] py-3">
-                <span className="text-sm font-semibold text-[var(--muted)]">शेयर करें:</span>
-                <button
-                  type="button"
-                  onClick={() => handleShareAction("copy")}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)] hover: cursor-pointer"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  {isCopied ? "कॉपी किया गया" : "लिंक कॉपी करें"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleShareAction("whatsapp")}
-                  className="inline-flex items-center justify-center rounded-md border border-[#25D366] bg-[#25D366]/10 px-3 py-1.5 text-xs font-semibold text-[#25D366] shadow-sm transition hover:bg-[#25D366] hover:text-white hover: cursor-pointer"
-                  title="Share on WhatsApp"
-                >
-                  <WhatsappIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleShareAction("facebook")}
-                  className="inline-flex items-center justify-center rounded-md border border-[#1877F2] bg-[#1877F2]/10 px-3 py-1.5 text-xs font-semibold text-[#1877F2] shadow-sm transition hover:bg-[#1877F2] hover:text-white hover: cursor-pointer"
-                  title="Share on Facebook"
-                >
-                  <FacebookIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--primary)] hover:text-[var(--primary)] hover:cursor-pointer"
-                  title="Print to PDF"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  Print
-                </button>
-              </div>
-              {activePost.postImage && (
-                <img src={activePost.postImage} alt={activePost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
-              )}
-              <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
-                {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                  <div className="ql-editor" style={{ padding: 0, maxWidth: '100%', overflowX: 'hidden', whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
-                ) : (
-                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
-                    {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
-                      <p key={`${activePost.id}-${index}`}>{paragraph}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {activePost.uploaderName && (
-                <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
-                  <span className="text-xs text-[var(--muted)]">अप्लोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{activePost.uploaderName}</span></span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {previewPost && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -2801,9 +2673,14 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               )}
               <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
                 {(getFullArticle(previewPost).includes("<p>") || getFullArticle(previewPost).includes("<h")) ? (
-                  <div className="ql-editor" style={{ padding: 0, maxWidth: '100%', overflowX: 'hidden', whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(previewPost) }} />
+                  <SanitizedHtml 
+                    html={getFullArticle(previewPost)} 
+                    className="ql-editor" 
+                    style={{ padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }} 
+                    debug={true}
+                  />
                 ) : (
-                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
+                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'pre-wrap' }}>
                     {getFullArticle(previewPost).split("\n\n").map((paragraph, index) => (
                       <p key={`${previewPost.id}-${index}`}>{paragraph}</p>
                     ))}
@@ -3293,86 +3170,6 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       </div>
     )}
 
-    {activePost && (
-      <div className="hidden print:block text-black font-serif w-full min-h-screen" style={{ backgroundColor: '#f7f6f2', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            .print-table {
-              /* Ensure the table layout behaves correctly for printing */
-            }
-          }
-        `}} />
-        <table className="w-full border-collapse">
-          <thead className="table-header-group">
-            <tr><td className="h-[15mm] p-0 border-none"></td></tr>
-          </thead>
-          <tfoot className="table-footer-group">
-            <tr>
-              <td className="p-0 border-none align-bottom">
-                <div className="px-12 max-w-[210mm] mx-auto w-full pt-[5mm] pb-[15mm]">
-                  <div className="w-full border-t-[3px] border-gray-900 pt-3 pb-1 flex justify-between items-start text-[11px] text-gray-800 font-sans" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                    <div className="text-left w-[60%] pr-4">
-                      <p className="font-bold text-sm leading-tight mb-1 truncate">{activePost.title}</p>
-                      <p>प्रकाशन: {new Date(activePost.createdAt || Date.now()).toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    </div>
-                    <div className="text-right w-[40%] pl-4 border-l border-gray-300">
-                      <p>प्रिंट: {new Date().toLocaleString('hi-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
-                      <p className="mt-1 font-semibold text-gray-900">Page No: <span className="inline-block w-6 border-b border-gray-500"></span></p>
-                    </div>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tfoot>
-          <tbody>
-            <tr>
-              <td className="p-0 border-none">
-                <div className="px-12 pb-8 max-w-[210mm] mx-auto">
-                  <header className="mb-8 w-full border-b-[4px] border-[#9f171b] pb-6 text-center">
-                    <div className="flex items-center gap-6 justify-start text-left py-2 mb-6">
-                      <img src="/vaamki-logo.png" width={100} height={100} alt="Logo" className="rounded-xl shadow-lg border border-gray-300 bg-black shrink-0" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
-                      <div className="flex flex-col items-start gap-1">
-                        <span className="bg-white border-[1.5px] border-[#9f171b] text-[#9f171b] text-[11px] font-bold px-3 py-0.5 rounded-full" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                          विकल्प की डिजिटल दुनिया
-                        </span>
-                        <div className="text-3xl font-black text-black leading-none mt-1 flex items-baseline gap-2">
-                          वाम की आवाज़ <span className="font-serif font-bold text-2xl">(Vaam ki Aawaz)</span>
-                        </div>
-                        <p className="max-w-[140mm] text-gray-700 text-[12px] font-semibold italic mt-1.5 leading-snug">
-                          अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, न्याय, समानता और प्रगति में हैं विश्वास तो — उठो ! बोलो ! बदलो !
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-3 mt-4 border-t-2 border-gray-200 pt-6">
-                      <h2 className="text-3xl font-extrabold leading-snug text-gray-900 tracking-tight mt-2" style={{ fontFamily: 'Georgia, serif' }}>
-                        {activePost.title}
-                      </h2>
-                      <div className="flex flex-wrap items-center justify-center gap-3 text-sm italic font-bold bg-[#fcfbf9] px-6 py-2 rounded-full border-[1.5px] border-[#9f171b] text-[#9f171b] shadow-sm mt-2" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-                        <span>{activePost.author}</span>
-                      </div>
-                    </div>
-                  </header>
-                {activePost.postImage && (
-                  <img src={activePost.postImage} alt={activePost.title} className="w-full max-h-[400px] object-cover rounded-md mb-6" />
-                )}
-                <div className="text-base leading-relaxed ql-snow" style={{ overflowX: 'hidden' }}>
-                  {(getFullArticle(activePost).includes("<p>") || getFullArticle(activePost).includes("<h")) ? (
-                    <div className="ql-editor" style={{ padding: 0, whiteSpace: 'normal' }} dangerouslySetInnerHTML={{ __html: getFullArticle(activePost) }} />
-                  ) : (
-                    <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'normal' }}>
-                      {getFullArticle(activePost).split("\n\n").map((paragraph, index) => (
-                        <p key={`print-${activePost.id}-${index}`} className="mb-4">{paragraph}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    )}
 
     {activeResource && (
       <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/80 p-4 backdrop-blur-md">

@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
-import ClientRedirect from "./ClientRedirect";
+import ArticlePage from "./ArticlePage";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,43 @@ function getOgImage(post: { postImage: string | null; content: string }): string
 
   // 3. Fallback to website logo
   return "/vaamki-logo-sm.png";
+}
+
+function formatRelativeTime(isoDate: string) {
+  const parsed = new Date(isoDate).getTime();
+  if (Number.isNaN(parsed)) return "अभी";
+  const diffMs = Date.now() - parsed;
+  if (diffMs <= 20 * 1000) return "अभी";
+  if (diffMs < 60 * 1000) return "कुछ पल पहले";
+  if (diffMs < 60 * 60 * 1000) return "कुछ मिनट पहले";
+  if (diffMs < 24 * 60 * 60 * 1000) return "कुछ घंटे पहले";
+  return new Date(parsed).toLocaleDateString("hi-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function mapPostForClient(post: any) {
+  const createdAtIso = post.createdAt
+    ? new Date(post.createdAt).toISOString()
+    : new Date().toISOString();
+  return {
+    id: post.id,
+    category: post.category,
+    title: post.title,
+    excerpt: post.excerpt,
+    content: post.content,
+    author: post.author,
+    postImage: post.postImage ?? null,
+    authorImage: post.authorImage ?? null,
+    clickCount: post.clickCount ?? 0,
+    uploaderName: post.uploaderName ?? null,
+    authorUserId: post.authorUserId ?? null,
+    createdAt: createdAtIso,
+    time: formatRelativeTime(createdAtIso),
+    source: "blog" as const,
+  };
 }
 
 /**
@@ -91,11 +128,102 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * This page exists only to serve rich OG meta tags to crawlers.
- * Real users are immediately redirected to the homepage where the
- * client-side modal opens the article via the `?post=` query param.
+ * This page renders a full article reading experience.
+ * It fetches the post server-side (for SSR + SEO), along with
+ * related posts for "suggested reading" and sidebar data.
  */
 export default async function PostPage({ params }: Props) {
   const { id } = await params;
-  return <ClientRedirect id={id} />;
+
+  // Fetch the main post
+  const post = await prisma.blogPost.findUnique({ where: { id } });
+
+  if (!post) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">लेख नहीं मिला</h1>
+          <p className="text-gray-500 mb-4">यह लेख हटा दिया गया है या उपलब्ध नहीं है।</p>
+          <a href="/" className="text-[#9f171b] font-semibold hover:underline">
+            ← होमपेज पर वापस जाएं
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Start non-critical updates asynchronously
+  prisma.blogPost.update({
+    where: { id },
+    data: { clickCount: { increment: 1 } },
+  }).catch(() => {});
+
+  const mappedPost = mapPostForClient(post);
+
+  // Fire all independent database queries concurrently
+  const sameCategoryPostsPromise = prisma.blogPost.findMany({
+    where: { category: post.category, id: { not: post.id } },
+    orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
+    take: 3,
+  });
+
+  const topReadPostsPromise = prisma.blogPost.findMany({
+    orderBy: { clickCount: "desc" },
+    take: 5,
+  });
+
+  const eventsPromise = (prisma as any).abhiyanEvent.findMany({
+    orderBy: { createdAt: "desc" },
+  }).catch(() => []);
+
+  const resourcesPromise = prisma.resource.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true, type: true, url: true, createdAt: true },
+  }).catch(() => []);
+
+  // Wait for all concurrent queries
+  const [sameCategoryPosts, topReadPosts, events, resources] = await Promise.all([
+    sameCategoryPostsPromise,
+    topReadPostsPromise,
+    eventsPromise,
+    resourcesPromise
+  ]);
+
+  // If we don't have enough same-category posts, fill with recent popular posts
+  const remainingSlots = 4 - sameCategoryPosts.length;
+  let fillPosts: any[] = [];
+  if (remainingSlots > 0) {
+    const excludeIds = [post.id, ...sameCategoryPosts.map((p: any) => p.id)];
+    fillPosts = await prisma.blogPost.findMany({
+      where: { id: { notIn: excludeIds } },
+      orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
+      take: remainingSlots,
+    });
+  }
+
+  const suggestedPosts = [...sameCategoryPosts, ...fillPosts].map(mapPostForClient);
+  const sidebarTopReads = topReadPosts.map(mapPostForClient);
+
+  return (
+    <ArticlePage
+      post={mappedPost}
+      suggestedPosts={suggestedPosts}
+      sidebarTopReads={sidebarTopReads}
+      events={events.map((e: any) => ({
+        id: e.id,
+        title: e.title,
+        date: e.date,
+        time: e.time,
+        location: e.location,
+        details: e.details,
+      }))}
+      resources={resources.map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        type: r.type,
+        url: r.url ?? null,
+        createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : new Date().toISOString(),
+      }))}
+    />
+  );
 }

@@ -160,11 +160,20 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 .ql-editor h6,
 .ql-editor blockquote,
 .ql-editor span {
-  word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
-  white-space: normal !important;
+  /* Universal Multilingual Typography */
+  word-break: normal !important;      /* Let Unicode rules handle spaces natively */
+  overflow-wrap: break-word !important; /* Only break massive tokens like URLs */
+  white-space: pre-wrap !important;   /* Crucial: Preserve editor spacing perfectly */
+  line-break: auto !important;
   hyphens: none !important;
   line-height: 1.8 !important;
+}
+
+/* Prevent Quill nested spans from resetting safe multilingual wrapping */
+.ql-editor * {
+  word-break: inherit !important;
+  overflow-wrap: inherit !important;
+  white-space: inherit !important;
 }
 
 /* Force all article content to stay within container */
@@ -178,9 +187,11 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
   overflow-x: hidden !important;
 }
 .ql-editor {
-  overflow-x: hidden !important;
-  word-break: keep-all !important;
-  overflow-wrap: anywhere !important;
+  /* Prevent horizontal scroll while preserving word wrapping */
+  overflow-x: clip !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-wrap !important;
 }
 
 /* Elegant styling for Google Translate widget */
@@ -235,5 +246,21 @@ body {
   margin: 0 !important;
   color: var(--foreground) !important;
   font-size: 13px !important;
+}
+
+/* ── Article Page ── */
+.article-hero-img { transition: transform 6s ease; }
+.article-hero-img:hover { transform: scale(1.03); }
+.article-body h1,.article-body h2,.article-body h3 { font-family: var(--font-source-serif); color: var(--headline); margin: 1.5em 0 0.5em; }
+.article-body p { margin: 0.8em 0; line-height: 2; word-break: normal; overflow-wrap: break-word; white-space: pre-wrap; }
+.article-body img { max-width: 100%; border-radius: 8px; margin: 1em 0; }
+.article-body blockquote { border-left: 4px solid var(--primary); padding: 0.5em 1em; margin: 1em 0; background: var(--surface-soft); border-radius: 0 8px 8px 0; }
+.article-body.ql-editor { min-height: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }
+.article-share-btn { transition: transform 200ms ease, box-shadow 200ms ease; }
+.article-share-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+@media print {
+  .article-no-print { display: none !important; }
+  .article-body { font-size: 14px !important; line-height: 1.8 !important; }
 }
 
