@@ -235,8 +235,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
 
   const isMaster = userRole === "MASTER_ADMIN";
   const isAuthor = userAuthorName && userAuthorName === post.author.trim().toLowerCase();
-  const canEdit = isMaster || isAuthor;
-  const canDelete = isMaster;
+  const isUploader = userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase();
+  const canEdit = isMaster || isAuthor || isUploader;
+  const canDelete = isMaster || isUploader;
   
   const roleText = userRole === "MASTER_ADMIN" 
     ? "मास्टर एडमिन" 

@@ -151,27 +151,29 @@ export async function DELETE(request: NextRequest, context: Context) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const permissions = (user.permissions ?? {}) as Partial<
-    Record<"publishBlog" | "manageHomepage", boolean>
-  >;
-  const canRemove =
-    user.role === "MASTER_ADMIN" ||
-    (user.role === "ADMIN" &&
-      permissions.publishBlog === true &&
-      permissions.manageHomepage === true);
-
-  if (!canRemove) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const { id } = await context.params;
   const existing = await prisma.blogPost.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, uploaderName: true },
   });
 
   if (!existing) {
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  }
+
+  const permissions = (user.permissions ?? {}) as any;
+  const userAuthorName = typeof permissions.authorName === 'string' ? permissions.authorName.trim() : null;
+  const isUploader = userAuthorName && existing.uploaderName && userAuthorName.toLowerCase() === existing.uploaderName.trim().toLowerCase();
+
+  const canRemove =
+    user.role === "MASTER_ADMIN" ||
+    (user.role === "ADMIN" &&
+      permissions.publishBlog === true &&
+      permissions.manageHomepage === true) ||
+    isUploader;
+
+  if (!canRemove) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   await prisma.blogPost.delete({ where: { id } });
