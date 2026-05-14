@@ -830,9 +830,11 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
             <div className="flex flex-wrap items-center gap-4">
-              <button className="interactive-link">संपादकीय नीति</button>
-              <button className="interactive-link">गोपनीयता</button>
-              <button className="interactive-link">विज्ञापन</button>
+              <Link href="/editorial-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">संपादकीय नीति</Link>
+              <Link href="/corrections-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">सुधार नीति</Link>
+              <Link href="/privacy-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">गोपनीयता नीति</Link>
+              <Link href="/about-us" className="interactive-link hover:text-[var(--primary)] transition-colors">हमारे बारे में</Link>
+              <Link href="/contact-us" className="interactive-link hover:text-[var(--primary)] transition-colors">संपर्क करें</Link>
             </div>
           </div>
         </footer>

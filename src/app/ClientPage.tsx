@@ -2506,13 +2506,16 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     {post.authorImage && (
                       <img src={post.authorImage} alt={post.author} className="h-5 w-5 rounded-full object-cover" />
                     )}
-                    <Link
-                      href={`/author/${encodeURIComponent(post.author)}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="interactive-link font-semibold text-[var(--primary)]"
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        router.push(`/author/${encodeURIComponent(post.author)}`);
+                      }}
+                      className="interactive-link cursor-pointer font-semibold text-[var(--primary)] hover:underline"
                     >
                       {post.author}
-                    </Link>
+                    </span>
                   </div>
                   <span>•</span>
                   <span>{getPostTimeLabel(post)}</span>
@@ -3117,15 +3120,21 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
             <div className="flex flex-wrap items-center gap-4">
-              <button type="button" className="interactive-link">
+              <Link href="/editorial-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
                 संपादकीय नीति
-              </button>
-              <button type="button" className="interactive-link">
-                गोपनीयता
-              </button>
-              <button type="button" className="interactive-link">
-                विज्ञापन
-              </button>
+              </Link>
+              <Link href="/corrections-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
+                सुधार नीति
+              </Link>
+              <Link href="/privacy-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
+                गोपनीयता नीति
+              </Link>
+              <Link href="/about-us" className="interactive-link hover:text-[var(--primary)] transition-colors">
+                हमारे बारे में
+              </Link>
+              <Link href="/contact-us" className="interactive-link hover:text-[var(--primary)] transition-colors">
+                संपर्क करें
+              </Link>
             </div>
           </div>
         </footer>
