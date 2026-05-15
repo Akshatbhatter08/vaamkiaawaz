@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "वाम की आवाज़ | जन समाचार मंच",
   description:
     "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
+  other: {
+    "google-adsense-account": "ca-pub-5595988052361058"
+  }
 };
 
 export default function RootLayout({
@@ -30,13 +33,14 @@ export default function RootLayout({
       lang="hi"
       className={`${notoSansDevanagari.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body suppressHydrationWarning className="min-h-full flex flex-col">
-        <Script
+      <head>
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5595988052361058"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        ></script>
+      </head>
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-7RC0RY6QDQ"
           strategy="afterInteractive"

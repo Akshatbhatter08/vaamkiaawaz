@@ -1753,9 +1753,11 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         : "योगदानकर्ता"
     : "";
 
-  const getFullArticle = (post: NewsPost) =>
-    post.content?.trim() ||
-    `${post.excerpt}\n\nइस विषय पर विस्तृत रिपोर्ट के लिए संपादकीय टीम द्वारा तथ्यात्मक पृष्ठभूमि, जमीनी प्रतिक्रियाएं और नीति-संदर्भ एकत्र किए जा रहे हैं।`;
+  const getFullArticle = (post: NewsPost) => {
+    const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
+    return post.content?.trim() ||
+    `${plainExcerpt}\n\nइस विषय पर विस्तृत रिपोर्ट के लिए संपादकीय टीम द्वारा तथ्यात्मक पृष्ठभूमि, जमीनी प्रतिक्रियाएं और नीति-संदर्भ एकत्र किए जा रहे हैं।`;
+  };
 
   const getPostClicks = (post: NewsPost) => {
     if (post.source === "blog") {
@@ -2179,7 +2181,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 <h2 className="line-clamp-3 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
                   {featuredForDisplay[0].title}
                 </h2>
-                <p className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)]">{featuredForDisplay[0].excerpt}</p>
+                <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: featuredForDisplay[0].excerpt }} />
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
                   <span>{featuredForDisplay[0].author}</span>
                   <span>•</span>
@@ -2210,7 +2212,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   <h3 className="line-clamp-2 mt-2 font-serif text-xl font-semibold leading-snug text-[var(--headline)]">
                     {story.title}
                   </h3>
-                  <p className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)]">{story.excerpt}</p>
+                  <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: story.excerpt }} />
                   <p className="mt-4 text-xs text-[var(--muted)]">
                     {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                   </p>
@@ -2243,7 +2245,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                       {story.category}
                     </p>
                     <h4 className="line-clamp-2 mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
-                    <p className="line-clamp-3 mt-2 text-sm text-[var(--muted)]">{story.excerpt}</p>
+                    <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: story.excerpt }} />
                     <p className="mt-3 text-xs text-[var(--muted)]">
                       {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                     </p>
@@ -2500,7 +2502,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
                 <h4 className="line-clamp-2 mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
-                <p className="line-clamp-3 mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
+                <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: post.excerpt }} />
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
                   <div className="inline-flex items-center gap-2">
                     {post.authorImage && (
@@ -2603,12 +2605,13 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   )}
                 </div>
               )}
-              <textarea
-                value={formState.excerpt}
-                onChange={(event) => setFormState((prev) => ({ ...prev, excerpt: event.target.value }))}
-                placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
-                className="min-h-24 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
-              />
+              <div className="md:col-span-2 bg-white text-black rounded-md overflow-hidden border border-[var(--line)]">
+                <RichTextEditor
+                  value={formState.excerpt}
+                  onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
+                  placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
+                />
+              </div>
               <RichTextEditor
                 value={formState.content}
                 onChange={(content) => setFormState((prev) => ({ ...prev, content }))}

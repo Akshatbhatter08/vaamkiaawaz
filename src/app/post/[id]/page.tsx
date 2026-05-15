@@ -100,13 +100,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const ogImage = getOgImage(post);
+  const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
 
   return {
     title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
-    description: `${post.excerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
+    description: `${plainExcerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
     openGraph: {
       title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
-      description: `${post.excerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
+      description: `${plainExcerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       images: [
         {

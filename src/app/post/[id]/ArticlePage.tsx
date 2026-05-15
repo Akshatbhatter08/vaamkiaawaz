@@ -622,11 +622,13 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">सारांश (Excerpt)</label>
-                  <textarea
-                    value={editForm.excerpt}
-                    onChange={(e) => setEditForm(prev => ({...prev, excerpt: e.target.value}))}
-                    className="w-full min-h-24 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
-                  />
+                  <div className="bg-white text-black rounded-md overflow-hidden border border-[var(--line)]">
+                    <RichTextEditor
+                      value={editForm.excerpt}
+                      onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
+                      placeholder="संक्षिप्त सारांश यहाँ लिखें..."
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">मुख्य लेख (Content)</label>
@@ -681,7 +683,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
                 {/* Abstract box */}
                 <div className="rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
                   <p className="text-sm font-semibold text-[var(--primary)] mb-1">सारांश</p>
-                  <p className="text-base leading-7 text-[var(--foreground)] italic">{post.excerpt}</p>
+                  <div className="text-base leading-7 text-[var(--foreground)] italic ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: post.excerpt }} />
                 </div>
 
                 {/* Hero image */}
