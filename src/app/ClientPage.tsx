@@ -11,6 +11,15 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
+const cleanHtml = (html: string | undefined | null) => {
+  if (!html) return "";
+  // Strip zero-width chars and replace non-breaking spaces with normal spaces
+  return html
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00A0/g, " ");
+};
+
 export type NewsPost = {
   id: string;
   category: string;
@@ -2181,7 +2190,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 <h2 className="line-clamp-3 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
                   {featuredForDisplay[0].title}
                 </h2>
-                <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: featuredForDisplay[0].excerpt }} />
+                <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }} />
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
                   <span>{featuredForDisplay[0].author}</span>
                   <span>•</span>
@@ -2212,7 +2221,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   <h3 className="line-clamp-2 mt-2 font-serif text-xl font-semibold leading-snug text-[var(--headline)]">
                     {story.title}
                   </h3>
-                  <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: story.excerpt }} />
+                  <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
                   <p className="mt-4 text-xs text-[var(--muted)]">
                     {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                   </p>
@@ -2245,7 +2254,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                       {story.category}
                     </p>
                     <h4 className="line-clamp-2 mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
-                    <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: story.excerpt }} />
+                    <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
                     <p className="mt-3 text-xs text-[var(--muted)]">
                       {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
                     </p>
@@ -2502,7 +2511,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
                 <h4 className="line-clamp-2 mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
-                <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: post.excerpt }} />
+                <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(post.excerpt) }} />
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
                   <div className="inline-flex items-center gap-2">
                     {post.authorImage && (

@@ -20,6 +20,15 @@ type SidebarPost = Post;
 type Evt = { id: string; title: string; date: string; time: string; location: string; details: string };
 type Res = { id: string; title: string; type: string; url: string | null; createdAt: string };
 
+const cleanHtml = (html: string | undefined | null) => {
+  if (!html) return "";
+  // Strip zero-width chars and replace non-breaking spaces with normal spaces
+  return html
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00A0/g, " ");
+};
+
 const THEME_KEY = "vaamki-aawaz-theme";
 const readingTime = (html: string) => {
   const text = html.replace(/<[^>]*>/g, "");
@@ -683,7 +692,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
                 {/* Abstract box */}
                 <div className="rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
                   <p className="text-sm font-semibold text-[var(--primary)] mb-1">सारांश</p>
-                  <div className="text-base leading-7 text-[var(--foreground)] italic ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: post.excerpt }} />
+                  <div className="text-base leading-7 text-[var(--foreground)] italic ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: cleanHtml(post.excerpt) }} />
                 </div>
 
                 {/* Hero image */}

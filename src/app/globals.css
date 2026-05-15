@@ -161,9 +161,9 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 .ql-editor blockquote,
 .ql-editor span {
   /* Universal Multilingual Typography */
-  word-break: normal !important;      /* Let Unicode rules handle spaces natively */
-  overflow-wrap: break-word !important; /* Only break massive tokens like URLs */
-  white-space: pre-wrap !important;   /* Crucial: Preserve editor spacing perfectly */
+  word-break: keep-all !important;      /* Prevent mid-word breaks in Devanagari */
+  overflow-wrap: anywhere !important;   /* Only break massive tokens like URLs */
+  white-space: pre-wrap !important;     /* Preserve editor spacing perfectly */
   line-break: auto !important;
   hyphens: none !important;
   line-height: 1.8 !important;
@@ -189,8 +189,8 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 .ql-editor {
   /* Prevent horizontal scroll while preserving word wrapping */
   overflow-x: clip !important;
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
 
@@ -271,5 +271,10 @@ body {
 }
 .excerpt-html br {
   display: none;
+}
+.excerpt-html, .excerpt-html * {
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
 }
 
