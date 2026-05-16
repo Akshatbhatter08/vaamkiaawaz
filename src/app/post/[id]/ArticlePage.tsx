@@ -685,7 +685,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   {post.authorImage && (
                     <img src={post.authorImage} alt="" className="h-9 w-9 rounded-full border border-[var(--line)] object-cover" />
                   )}
-                  <span className="font-semibold text-[var(--foreground)]">{post.author}</span>
+                  <Link href={`/author/${encodeURIComponent(post.author)}`} className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline">
+                    {post.author}
+                  </Link>
                   <span>•</span>
                   <span>{fmtDate(post.createdAt)}</span>
                   <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{mins} मिनट पठन</span>
@@ -722,14 +724,6 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               </>
             )}
 
-            {/* Author Profile and Latest Posts Box */}
-            <div className="article-no-print mt-6">
-              <AuthorProfileBox
-                authorName={post.author}
-                authorImage={post.authorImage}
-                authorPosts={authorPosts}
-              />
-            </div>
 
             {/* Share + Actions bar */}
             <div className="article-no-print flex flex-wrap items-center gap-3 border-y border-[var(--line)] py-3 mt-1">

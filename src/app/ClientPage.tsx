@@ -2191,7 +2191,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 </h2>
                 <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }} />
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
-                  <span>{featuredForDisplay[0].author}</span>
+                  <span 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(featuredForDisplay[0].author)}`); }}
+                    className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
+                  >
+                    {featuredForDisplay[0].author}
+                  </span>
                   <span>•</span>
                   <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
                   <span>•</span>
@@ -2221,9 +2226,15 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     {story.title}
                   </h3>
                   <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
-                  <p className="mt-4 text-xs text-[var(--muted)]">
-                    {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
-                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
+                    <span 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
+                      className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
+                    >
+                      {story.author}
+                    </span>
+                    <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
+                  </div>
                   <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                 </Link>
               ))}
@@ -2254,9 +2265,15 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     </p>
                     <h4 className="line-clamp-2 mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
                     <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
-                    <p className="mt-3 text-xs text-[var(--muted)]">
-                      {story.author} • {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक
-                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <span 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
+                        className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
+                      >
+                        {story.author}
+                      </span>
+                      <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
+                    </div>
                     <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                   </button>
                 ))}

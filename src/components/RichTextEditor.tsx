@@ -28,6 +28,33 @@ const modules = {
   resize: {
     locale: {},
   },
+  keyboard: {
+    bindings: {
+      header1: { key: '1', ctrlKey: true, altKey: true, handler: function(this: any) { this.quill.format('header', 1); } },
+      header2: { key: '2', ctrlKey: true, altKey: true, handler: function(this: any) { this.quill.format('header', 2); } },
+      header3: { key: '3', ctrlKey: true, altKey: true, handler: function(this: any) { this.quill.format('header', 3); } },
+      alignCenter: { key: 'e', ctrlKey: true, handler: function(this: any, range: any, context: any) { this.quill.format('align', context.format.align === 'center' ? false : 'center'); } },
+      alignRight: { key: 'r', ctrlKey: true, handler: function(this: any, range: any, context: any) { this.quill.format('align', context.format.align === 'right' ? false : 'right'); } },
+      alignLeft: { key: 'l', ctrlKey: true, handler: function(this: any) { this.quill.format('align', false); } },
+      alignJustify: { key: 'j', ctrlKey: true, handler: function(this: any, range: any, context: any) { this.quill.format('align', context.format.align === 'justify' ? false : 'justify'); } },
+      blockquote: { key: 'q', ctrlKey: true, handler: function(this: any, range: any, context: any) { this.quill.format('blockquote', !context.format.blockquote); } },
+      clearFormat: { key: '\\', ctrlKey: true, handler: function(this: any, range: any) { this.quill.removeFormat(range.index, range.length); } },
+      link: { 
+        key: 'k', ctrlKey: true, 
+        handler: function(this: any, range: any) { 
+          const url = window.prompt('Enter link URL:'); 
+          if (url) { this.quill.format('link', url); } 
+        } 
+      },
+      color: {
+        key: 'c', ctrlKey: true, shiftKey: true,
+        handler: function(this: any) {
+          const colorBtn = this.quill.container?.previousElementSibling?.querySelector('.ql-color .ql-picker-label') as HTMLElement;
+          if (colorBtn) { colorBtn.click(); }
+        }
+      }
+    }
+  },
   toolbar: [
     [{ header: [1, 2, 3, 4, 5, 6, false] }],
     [{ font: [] }],
@@ -41,24 +68,9 @@ const modules = {
   ],
 };
 
-const formats = [
-  "header",
-  "font",
-  "size",
-  "bold",
-  "italic",
-  "underline",
-  "strike",
-  "blockquote",
-  "list",
-  "indent",
-  "link",
-  "image",
-  "video",
-  "color",
-  "background",
-  "align",
-];
+// We intentionally do not use a strict formats array here. 
+// If we restrict formats, custom image attributes like width, height, and inline styles 
+// added by quill-resize-image get stripped away when editing an existing article.
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   value,
@@ -73,7 +85,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         value={value}
         onChange={onChange}
         modules={modules}
-        formats={formats}
         placeholder={placeholder}
       />
     </div>

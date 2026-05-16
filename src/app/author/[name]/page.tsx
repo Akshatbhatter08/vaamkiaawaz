@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, use } from "react";
+import AuthorProfileBox from "@/components/AuthorProfileBox";
 
 const decodeAuthorName = (value: string) => {
   try {
@@ -75,12 +76,12 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
           <Link href="/" className="text-sm font-semibold text-[var(--primary)]">
             ← होम पर वापस जाएँ
           </Link>
-          <div className="mt-4 flex items-center gap-3">
-            {authorImage && <img src={authorImage} alt={authorName} className="h-14 w-14 rounded-full object-cover" />}
-            <div>
-              <h1 className="font-serif text-3xl font-bold text-[var(--headline)]">{authorName}</h1>
-              <p className="text-sm text-[var(--muted)]">{posts.length} प्रकाशित लेख</p>
-            </div>
+          <div className="mt-4">
+            <AuthorProfileBox
+              authorName={authorName}
+              authorImage={authorImage}
+              authorPosts={posts}
+            />
           </div>
         </div>
 
