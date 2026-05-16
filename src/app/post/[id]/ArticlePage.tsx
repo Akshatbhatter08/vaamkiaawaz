@@ -10,6 +10,8 @@ import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
 import { SanitizedHtml } from "@/utils/sanitizeHtml";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import AuthorProfileBox from "@/components/AuthorProfileBox";
+
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
   author: string; postImage?: string | null; authorImage?: string | null;
@@ -69,8 +71,9 @@ const FacebookIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5.5 w-5.5" fill="currentColor"><g transform="translate(0 -1.5)"><path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z"/></g></svg>
 );
 
-export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, events, resources }: {
+export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, authorPosts, events, resources }: {
   post: Post; suggestedPosts: SidebarPost[]; sidebarTopReads: SidebarPost[];
+  authorPosts: SidebarPost[];
   events: Evt[]; resources: Res[];
 }) {
   const router = useRouter();
@@ -718,6 +721,15 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, eve
                 )}
               </>
             )}
+
+            {/* Author Profile and Latest Posts Box */}
+            <div className="article-no-print mt-6">
+              <AuthorProfileBox
+                authorName={post.author}
+                authorImage={post.authorImage}
+                authorPosts={authorPosts}
+              />
+            </div>
 
             {/* Share + Actions bar */}
             <div className="article-no-print flex flex-wrap items-center gap-3 border-y border-[var(--line)] py-3 mt-1">

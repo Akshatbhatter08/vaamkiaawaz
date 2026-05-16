@@ -182,12 +182,19 @@ export default async function PostPage({ params }: Props) {
     select: { id: true, title: true, type: true, url: true, createdAt: true },
   }).catch(() => []);
 
+  const authorPostsPromise = prisma.blogPost.findMany({
+    where: { author: post.author, id: { not: post.id } },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+  });
+
   // Wait for all concurrent queries
-  const [sameCategoryPosts, topReadPosts, events, resources] = await Promise.all([
+  const [sameCategoryPosts, topReadPosts, events, resources, authorPosts] = await Promise.all([
     sameCategoryPostsPromise,
     topReadPostsPromise,
     eventsPromise,
-    resourcesPromise
+    resourcesPromise,
+    authorPostsPromise
   ]);
 
   // If we don't have enough same-category posts, fill with recent popular posts
@@ -204,12 +211,14 @@ export default async function PostPage({ params }: Props) {
 
   const suggestedPosts = [...sameCategoryPosts, ...fillPosts].map(mapPostForClient);
   const sidebarTopReads = topReadPosts.map(mapPostForClient);
+  const mappedAuthorPosts = authorPosts.map(mapPostForClient);
 
   return (
     <ArticlePage
       post={mappedPost}
       suggestedPosts={suggestedPosts}
       sidebarTopReads={sidebarTopReads}
+      authorPosts={mappedAuthorPosts}
       events={events.map((e: any) => ({
         id: e.id,
         title: e.title,

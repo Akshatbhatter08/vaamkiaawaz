@@ -1,7 +1,7 @@
  "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 
 const decodeAuthorName = (value: string) => {
   try {
@@ -9,6 +9,14 @@ const decodeAuthorName = (value: string) => {
   } catch {
     return value.trim();
   }
+};
+
+const cleanHtml = (html: string | undefined | null) => {
+  if (!html) return "";
+  return html
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\u00A0/g, " ");
 };
 
 type ApiBlogPost = {
@@ -31,8 +39,9 @@ const formatDate = (iso: string) =>
     year: "numeric",
   }).format(new Date(iso));
 
-export default function AuthorPage({ params }: { params: { name: string } }) {
-  const authorName = useMemo(() => decodeAuthorName(params.name), [params.name]);
+export default function AuthorPage({ params }: { params: Promise<{ name: string }> }) {
+  const resolvedParams = use(params);
+  const authorName = useMemo(() => decodeAuthorName(resolvedParams.name), [resolvedParams.name]);
   const [posts, setPosts] = useState<ApiBlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -84,17 +93,32 @@ export default function AuthorPage({ params }: { params: { name: string } }) {
             इस लेखक के लिए अभी कोई लेख उपलब्ध नहीं है।
           </div>
         ) : (
-          <section className="grid gap-4">
+          <section className="grid gap-4 lg:grid-cols-2">
             {posts.map((post) => (
-              <article key={post.id} className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
-                <h2 className="mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h2>
-                <p className="mt-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
+              <Link 
+                key={post.id} 
+                href={`/post/${post.id}`}
+                className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block bg-[var(--surface)]"
+              >
                 {post.postImage && (
-                  <img src={post.postImage} alt={post.title} className="mt-3 max-h-72 w-full rounded-lg object-cover" />
+                  <img src={post.postImage} alt={post.title} className="mb-3 h-40 w-full rounded-md object-cover" />
                 )}
-                <p className="mt-3 text-xs text-[var(--muted)]">{formatDate(post.createdAt)}</p>
-              </article>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
+                <h4 className="line-clamp-2 mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
+                <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(post.excerpt) }} />
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                  <div className="inline-flex items-center gap-2">
+                    {post.authorImage && (
+                      <img src={post.authorImage} alt={post.author} className="h-5 w-5 rounded-full object-cover" />
+                    )}
+                    <span className="font-medium text-[var(--foreground)]">{post.author}</span>
+                  </div>
+                  <span>•</span>
+                  <span>{formatDate(post.createdAt)}</span>
+                  <span>•</span>
+                  <span>{post.clickCount ?? 0} क्लिक</span>
+                </div>
+              </Link>
             ))}
           </section>
         )}

@@ -29,11 +29,11 @@ export default function AboutUs() {
 
       <h2 className="mt-8 text-2xl font-bold text-[var(--headline)]">हमारी टीम</h2>
       <ul className="list-disc pl-6 space-y-2">
-        <li><strong>प्रेरक:</strong> मुहम्मद सलीम</li>
-        <li><strong>संस्थापक एवं मुख्य संपादक:</strong> केशव कुमार भट्टड़</li>
-        <li><strong>सलाहकार संपादक:</strong> उत्तम सेनगुप्ता</li>
+        <li><strong>प्रेरक:</strong> मोहम्मद सलीम</li>
         <li><strong>मुख्य सचेतक:</strong> डॉ. अशोक सिंह</li>
-        <li><strong>योगदानकर्ता:</strong> श्रेया जायसवाल, राजीव कुमार पाण्डेय और देश भर के अन्य समर्पित स्वतंत्र पत्रकार एवं लेखक।</li>
+        <li><strong>सलाहकार संपादक:</strong> उत्तम सेनगुप्ता</li>
+        <li><strong>संपादक मण्डल:</strong> श्रेया जायसवाल, राजीव कुमार पाण्डेय और देश भर के अन्य समर्पित स्वतंत्र पत्रकार एवं लेखक।</li>
+        <li><strong>संस्थापक एवं मुख्य संपादक:</strong> केशव कुमार भट्टड़</li>
       </ul>
 
       <h2 className="mt-8 text-2xl font-bold text-[var(--headline)]">संपर्क जानकारी</h2>
