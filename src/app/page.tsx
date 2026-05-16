@@ -32,19 +32,41 @@ export default async function Page() {
   let initialBlogs: NewsPost[] = [];
   try {
     const posts = await prisma.blogPost.findMany({
+      select: {
+        id: true,
+        category: true,
+        title: true,
+        excerpt: true,
+        content: true, // Need content temporarily to extract the fallback image
+        author: true,
+        postImage: true,
+        authorImage: true,
+        clickCount: true,
+        uploaderName: true,
+        createdAt: true,
+      },
       orderBy: [{ createdAt: "desc" }],
+      take: 30, // Limit homepage to latest 30 posts to ensure extremely fast loading
     });
 
     initialBlogs = posts.map((post: any) => {
       const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();
+      
+      // Extract fallback image from content if postImage is missing
+      let resolvedImage = post.postImage;
+      if (!resolvedImage && post.content) {
+        const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+        resolvedImage = match ? match[1] : null;
+      }
+
       return {
         id: post.id,
         category: post.category,
         title: post.title,
         excerpt: post.excerpt,
-        content: post.content,
+        content: "", // Intentionally omit content from the client payload to prevent 20MB hydration issues
         author: post.author,
-        postImage: post.postImage ?? null,
+        postImage: resolvedImage,
         authorImage: post.authorImage ?? null,
         clickCount: post.clickCount ?? 0,
         uploaderName: post.uploaderName ?? null,

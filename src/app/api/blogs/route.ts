@@ -8,26 +8,34 @@ const mapBlog = (post: {
   category: string;
   title: string;
   excerpt: string;
-  content: string;
+  content?: string;
   author: string;
   postImage: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
   createdAt: Date;
-}) => ({
-  id: post.id,
-  category: post.category,
-  title: post.title,
-  excerpt: post.excerpt,
-  content: post.content,
-  author: post.author,
-  postImage: post.postImage,
-  authorImage: post.authorImage,
-  clickCount: post.clickCount,
-  uploaderName: post.uploaderName ?? null,
-  createdAt: post.createdAt.toISOString(),
-});
+}) => {
+  let resolvedImage = post.postImage;
+  if (!resolvedImage && post.content) {
+    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    resolvedImage = match ? match[1] : null;
+  }
+
+  return {
+    id: post.id,
+    category: post.category,
+    title: post.title,
+    excerpt: post.excerpt,
+    content: "", // Fallback empty string if content is intentionally omitted
+    author: post.author,
+    postImage: resolvedImage,
+    authorImage: post.authorImage,
+    clickCount: post.clickCount,
+    uploaderName: post.uploaderName ?? null,
+    createdAt: post.createdAt.toISOString(),
+  };
+};
 
 type BlogColumnMeta = {
   COLUMN_NAME: string;
@@ -180,7 +188,21 @@ export async function GET() {
   }
 
   const posts = await prisma.blogPost.findMany({
+    select: {
+      id: true,
+      category: true,
+      title: true,
+      excerpt: true,
+      content: true, // Need content temporarily for fallback image
+      author: true,
+      postImage: true,
+      authorImage: true,
+      clickCount: true,
+      uploaderName: true,
+      createdAt: true,
+    },
     orderBy: [{ createdAt: "desc" }],
+    take: 100, // Reasonable limit for generic API fetches (like author filtering) without crashing
   });
 
   return NextResponse.json(

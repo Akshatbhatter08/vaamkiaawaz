@@ -51,18 +51,25 @@ function formatRelativeTime(isoDate: string) {
   });
 }
 
-function mapPostForClient(post: any) {
+function mapPostForClient(post: any, keepContent = false) {
   const createdAtIso = post.createdAt
     ? new Date(post.createdAt).toISOString()
     : new Date().toISOString();
+
+  let resolvedImage = post.postImage;
+  if (!resolvedImage && post.content) {
+    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    resolvedImage = match ? match[1] : null;
+  }
+
   return {
     id: post.id,
     category: post.category,
     title: post.title,
     excerpt: post.excerpt,
-    content: post.content,
+    content: keepContent ? post.content : "", // Fallback empty string if content is intentionally omitted
     author: post.author,
-    postImage: post.postImage ?? null,
+    postImage: resolvedImage,
     authorImage: post.authorImage ?? null,
     clickCount: post.clickCount ?? 0,
     uploaderName: post.uploaderName ?? null,
@@ -159,16 +166,31 @@ export default async function PostPage({ params }: Props) {
     data: { clickCount: { increment: 1 } },
   }).catch(() => {});
 
-  const mappedPost = mapPostForClient(post);
+  const mappedPost = mapPostForClient(post, true);
+
+  const selectSidebarFields = {
+    id: true,
+    category: true,
+    title: true,
+    excerpt: true,
+    author: true,
+    postImage: true,
+    authorImage: true,
+    clickCount: true,
+    uploaderName: true,
+    createdAt: true,
+  };
 
   // Fire all independent database queries concurrently
   const sameCategoryPostsPromise = prisma.blogPost.findMany({
     where: { category: post.category, id: { not: post.id } },
+    select: selectSidebarFields,
     orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
     take: 3,
   });
 
   const topReadPostsPromise = prisma.blogPost.findMany({
+    select: selectSidebarFields,
     orderBy: { clickCount: "desc" },
     take: 5,
   });
@@ -184,12 +206,13 @@ export default async function PostPage({ params }: Props) {
 
   const authorPostsPromise = prisma.blogPost.findMany({
     where: { author: post.author, id: { not: post.id } },
+    select: selectSidebarFields,
     orderBy: { createdAt: "desc" },
     take: 4,
   });
 
   // Wait for all concurrent queries
-  const [sameCategoryPosts, topReadPosts, events, resources, authorPosts] = await Promise.all([
+  const [sameCategoryPostsData, topReadPostsData, events, resources, authorPostsData] = await Promise.all([
     sameCategoryPostsPromise,
     topReadPostsPromise,
     eventsPromise,
@@ -198,20 +221,23 @@ export default async function PostPage({ params }: Props) {
   ]);
 
   // If we don't have enough same-category posts, fill with recent popular posts
-  const remainingSlots = 4 - sameCategoryPosts.length;
+  const remainingSlots = 4 - sameCategoryPostsData.length;
   let fillPosts: any[] = [];
   if (remainingSlots > 0) {
-    const excludeIds = [post.id, ...sameCategoryPosts.map((p: any) => p.id)];
-    fillPosts = await prisma.blogPost.findMany({
+    const excludeIds = [post.id, ...sameCategoryPostsData.map((p: any) => p.id)];
+    const fillResult = await prisma.blogPost.findMany({
       where: { id: { notIn: excludeIds } },
+      select: selectSidebarFields,
       orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
       take: remainingSlots,
     });
+    fillPosts = fillResult.map(p => mapPostForClient(p, false));
   }
 
-  const suggestedPosts = [...sameCategoryPosts, ...fillPosts].map(mapPostForClient);
-  const sidebarTopReads = topReadPosts.map(mapPostForClient);
-  const mappedAuthorPosts = authorPosts.map(mapPostForClient);
+  const sameCategoryPosts = sameCategoryPostsData.map(p => mapPostForClient(p, false));
+  const suggestedPosts = [...sameCategoryPosts, ...fillPosts];
+  const sidebarTopReads = topReadPostsData.map(p => mapPostForClient(p, false));
+  const mappedAuthorPosts = authorPostsData.map(p => mapPostForClient(p, false));
 
   return (
     <ArticlePage

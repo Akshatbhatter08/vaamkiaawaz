@@ -698,8 +698,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <div className="text-base leading-7 text-[var(--foreground)] italic ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: cleanHtml(post.excerpt) }} />
                 </div>
 
-                {/* Hero image */}
-                {heroImg && (
+                {/* Hero image - only show if not already embedded in content */}
+                {heroImg && !post.content?.includes(heroImg) && (
                   <div className="overflow-hidden rounded-xl border border-[var(--line)]">
                     <img src={heroImg} alt={post.title} className="article-hero-img w-full object-cover" style={{ maxHeight: 480 }} />
                   </div>

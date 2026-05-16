@@ -742,11 +742,10 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
           setBlogSyncMessage("");
         }
       } catch (error) {
-        setBlogs([]);
         const message =
           error instanceof Error && error.message
-            ? `सर्वर से लाइव पोस्ट लोड नहीं हो सकीं (${error.message}). इस डिवाइस पर फिलहाल डिफॉल्ट पोस्ट दिखाई जा रही हैं।`
-            : "सर्वर से लाइव पोस्ट लोड नहीं हो सकीं। इस डिवाइस पर फिलहाल डिफॉल्ट पोस्ट दिखाई जा रही हैं।";
+            ? `सर्वर से लाइव पोस्ट लोड नहीं हो सकीं (${error.message}). इस डिवाइस पर फिलहाल कैश की गई पोस्ट दिखाई जा रही हैं।`
+            : "सर्वर से लाइव पोस्ट लोड नहीं हो सकीं। इस डिवाइस पर फिलहाल कैश की गई पोस्ट दिखाई जा रही हैं।";
         setBlogSyncMessage(message);
       }
     };
