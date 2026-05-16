@@ -37,7 +37,6 @@ export default async function Page() {
         category: true,
         title: true,
         excerpt: true,
-        content: true, // Need content temporarily to extract the fallback image
         author: true,
         postImage: true,
         authorImage: true,
@@ -51,13 +50,6 @@ export default async function Page() {
 
     initialBlogs = posts.map((post: any) => {
       const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();
-      
-      // Extract fallback image from content if postImage is missing
-      let resolvedImage = post.postImage;
-      if (!resolvedImage && post.content) {
-        const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
-        resolvedImage = match ? match[1] : null;
-      }
 
       return {
         id: post.id,
@@ -66,7 +58,7 @@ export default async function Page() {
         excerpt: post.excerpt,
         content: "", // Intentionally omit content from the client payload to prevent 20MB hydration issues
         author: post.author,
-        postImage: resolvedImage,
+        postImage: post.postImage ?? null,
         authorImage: post.authorImage ?? null,
         clickCount: post.clickCount ?? 0,
         uploaderName: post.uploaderName ?? null,

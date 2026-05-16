@@ -16,20 +16,14 @@ const mapBlog = (post: {
   uploaderName?: string | null;
   createdAt: Date;
 }) => {
-  let resolvedImage = post.postImage;
-  if (!resolvedImage && post.content) {
-    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
-    resolvedImage = match ? match[1] : null;
-  }
-
   return {
     id: post.id,
     category: post.category,
     title: post.title,
     excerpt: post.excerpt,
-    content: "", // Fallback empty string if content is intentionally omitted
+    content: "", // Content intentionally omitted for speed
     author: post.author,
-    postImage: resolvedImage,
+    postImage: post.postImage,
     authorImage: post.authorImage,
     clickCount: post.clickCount,
     uploaderName: post.uploaderName ?? null,
@@ -193,7 +187,6 @@ export async function GET() {
       category: true,
       title: true,
       excerpt: true,
-      content: true, // Need content temporarily for fallback image
       author: true,
       postImage: true,
       authorImage: true,
