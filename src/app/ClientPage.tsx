@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
-import { TiptapEditor } from "@/components/TiptapEditor";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -94,7 +94,7 @@ type UserAccount = {
   authorImage: string | null;
 };
 
-const MASTER_AUTHOR_NAME = "केशव कुमार भट्टर";
+const MASTER_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 const THEME_STORAGE_KEY = "vaamki-aawaz-theme";
 const POST_CLICKS_STORAGE_KEY = "vaamki-aawaz-post-clicks";
 const MANAGED_CATEGORIES_STORAGE_KEY = "vaamki-aawaz-managed-categories";
@@ -144,7 +144,12 @@ const parseAuthorProfileFromPermissions = (permissions: Record<string, unknown> 
 };
 
 const mapApiUserToAccount = (user: ApiAuthUser): UserAccount => {
-  const permissionsObject = (user.permissions ?? null) as Record<string, unknown> | null;
+  let permissionsObject: Record<string, unknown> | null = null;
+  try {
+    permissionsObject = typeof user.permissions === "string"
+      ? JSON.parse(user.permissions)
+      : (user.permissions ?? null) as Record<string, unknown> | null;
+  } catch { permissionsObject = null; }
   const authorProfile = parseAuthorProfileFromPermissions(permissionsObject);
   return {
     id: user.id,
@@ -563,7 +568,6 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     title: "",
     author: "",
     category: "ब्लॉग",
-    customCategory: "",
     excerpt: "",
     content: "",
     postImage: "",
@@ -1511,7 +1515,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       return;
     }
     
-    const targetCategory = formState.customCategory.trim() || formState.category;
+    const targetCategory = formState.category;
     const tempPost: NewsPost = {
       id: "preview-id",
       title: formState.title.trim(),
@@ -1547,7 +1551,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
       return;
     }
     try {
-      const targetCategory = formState.customCategory.trim() || formState.category;
+      const targetCategory = formState.category;
       const submittedTitle = formState.title.trim();
       const submittedExcerpt = formState.excerpt.trim();
       const submittedContent = formState.content.trim();
@@ -1591,7 +1595,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         title: "",
         author: availableAuthors[0]?.name ?? "",
         category: "ब्लॉग",
-        customCategory: "",
+
         excerpt: "",
         content: "",
         postImage: "",
@@ -2595,18 +2599,23 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 placeholder="हेडलाइन / शीर्षक"
                 className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
               />
-              <select
-                value={formState.author}
-                onChange={(event) => handleAuthorSelectionChange(event.target.value)}
-                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
-              >
-                <option value="">लेखक चुनें</option>
-                {availableAuthors.map((author) => (
-                  <option key={author.name} value={author.name}>
-                    {author.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-3">
+                <select
+                  value={formState.author}
+                  onChange={(event) => handleAuthorSelectionChange(event.target.value)}
+                  className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                >
+                  <option value="">लेखक चुनें</option>
+                  {availableAuthors.map((author) => (
+                    <option key={author.name} value={author.name}>
+                      {author.name}
+                    </option>
+                  ))}
+                </select>
+                {formState.authorImage && (
+                  <img src={formState.authorImage} alt="Author" className="h-10 w-10 shrink-0 rounded-full border border-[var(--line)] object-cover" />
+                )}
+              </div>
               <select
                 value={formState.category}
                 onChange={(event) => setFormState((prev) => ({ ...prev, category: event.target.value }))}
@@ -2620,12 +2629,6 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     </option>
                   ))}
               </select>
-              <input
-                value={formState.customCategory}
-                onChange={(event) => setFormState((prev) => ({ ...prev, customCategory: event.target.value }))}
-                placeholder="नई कैटेगरी (optional)"
-                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
-              />
               <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
                 पोस्ट फोटो
                 <input
@@ -2635,18 +2638,13 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   className="w-full text-xs"
                 />
               </label>
-              {(formState.postImage || formState.authorImage) && (
+              {formState.postImage && (
                 <div className="md:col-span-2 flex gap-3">
-                  {formState.postImage && (
-                    <img src={formState.postImage} alt="Post preview" className="h-16 w-24 rounded-md object-cover" />
-                  )}
-                  {formState.authorImage && (
-                    <img src={formState.authorImage} alt="Author preview" className="h-16 w-16 rounded-full object-cover" />
-                  )}
+                  <img src={formState.postImage} alt="Post preview" className="h-16 w-24 rounded-md object-cover" />
                 </div>
               )}
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
-                <TiptapEditor
+                <RichTextEditor
                   value={formState.excerpt}
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
@@ -2654,7 +2652,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 />
               </div>
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
-                <TiptapEditor
+                <RichTextEditor
                   value={formState.content}
                   onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
                   placeholder="पूरी विस्तृत खबर / लेख"

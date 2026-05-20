@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/password";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
-const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
 const sanitizePermissions = (input: unknown) =>
   permissionKeys.reduce<Record<PermissionKey, boolean>>(

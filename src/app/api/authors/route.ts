@@ -7,7 +7,7 @@ type AuthorRecord = {
 };
 
 const normalizeAuthorName = (name: string) => name.trim().toLowerCase();
-const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
 export async function GET() {
   try {
@@ -39,7 +39,10 @@ export async function GET() {
     const authorMap = new Map<string, AuthorRecord>();
     // ... existing mapping logic ...
     users.forEach((user) => {
-      const permissions = (user.permissions ?? {}) as Record<string, unknown>;
+      let permissions: Record<string, unknown> = {};
+      try {
+        permissions = typeof user.permissions === "string" ? JSON.parse(user.permissions) : (user.permissions ?? {}) as Record<string, unknown>;
+      } catch { permissions = {}; }
       const canUseMasterAdminAsAuthor = user.role === "MASTER_ADMIN";
       const canUseAdminAsAuthor = user.role === "ADMIN" && permissions.publishBlog === true;
       const canUseContributorAsAuthor = user.role === "CONTRIBUTOR";

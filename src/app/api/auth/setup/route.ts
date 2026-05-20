@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 
-const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टर";
+const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
 export async function POST(request: Request) {
   try {
