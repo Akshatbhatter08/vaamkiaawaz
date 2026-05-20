@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { initialBlogSeed } from "@/lib/blog-seed";
 import { requireAuth } from "@/lib/auth";
+import { ensureBlogSchema } from "@/lib/db-setup";
 
 const mapBlog = (post: {
   id: string;
@@ -33,7 +34,8 @@ const mapBlog = (post: {
 
 export async function GET() {
   try {
-    const count = await prisma.blogPost.count();
+    await ensureBlogSchema();
+    const count = await prisma.blogPost.count().catch(() => 0);
     if (count === 0) {
       await prisma.blogPost.createMany({
         data: initialBlogSeed.map((post) => ({
@@ -79,6 +81,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    await ensureBlogSchema();
+  } catch (err) {
+    console.error("ensureBlogSchema failed:", err);
+  }
+
   const authPayload = await requireAuth(request);
   if (authPayload instanceof NextResponse) return authPayload;
   const userId = authPayload.id as string | undefined;

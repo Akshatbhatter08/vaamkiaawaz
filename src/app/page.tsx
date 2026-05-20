@@ -1,5 +1,6 @@
 import ClientPage, { NewsPost } from "./ClientPage";
 import { prisma } from "@/lib/prisma";
+import { ensureBlogSchema } from "@/lib/db-setup";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ function formatRelativeTime(isoDate: string) {
 export default async function Page() {
   let initialBlogs: NewsPost[] = [];
   try {
+    await ensureBlogSchema();
     const posts = await prisma.blogPost.findMany({
       select: {
         id: true,
