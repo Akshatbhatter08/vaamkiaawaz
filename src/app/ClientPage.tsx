@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -1841,7 +1841,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     <>
     <div className={`print:hidden ${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span className="shrink-0 whitespace-nowrap">{formatDate()}</span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
@@ -1862,10 +1862,10 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              className="inline-flex items-center gap-1 shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
             >
-              <LogIn className="h-3.5 w-3.5" />
-              {currentUser ? `${roleText}` : "लॉगिन"}
+              <LogIn className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate max-w-[80px] sm:max-w-none">{currentUser ? `${roleText}` : "लॉगिन"}</span>
             </button>
           </div>
         </div>
@@ -2191,12 +2191,17 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 </h2>
                 <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }} />
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
-                  <span 
+                  <div className="flex items-center gap-2">
+                    {featuredForDisplay[0].authorImage && (
+                      <img src={featuredForDisplay[0].authorImage} alt="" className="h-6 w-6 rounded-full border border-[var(--line)] object-cover" />
+                    )}
+                    <span 
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(featuredForDisplay[0].author)}`); }}
                     className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
                   >
                     {featuredForDisplay[0].author}
                   </span>
+                  </div>
                   <span>•</span>
                   <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
                   <span>•</span>
@@ -2227,12 +2232,17 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   </h3>
                   <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
                   <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
-                    <span 
+                    <div className="flex items-center gap-1.5">
+                      {story.authorImage && (
+                        <img src={story.authorImage} alt="" className="h-5 w-5 rounded-full border border-[var(--line)] object-cover" />
+                      )}
+                      <span
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
                       className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
                     >
                       {story.author}
                     </span>
+                    </div>
                     <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
                   </div>
                   <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
@@ -2266,12 +2276,17 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     <h4 className="line-clamp-2 mt-2 text-lg font-semibold leading-snug text-[var(--headline)]">{story.title}</h4>
                     <div className="line-clamp-3 mt-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
                     <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
-                      <span 
+                      <div className="flex items-center gap-1.5">
+                        {story.authorImage && (
+                          <img src={story.authorImage} alt="" className="h-5 w-5 rounded-full border border-[var(--line)] object-cover" />
+                        )}
+                        <span 
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
                         className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
                       >
                         {story.author}
                       </span>
+                      </div>
                       <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
                     </div>
                     <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
@@ -2459,7 +2474,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   value={newsletterEmail}
                   onChange={(event) => setNewsletterEmail(event.target.value)}
                   placeholder="आपका ईमेल"
-                  className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                  className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
                 />
                 <button className="rise-on-hover w-full rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                   सदस्य बनें
@@ -2578,12 +2593,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 value={formState.title}
                 onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
                 placeholder="हेडलाइन / शीर्षक"
-                className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)] md:col-span-2"
               />
               <select
                 value={formState.author}
                 onChange={(event) => handleAuthorSelectionChange(event.target.value)}
-                className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               >
                 <option value="">लेखक चुनें</option>
                 {availableAuthors.map((author) => (
@@ -2595,7 +2610,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               <select
                 value={formState.category}
                 onChange={(event) => setFormState((prev) => ({ ...prev, category: event.target.value }))}
-                className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               >
                 {allCategories
                   .filter((category) => category !== "सभी")
@@ -2609,9 +2624,9 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                 value={formState.customCategory}
                 onChange={(event) => setFormState((prev) => ({ ...prev, customCategory: event.target.value }))}
                 placeholder="नई कैटेगरी (optional)"
-                className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
+                className="w-full min-w-0 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--primary)]"
               />
-              <label className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
+              <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
                 पोस्ट फोटो
                 <input
                   type="file"
@@ -2630,19 +2645,20 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   )}
                 </div>
               )}
-              <div className="md:col-span-2 bg-white text-black rounded-md overflow-hidden border border-[var(--line)]">
-                <RichTextEditor
+              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                <TiptapEditor
                   value={formState.excerpt}
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
                 />
               </div>
-              <RichTextEditor
-                value={formState.content}
-                onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
-                placeholder="पूरी विस्तृत खबर / लेख"
-                className="md:col-span-2"
-              />
+              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                <TiptapEditor
+                  value={formState.content}
+                  onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
+                  placeholder="पूरी विस्तृत खबर / लेख"
+                />
+              </div>
               <div className="md:col-span-2 flex justify-end">
                 <button type="submit" className="rise-on-hover rounded-md bg-[var(--primary)] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                   प्रीव्यू देखें

@@ -116,7 +116,15 @@ export async function PATCH(request: NextRequest, context: Context) {
   if (body.excerpt?.trim()) updateData.excerpt = body.excerpt.trim();
   if (body.content?.trim()) updateData.content = body.content.trim();
   if (body.category?.trim()) updateData.category = body.category.trim();
-  if (body.postImage !== undefined) updateData.postImage = body.postImage;
+  
+  if (body.postImage !== undefined) {
+    let postImage = body.postImage?.trim() || null;
+    if (!postImage && updateData.content) {
+      const match = (updateData.content as string).match(/<img[^>]+src=["']([^"']+)["']/i);
+      postImage = match ? match[1] : null;
+    }
+    updateData.postImage = postImage;
+  }
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json(

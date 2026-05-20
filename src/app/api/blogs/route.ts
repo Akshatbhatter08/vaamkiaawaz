@@ -260,7 +260,11 @@ export async function POST(request: NextRequest) {
   const excerpt = body.excerpt?.trim();
   const content = body.content?.trim();
   const author = body.author?.trim();
-  const postImage = body.postImage?.trim() || null;
+  let postImage = body.postImage?.trim() || null;
+  if (!postImage && content) {
+    const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    postImage = match ? match[1] : null;
+  }
   const authorImage = body.authorImage?.trim() || null;
 
   if (!title || !excerpt || !content || !author) {

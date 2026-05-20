@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
 import { SanitizedHtml } from "@/utils/sanitizeHtml";
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
 
 type Post = {
@@ -634,8 +634,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">सारांश (Excerpt)</label>
-                  <div className="bg-white text-black rounded-md overflow-hidden border border-[var(--line)]">
-                    <RichTextEditor
+                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                    <TiptapEditor
                       value={editForm.excerpt}
                       onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
                       placeholder="संक्षिप्त सारांश यहाँ लिखें..."
@@ -644,8 +644,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">मुख्य लेख (Content)</label>
-                  <div className="bg-white text-black rounded-md overflow-hidden border border-[var(--line)]">
-                    <RichTextEditor
+                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                    <TiptapEditor
                       value={editForm.content}
                       onChange={(val) => setEditForm(prev => ({...prev, content: val}))}
                       placeholder="लेख का विवरण यहाँ लिखें..."
@@ -670,6 +670,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               </div>
             ) : (
               <>
+                {/* Print Only Header */}
+                <div className="hidden print-only border-b-2 border-black pb-4 mb-6 text-center">
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    <h1 className="font-serif text-4xl font-bold text-black uppercase tracking-wide">वाम की आवाज़</h1>
+                    <p className="text-xs font-semibold tracking-widest text-gray-600 uppercase">जन समाचार मंच</p>
+                  </div>
+                </div>
+
                 {/* Category + Title */}
                 <div>
                   <span className="inline-block rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--primary)]">
@@ -715,12 +723,26 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   debug={true}
                 />
 
-                {/* Uploader credit */}
+                {/* Uploader credit - Web view only */}
                 {post.uploaderName && (
-                  <p className="text-sm text-[var(--muted)] italic border-t border-[var(--line)] pt-3 mt-4">
+                  <p className="article-no-print text-sm text-[var(--muted)] italic border-t border-[var(--line)] pt-3 mt-4">
                     अपलोडर: {post.uploaderName}
                   </p>
                 )}
+
+                {/* Print Only Footer */}
+                <div className="hidden print-only mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
+                  <h4 className="font-serif text-lg font-bold text-black mb-2">{post.title}</h4>
+                  <p className="text-xs text-gray-700 mb-4 font-medium">
+                    अपलोडर: <span className="font-semibold">{post.uploaderName || post.author}</span> &bull; 
+                    प्रकाशित: {fmtDate(post.createdAt)} &bull; {mins} मिनट पठन
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="font-serif font-bold text-sm text-black">वाम की आवाज़</span>
+                    <span className="text-gray-400">|</span>
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">जन समाचार मंच</span>
+                  </div>
+                </div>
               </>
             )}
 
@@ -767,7 +789,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       {sp.postImage && <img src={sp.postImage} alt="" className="mb-3 h-36 w-full rounded-lg object-cover" />}
                       <p className="text-xs font-semibold uppercase text-[var(--primary)]">{sp.category}</p>
                       <h4 className="mt-1 line-clamp-2 font-serif text-lg font-semibold text-[var(--headline)] group-hover:text-[var(--primary)]">{sp.title}</h4>
-                      <p className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">{sp.excerpt}</p>
+                      <div className="mt-1 line-clamp-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(sp.excerpt) }} />
                       <p className="mt-2 text-xs text-[var(--muted)]">{sp.author} • {sp.time}</p>
                     </Link>
                   ))}
