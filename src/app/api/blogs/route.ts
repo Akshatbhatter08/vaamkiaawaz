@@ -31,194 +31,54 @@ const mapBlog = (post: {
   };
 };
 
-type BlogColumnMeta = {
-  COLUMN_NAME: string;
-  DATA_TYPE: string;
-  IS_NULLABLE: "YES" | "NO";
-};
-
-let ensureBlogSchemaPromise: Promise<void> | null = null;
-
-const ensureBlogPostStorageColumns = async () => {
-  const columns = await prisma.$queryRawUnsafe<BlogColumnMeta[]>(`
-    SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'BlogPost'
-      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage', 'uploaderName')
-  `);
-
-  const byName = new Map(columns.map((item) => [item.COLUMN_NAME, item]));
-  const title = byName.get("title");
-  const excerpt = byName.get("excerpt");
-  const content = byName.get("content");
-  const postImage = byName.get("postImage");
-  const authorImage = byName.get("authorImage");
-  const uploaderName = byName.get("uploaderName");
-
-  if (!title || !excerpt || !content) {
-    // If the table is missing basic columns, it might not exist at all.
-    // We try to create it if it's completely missing.
-    const tableExists = await prisma.$queryRawUnsafe<{ COUNT: number }[]>(`
-      SELECT COUNT(*) as COUNT
-      FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'BlogPost'
-    `);
-    
-    if (tableExists[0]?.COUNT === 0) {
-      console.log("BlogPost table missing, creating...");
-      // We also need the User table for the foreign key, or we create a simplified version
-      // For now, let's create BlogPost without the foreign key constraint if it's just for display
-      // Or better, create User first.
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS \`User\` (
-          \`id\` VARCHAR(191) NOT NULL,
-          \`email\` VARCHAR(191) NOT NULL,
-          \`passwordHash\` VARCHAR(191) NOT NULL,
-          \`role\` ENUM('MASTER_ADMIN', 'ADMIN', 'CONTRIBUTOR') NOT NULL DEFAULT 'CONTRIBUTOR',
-          \`active\` BOOLEAN NOT NULL DEFAULT TRUE,
-          \`permissions\` JSON NULL,
-          \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-          \`updatedAt\` DATETIME(3) NOT NULL,
-          UNIQUE INDEX \`User_email_key\`(\`email\`),
-          PRIMARY KEY (\`id\`)
-        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-      `);
-
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS \`BlogPost\` (
-          \`id\` VARCHAR(191) NOT NULL,
-          \`category\` VARCHAR(191) NOT NULL,
-          \`title\` TEXT NOT NULL,
-          \`excerpt\` TEXT NOT NULL,
-          \`content\` LONGTEXT NOT NULL,
-          \`author\` VARCHAR(191) NOT NULL,
-          \`clickCount\` INTEGER NOT NULL DEFAULT 0,
-          \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-          \`updatedAt\` DATETIME(3) NOT NULL,
-          \`postImage\` LONGTEXT NULL,
-          \`authorImage\` LONGTEXT NULL,
-          \`authorUserId\` VARCHAR(191) NULL,
-          \`uploaderName\` VARCHAR(191) NULL,
-          PRIMARY KEY (\`id\`),
-          CONSTRAINT \`BlogPost_authorUserId_fkey\` FOREIGN KEY (\`authorUserId\`) REFERENCES \`User\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE
-        ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-      `);
-      return; // Table created, columns will be fine
-    }
-    throw new Error("BlogPost table is missing required columns.");
-  }
-
-  const textTypes = new Set(["text", "mediumtext", "longtext"]);
-  const alterOps: string[] = [];
-
-  if (!textTypes.has(title.DATA_TYPE.toLowerCase()) || title.IS_NULLABLE !== "NO") {
-    alterOps.push("MODIFY `title` TEXT NOT NULL");
-  }
-
-  if (!textTypes.has(excerpt.DATA_TYPE.toLowerCase()) || excerpt.IS_NULLABLE !== "NO") {
-    alterOps.push("MODIFY `excerpt` TEXT NOT NULL");
-  }
-
-  if (content.DATA_TYPE.toLowerCase() !== "longtext" || content.IS_NULLABLE !== "NO") {
-    alterOps.push("MODIFY `content` LONGTEXT NOT NULL");
-  }
-
-  if (!postImage) {
-    alterOps.push("ADD COLUMN `postImage` LONGTEXT NULL");
-  } else if (postImage.DATA_TYPE.toLowerCase() !== "longtext") {
-    alterOps.push("MODIFY `postImage` LONGTEXT NULL");
-  }
-
-  if (!authorImage) {
-    alterOps.push("ADD COLUMN `authorImage` LONGTEXT NULL");
-  } else if (authorImage.DATA_TYPE.toLowerCase() !== "longtext") {
-    alterOps.push("MODIFY `authorImage` LONGTEXT NULL");
-  }
-
-  if (!uploaderName) {
-    alterOps.push("ADD COLUMN `uploaderName` VARCHAR(191) NULL");
-  }
-
-  if (alterOps.length === 0) {
-    return;
-  }
-
-  await prisma.$executeRawUnsafe(`ALTER TABLE \`BlogPost\` ${alterOps.join(", ")}`);
-};
-
-const ensureBlogSchema = async () => {
-  if (!ensureBlogSchemaPromise) {
-    ensureBlogSchemaPromise = ensureBlogPostStorageColumns().catch((error) => {
-      ensureBlogSchemaPromise = null;
-      throw error;
-    });
-  }
-  await ensureBlogSchemaPromise;
-};
-
 export async function GET() {
   try {
-    await ensureBlogSchema();
-  } catch (err: any) {
-    console.error("GET /api/blogs schema error:", err);
-    return NextResponse.json({ 
-      error: "डेटाबेस स्कीमा असंगत है।", 
-      details: err.message || String(err) 
-    }, { status: 500 });
-  }
-  const count = await prisma.blogPost.count();
-  if (count === 0) {
-    await prisma.blogPost.createMany({
-      data: initialBlogSeed.map((post) => ({
-        category: post.category,
-        title: post.title,
-        excerpt: post.excerpt,
-        content: post.content,
-        author: post.author,
-      })),
-    });
-  }
+    const count = await prisma.blogPost.count();
+    if (count === 0) {
+      await prisma.blogPost.createMany({
+        data: initialBlogSeed.map((post) => ({
+          category: post.category,
+          title: post.title,
+          excerpt: post.excerpt,
+          content: post.content,
+          author: post.author,
+        })),
+      });
+    }
 
-  const posts = await prisma.blogPost.findMany({
-    select: {
-      id: true,
-      category: true,
-      title: true,
-      excerpt: true,
-      author: true,
-      postImage: true,
-      authorImage: true,
-      clickCount: true,
-      uploaderName: true,
-      createdAt: true,
-    },
-    orderBy: [{ createdAt: "desc" }],
-    take: 100, // Reasonable limit for generic API fetches (like author filtering) without crashing
-  });
-
-  return NextResponse.json(
-    { posts: posts.map(mapBlog) },
-    {
-      headers: {
-        "Cache-Control": "no-store, max-age=0, must-revalidate",
-        Pragma: "no-cache",
+    const posts = await prisma.blogPost.findMany({
+      select: {
+        id: true,
+        category: true,
+        title: true,
+        excerpt: true,
+        author: true,
+        postImage: true,
+        authorImage: true,
+        clickCount: true,
+        uploaderName: true,
+        createdAt: true,
       },
-    },
-  );
+      orderBy: [{ createdAt: "desc" }],
+      take: 100,
+    });
+
+    return NextResponse.json(
+      { posts: posts.map(mapBlog) },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0, must-revalidate",
+          Pragma: "no-cache",
+        },
+      },
+    );
+  } catch (err: any) {
+    console.error("GET /api/blogs error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    await ensureBlogSchema();
-  } catch {
-    return NextResponse.json(
-      { error: "डेटाबेस में लेख स्टोर करने का फ़ील्ड गलत है। कृपया DB user को ALTER permission दें और फिर से प्रयास करें।" },
-      { status: 500 },
-    );
-  }
-
   const authPayload = await requireAuth(request);
   if (authPayload instanceof NextResponse) return authPayload;
   const userId = authPayload.id as string | undefined;
