@@ -639,6 +639,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       value={editForm.excerpt}
                       onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
                       placeholder="संक्षिप्त सारांश यहाँ लिखें..."
+                      className="min-h-[150px]"
                     />
                   </div>
                 </div>

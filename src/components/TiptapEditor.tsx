@@ -8,6 +8,8 @@ import { Color } from "@tiptap/extension-color";
 import { Link } from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
 import ImageResize from "tiptap-extension-resize-image";
+import Placeholder from "@tiptap/extension-placeholder";
+import Youtube from "@tiptap/extension-youtube";
 import {
   Bold,
   Italic,
@@ -26,6 +28,7 @@ import {
   Link as LinkIcon,
   Unlink,
   Image as ImageIcon,
+  Video as VideoIcon,
   RemoveFormatting,
 } from "lucide-react";
 
@@ -33,6 +36,7 @@ interface TiptapEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  className?: string;
 }
 
 const MenuBar = ({ editor }: { editor: any }) => {
@@ -69,6 +73,17 @@ const MenuBar = ({ editor }: { editor: any }) => {
     // reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const addYoutubeVideo = () => {
+    const url = prompt("YouTube Video URL दर्ज करें:");
+    if (url) {
+      editor.commands.setYoutubeVideo({
+        src: url,
+        width: Math.max(320, parseInt(editor.view.dom.clientWidth, 10)) || 640,
+        height: Math.max(180, parseInt(editor.view.dom.clientWidth, 10) * 0.5625) || 480,
+      });
     }
   };
 
@@ -244,6 +259,14 @@ const MenuBar = ({ editor }: { editor: any }) => {
         accept="image/*"
         className="hidden"
       />
+      <button
+        type="button"
+        onClick={addYoutubeVideo}
+        className={toggleButtonClass(false)}
+        title="Insert YouTube Video"
+      >
+        <VideoIcon className="w-4 h-4" />
+      </button>
 
       <div className="w-px h-5 bg-[var(--line)] mx-1" />
 
@@ -293,37 +316,45 @@ const MenuBar = ({ editor }: { editor: any }) => {
   );
 };
 
-const editorExtensions = [
-  StarterKit.configure({
-    heading: {
-      levels: [1, 2, 3],
-    },
-  }),
-  Underline,
-  TextAlign.configure({
-    types: ["heading", "paragraph"],
-  }),
-  TextStyle,
-  Color,
-  Highlight.configure({
-    multicolor: true,
-  }),
-  ImageResize,
-  Link.configure({
-    openOnClick: false,
-    autolink: true,
-  }),
-];
-
 export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   value,
   onChange,
   placeholder,
+  className = "min-h-[300px]",
 }) => {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const editorExtensions = React.useMemo(() => [
+    StarterKit.configure({
+      heading: {
+        levels: [1, 2, 3],
+      },
+    }),
+    Underline,
+    TextAlign.configure({
+      types: ["heading", "paragraph"],
+    }),
+    TextStyle,
+    Color,
+    Highlight.configure({
+      multicolor: true,
+    }),
+    ImageResize,
+    Link.configure({
+      openOnClick: false,
+      autolink: true,
+    }),
+    Placeholder.configure({
+      placeholder: placeholder || "यहाँ टाइप करें...",
+    }),
+    Youtube.configure({
+      inline: false,
+      allowFullscreen: true,
+    }),
+  ], [placeholder]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -346,7 +377,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     editorProps: {
       attributes: {
-        class: "prose max-w-none focus:outline-none min-h-[300px] p-4 text-[var(--foreground)]",
+        class: `prose max-w-none focus:outline-none p-4 text-[var(--foreground)] ${className}`,
       },
     },
   });

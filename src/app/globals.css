@@ -356,6 +356,19 @@ body {
   font-weight: bold;
   line-height: 1.4;
 }
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.ProseMirror iframe {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin: 1rem auto;
+  display: block;
+}
 
 /* Excerpt HTML line clamping */
 .excerpt-html {

@@ -2650,6 +2650,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   value={formState.excerpt}
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
+                  className="min-h-[150px]"
                 />
               </div>
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
