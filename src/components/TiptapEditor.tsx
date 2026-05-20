@@ -356,10 +356,12 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }),
   ], [placeholder]);
 
+  const sanitizedValue = typeof value === "string" ? value.replace(/&nbsp;/g, " ") : value;
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: editorExtensions,
-    content: value,
+    content: sanitizedValue,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
       if (debounceTimerRef.current) {
@@ -383,10 +385,10 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   });
 
   useEffect(() => {
-    if (editor && !editor.isFocused && value !== editor.getHTML()) {
-      editor.commands.setContent(value, { emitUpdate: false });
+    if (editor && !editor.isFocused && sanitizedValue !== editor.getHTML()) {
+      editor.commands.setContent(sanitizedValue, { emitUpdate: false });
     }
-  }, [value, editor]);
+  }, [sanitizedValue, editor]);
 
   useEffect(() => {
     return () => {
