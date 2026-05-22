@@ -163,6 +163,50 @@ export const BlockBackgroundColor = Extension.create({
   },
 })
 
+export const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() { return { types: ['textStyle'] } },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize?.replace(/['"]+/g, '') || null,
+            renderHTML: attributes => {
+              if (!attributes.fontSize) return {}
+              return { style: `font-size: ${attributes.fontSize}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+})
+
+export const FontFamily = Extension.create({
+  name: 'fontFamily',
+  addOptions() { return { types: ['textStyle'] } },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontFamily: {
+            default: null,
+            parseHTML: element => element.style.fontFamily?.replace(/['"]+/g, '') || null,
+            renderHTML: attributes => {
+              if (!attributes.fontFamily) return {}
+              return { style: `font-family: ${attributes.fontFamily}` }
+            },
+          },
+        },
+      },
+    ]
+  },
+})
+
 export const LineHeight = Extension.create({
   name: 'lineHeight',
 
@@ -212,6 +256,18 @@ export const LineHeight = Extension.create({
           }
         });
         return applied;
+      },
+    };
+  },
+});
+
+export const TabIndent = Extension.create({
+  name: 'tabIndent',
+  addKeyboardShortcuts() {
+    return {
+      Tab: ({ editor }) => {
+        editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0'); // Insert 4 non-breaking spaces
+        return true; // Return true to prevent default browser behavior
       },
     };
   },
@@ -559,6 +615,76 @@ const MenuBar = ({ editor, toolbarClassName }: { editor: any, toolbarClassName?:
 
       <div className="w-px h-5 bg-[var(--line)] mx-1" />
 
+      {/* Font Family */}
+      <select
+        onChange={(e) => {
+          if (e.target.value === "") {
+            editor.chain().focus().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run();
+          } else {
+            editor.chain().focus().setMark('textStyle', { fontFamily: e.target.value }).run();
+          }
+        }}
+        className="bg-[var(--surface-soft)] text-[var(--foreground)] border border-[var(--line)] rounded-md px-2 py-1 text-xs focus:outline-none focus:border-[var(--primary)] w-24"
+        title="Font Style"
+        value={editor.getAttributes("textStyle").fontFamily || ""}
+      >
+        <option value="">Default Font</option>
+        <option value="serif">Serif</option>
+        <option value="sans-serif">Sans Serif</option>
+        <option value="monospace">Monospace</option>
+        <option value="Arial, sans-serif">Arial</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Times New Roman', Times, serif">Times New Roman</option>
+        <option value="'Courier New', Courier, monospace">Courier New</option>
+      </select>
+
+      {/* Font Size */}
+      <div className="flex items-center">
+        <input
+          type="text"
+          list="font-sizes"
+          placeholder="Size"
+          className="bg-[var(--surface-soft)] text-[var(--foreground)] border border-[var(--line)] rounded-md px-2 py-1 text-xs focus:outline-none focus:border-[var(--primary)] w-16"
+          title="Font Size (e.g. 16px)"
+          defaultValue={editor.getAttributes("textStyle").fontSize?.replace("px", "") || ""}
+          key={editor.getAttributes("textStyle").fontSize || "default-size"}
+          onChange={(e) => {
+            // If they picked something from the datalist (which contains 'px'), apply it immediately
+            if (e.target.value.includes('px')) {
+              editor.chain().focus().setMark('textStyle', { fontSize: e.target.value }).run();
+            }
+          }}
+          onBlur={(e) => {
+            const val = e.target.value.trim();
+            if (!val) {
+               editor.chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run();
+            } else {
+               const finalVal = /^\d+$/.test(val) ? `${val}px` : val;
+               editor.chain().setMark('textStyle', { fontSize: finalVal }).run();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+              // Restore focus back to editor after they set the size
+              setTimeout(() => editor.commands.focus(), 10);
+            }
+          }}
+        />
+        <datalist id="font-sizes">
+          <option value="12px" />
+          <option value="14px" />
+          <option value="16px" />
+          <option value="18px" />
+          <option value="20px" />
+          <option value="24px" />
+          <option value="30px" />
+          <option value="36px" />
+        </datalist>
+      </div>
+
+      <div className="w-px h-5 bg-[var(--line)] mx-1" />
+
       <select
         onChange={(e) => {
           if (e.target.value === "normal") {
@@ -761,6 +887,10 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     LineHeight,
     PreventImageDelete,
     BlockBackgroundColor,
+    TabIndent,
+    TextStyle,
+    FontSize,
+    FontFamily,
     LegacySpan,
     Underline,
     TextAlign.configure({
