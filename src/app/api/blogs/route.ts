@@ -65,8 +65,25 @@ export async function GET() {
       take: 100,
     });
 
+    const topPosts = await prisma.blogPost.findMany({
+      select: {
+        id: true,
+        category: true,
+        title: true,
+        excerpt: true,
+        author: true,
+        postImage: true,
+        authorImage: true,
+        clickCount: true,
+        uploaderName: true,
+        createdAt: true,
+      },
+      orderBy: [{ clickCount: "desc" }],
+      take: 10,
+    });
+
     return NextResponse.json(
-      { posts: posts.map(mapBlog) },
+      { posts: posts.map(mapBlog), topPosts: topPosts.map(mapBlog) },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0, must-revalidate",
@@ -156,7 +173,7 @@ export async function POST(request: NextRequest) {
       author, 
       postImage, 
       authorImage,
-      uploaderName: (typeof (user.permissions as any)?.authorName === 'string' ? (user.permissions as any).authorName.trim() : null) || (user.role === 'MASTER_ADMIN' ? 'मास्टर एडमिन' : 'अज्ञात')
+      uploaderName: (typeof (user.permissions as any)?.authorName === 'string' ? (user.permissions as any).authorName.trim() : null) || (user.role === 'MASTER_ADMIN' ? 'केशव कुमार भट्टड़' : 'अज्ञात')
     },
   });
 

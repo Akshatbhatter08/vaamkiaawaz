@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
-import { RichTextEditor } from "@/components/RichTextEditor";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -454,7 +454,7 @@ const TwitterIcon = ({ className = "" }) => (
   </svg>
 );
 
-export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] }) {
+export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { initialBlogs: NewsPost[], initialTopBlogs?: NewsPost[] }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -468,6 +468,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   const [newsVisibleCount, setNewsVisibleCount] = useState(24);
   const [blogVisibleCount, setBlogVisibleCount] = useState(24);
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
+  const [topBlogs, setTopBlogs] = useState<NewsPost[]>(initialTopBlogs);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -573,6 +574,40 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
     postImage: "",
     authorImage: "",
   });
+
+  useEffect(() => {
+    const saved = localStorage.getItem("vaamkiaawaz_draft");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.content || parsed.excerpt || parsed.title) {
+          setFormState(parsed);
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      localStorage.setItem("vaamkiaawaz_draft", JSON.stringify(formState));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [formState]);
+
+
+  useEffect(() => {
+    const placeholder = document.getElementById("translate_placeholder");
+    const translateEl = document.getElementById("google_translate_element");
+    if (placeholder && translateEl) {
+      placeholder.appendChild(translateEl);
+    }
+    return () => {
+      const container = document.getElementById("google_translate_container");
+      if (container && translateEl) {
+        container.appendChild(translateEl);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as "light" | "dark" | null;
@@ -740,9 +775,12 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
         if (!response.ok) {
           throw new Error("Failed to fetch blogs");
         }
-        const data = (await response.json()) as { posts: ApiBlogPost[] };
+        const data = (await response.json()) as { posts: ApiBlogPost[], topPosts?: ApiBlogPost[] };
         if (Array.isArray(data.posts)) {
           setBlogs(data.posts.map(mapApiBlogToNewsPost));
+          if (Array.isArray(data.topPosts)) {
+            setTopBlogs(data.topPosts.map(mapApiBlogToNewsPost));
+          }
           setBlogSyncMessage("");
         }
       } catch (error) {
@@ -863,14 +901,19 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
   );
 
   const topReadPosts = useMemo(() => {
-    return [...blogs]
+    // Merge blogs and topBlogs to ensure globally top clicked articles are considered
+    const allPosts = new Map<string, NewsPost>();
+    blogs.forEach((post) => allPosts.set(post.id, post));
+    topBlogs.forEach((post) => allPosts.set(post.id, post));
+
+    return Array.from(allPosts.values())
       .sort((a, b) => {
         const clicksA = a.source === "blog" ? (a.clickCount ?? 0) : (postClicks[a.id] ?? 0);
         const clicksB = b.source === "blog" ? (b.clickCount ?? 0) : (postClicks[b.id] ?? 0);
         return clicksB - clicksA;
       })
       .slice(0, 4);
-  }, [blogs, postClicks]);
+  }, [blogs, topBlogs, postClicks]);
 
   const filteredEvents = useMemo(() => {
     if (!selectedNewsDate) return events;
@@ -1862,7 +1905,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
             <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
-            <div id="google_translate_element" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
+            <div id="translate_placeholder" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
@@ -2012,9 +2055,9 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                     onValueChange={setSearchTerm}
                     placeholder="खबरें खोजें..."
                     className="w-auto shrink"
-                    collapsedWidth={92}
-                    expandedWidth={170}
-                    expandedOffset={40}
+                    collapsedWidth={140}
+                    expandedWidth={220}
+                    expandedOffset={49}
                     classNames={{
                       trigger: theme === "dark"
                         ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
@@ -2643,19 +2686,20 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
                   <img src={formState.postImage} alt="Post preview" className="h-16 w-24 rounded-md object-cover" />
                 </div>
               )}
-              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
-                <RichTextEditor
+              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
+                <TiptapEditor
                   value={formState.excerpt}
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
-                  className="min-h-[150px]"
+                  className="h-[200px] rounded-md"
                 />
               </div>
-              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
-                <RichTextEditor
+              <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
+                <TiptapEditor
                   value={formState.content}
                   onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
                   placeholder="पूरी विस्तृत खबर / लेख"
+                  className="h-[500px] rounded-md"
                 />
               </div>
               <div className="md:col-span-2 flex justify-end">
@@ -2735,7 +2779,7 @@ export default function ClientPage({ initialBlogs }: { initialBlogs: NewsPost[] 
               </div>
               {previewPost.uploaderName && (
                 <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
-                  <span className="text-xs text-[var(--muted)]">अप्लोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{previewPost.uploaderName}</span></span>
+                  <span className="text-xs text-[var(--muted)]">अपलोडकर्ता: <span className="font-semibold text-[var(--foreground)]">{previewPost.uploaderName === 'मास्टर एडमिन' ? 'केशव कुमार भट्टड़' : previewPost.uploaderName === 'अज्ञात' ? previewPost.author : previewPost.uploaderName}</span></span>
                 </div>
               )}
             </div>

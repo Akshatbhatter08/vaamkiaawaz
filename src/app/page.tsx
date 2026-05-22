@@ -31,6 +31,7 @@ function formatRelativeTime(isoDate: string) {
 
 export default async function Page() {
   let initialBlogs: NewsPost[] = [];
+  let initialTopBlogs: NewsPost[] = [];
   try {
     await ensureBlogSchema();
     const posts = await prisma.blogPost.findMany({
@@ -50,9 +51,25 @@ export default async function Page() {
       take: 30, // Limit homepage to latest 30 posts to ensure extremely fast loading
     });
 
-    initialBlogs = posts.map((post: any) => {
-      const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();
+    const topPosts = await prisma.blogPost.findMany({
+      select: {
+        id: true,
+        category: true,
+        title: true,
+        excerpt: true,
+        author: true,
+        postImage: true,
+        authorImage: true,
+        clickCount: true,
+        uploaderName: true,
+        createdAt: true,
+      },
+      orderBy: [{ clickCount: "desc" }],
+      take: 10,
+    });
 
+    const mapToNewsPost = (post: any) => {
+      const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();
       return {
         id: post.id,
         category: post.category,
@@ -66,12 +83,15 @@ export default async function Page() {
         uploaderName: post.uploaderName ?? null,
         createdAt: createdAtIso,
         time: formatRelativeTime(createdAtIso),
-        source: "blog",
+        source: "blog" as const,
       };
-    });
+    };
+
+    initialBlogs = posts.map(mapToNewsPost);
+    initialTopBlogs = topPosts.map(mapToNewsPost);
   } catch (error) {
     console.error("Error fetching initial blogs:", error);
   }
 
-  return <ClientPage initialBlogs={initialBlogs} />;
+  return <ClientPage initialBlogs={initialBlogs} initialTopBlogs={initialTopBlogs} />;
 }

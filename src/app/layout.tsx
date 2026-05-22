@@ -69,6 +69,9 @@ export default function RootLayout({
           src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
           strategy="afterInteractive"
         />
+        <div id="google_translate_container" className="hidden">
+          <div id="google_translate_element"></div>
+        </div>
       </body>
     </html>
   );

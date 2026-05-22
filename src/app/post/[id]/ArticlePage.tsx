@@ -33,8 +33,9 @@ const cleanHtml = (html: string | undefined | null) => {
 
 const THEME_KEY = "vaamki-aawaz-theme";
 const readingTime = (html: string) => {
-  const text = html.replace(/<[^>]*>/g, "");
-  const words = text.trim().split(/\s+/).length;
+  if (!html) return 1;
+  const text = html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\u00A0/g, " ");
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
   return Math.max(1, Math.ceil(words / 200));
 };
 const fmtDate = (iso: string) =>
@@ -162,6 +163,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       if (target) observer.unobserve(target);
     };
   }, [allFetchedPosts, displayedSuggested, hasMore, isLoadingMore, post.category, post.id]);
+
+  const displayUploaderName = post.uploaderName === 'मास्टर एडमिन' ? 'केशव कुमार भट्टड़' : post.uploaderName === 'अज्ञात' ? post.author : post.uploaderName;
+
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
@@ -194,17 +198,18 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   };
 
   useEffect(() => {
-    const handleScroll = () => {
+    const update = () => {
       const scrollY = window.scrollY;
-      const isScrolled = scrollY > 10;
+      const isScrolled = scrollY > 12;
       setIsScrolledHeader((prev) => (prev === isScrolled ? prev : isScrolled));
-      const compact = Math.min(1, scrollY / 100).toFixed(2);
+      const compact = isScrolled ? "1" : "0";
       if (stickyHeaderRef.current) {
         stickyHeaderRef.current.style.setProperty("--compact-progress", compact);
       }
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
   }, []);
 
   const mins = useMemo(() => readingTime(post.content), [post.content]);
@@ -231,18 +236,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   }, []);
 
   useEffect(() => {
+    const placeholder = document.getElementById("translate_placeholder");
     const translateEl = document.getElementById("google_translate_element");
-    const w = window as any;
-    if (translateEl && translateEl.innerHTML === "" && w.google && w.google.translate) {
-      try {
-        new w.google.translate.TranslateElement(
-          { pageLanguage: "hi", autoDisplay: false },
-          "google_translate_element"
-        );
-      } catch (e) {
-        console.error("Google Translate Init Error:", e);
-      }
+    if (placeholder && translateEl) {
+      placeholder.appendChild(translateEl);
     }
+    return () => {
+      const container = document.getElementById("google_translate_container");
+      if (container && translateEl) {
+        container.appendChild(translateEl);
+      }
+    };
   }, []);
 
   const isMaster = userRole === "MASTER_ADMIN";
@@ -337,7 +341,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
-            <div id="google_translate_element" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
+            <div id="translate_placeholder" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
             <button
               onClick={() => router.push('/')}
               className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -485,9 +489,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     onValueChange={setSearchTerm}
                     placeholder="खबरें खोजें..."
                     className="w-auto shrink"
-                    collapsedWidth={92}
-                    expandedWidth={170}
-                    expandedOffset={40}
+                    collapsedWidth={140}
+                    expandedWidth={220}
+                    expandedOffset={49}
                     classNames={{
                       trigger: theme === "dark"
                         ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
@@ -634,22 +638,23 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">सारांश (Excerpt)</label>
-                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
                     <TiptapEditor
                       value={editForm.excerpt}
                       onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
                       placeholder="संक्षिप्त सारांश यहाँ लिखें..."
-                      className="min-h-[150px]"
+                      className="h-[200px] rounded-md"
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">मुख्य लेख (Content)</label>
-                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md overflow-hidden border border-[var(--line)]">
+                  <div className="min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
                     <TiptapEditor
                       value={editForm.content}
                       onChange={(val) => setEditForm(prev => ({...prev, content: val}))}
                       placeholder="लेख का विवरण यहाँ लिखें..."
+                      className="h-[500px] rounded-md"
                     />
                   </div>
                 </div>
@@ -725,9 +730,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 />
 
                 {/* Uploader credit - Web view only */}
-                {post.uploaderName && (
+                {displayUploaderName && (
                   <p className="article-no-print text-sm text-[var(--muted)] italic border-t border-[var(--line)] pt-3 mt-4">
-                    अपलोडर: {post.uploaderName}
+                    अपलोडर: {displayUploaderName}
                   </p>
                 )}
 
@@ -735,7 +740,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <div className="hidden print-only mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
                   <h4 className="font-serif text-lg font-bold text-black mb-2">{post.title}</h4>
                   <p className="text-xs text-gray-700 mb-4 font-medium">
-                    अपलोडर: <span className="font-semibold">{post.uploaderName || post.author}</span> &bull; 
+                    अपलोडर: <span className="font-semibold">{displayUploaderName || post.author}</span> &bull; 
                     प्रकाशित: {fmtDate(post.createdAt)} &bull; {mins} मिनट पठन
                   </p>
                   <div className="flex items-center justify-center gap-3">
@@ -785,7 +790,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               <section className="mt-4">
                 <h3 className="font-serif text-2xl font-bold text-[var(--headline)] mb-4">और पढ़ें</h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {displayedSuggested.map(sp => (
+                  {displayedSuggested.slice(0, 4).map(sp => (
                     <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover group rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 block">
                       {sp.postImage && <img src={sp.postImage} alt="" className="mb-3 h-36 w-full rounded-lg object-cover" />}
                       <p className="text-xs font-semibold uppercase text-[var(--primary)]">{sp.category}</p>
@@ -794,10 +799,6 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       <p className="mt-2 text-xs text-[var(--muted)]">{sp.author} • {sp.time}</p>
                     </Link>
                   ))}
-                </div>
-                {/* Infinite Scroll trigger element */}
-                <div ref={loadMoreRef} className="h-10 mt-4 flex items-center justify-center">
-                  {isLoadingMore && <span className="text-sm text-[var(--muted)]">और लोड हो रहा है...</span>}
                 </div>
               </section>
             )}
