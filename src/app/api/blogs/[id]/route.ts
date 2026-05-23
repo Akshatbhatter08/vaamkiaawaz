@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   const { id } = await context.params;
   const existing = await prisma.blogPost.findUnique({
     where: { id },
-    select: { id: true, author: true, authorUserId: true },
+    select: { id: true, author: true, authorUserId: true, uploaderName: true },
   });
 
   if (!existing) {
@@ -84,20 +84,30 @@ export async function PATCH(request: NextRequest, context: Context) {
   }
 
   // Determine if user can edit this post
+  let parsedPermissions: any = {};
+  if (typeof user.permissions === "string") {
+    try { parsedPermissions = JSON.parse(user.permissions); } catch (e) {}
+  } else if (user.permissions && typeof user.permissions === "object") {
+    parsedPermissions = user.permissions;
+  }
+
   const userAuthorName =
-    typeof (user.permissions as any)?.authorName === "string"
-      ? ((user.permissions as any).authorName as string).trim().toLowerCase()
+    typeof parsedPermissions.authorName === "string"
+      ? parsedPermissions.authorName.trim().toLowerCase()
       : "";
   const postAuthorName = existing.author.trim().toLowerCase();
+  const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
   const isMaster = user.role === "MASTER_ADMIN";
   const isPostAuthor =
     userAuthorName.length > 0 && userAuthorName === postAuthorName;
+  const isUploader =
+    userAuthorName.length > 0 && userAuthorName === postUploaderName;
 
-  if (!isMaster && !isPostAuthor) {
+  if (!isMaster && !isPostAuthor && !isUploader) {
     return NextResponse.json(
       {
         error:
-          "इस लेख को केवल मास्टर एडमिन या इसके लेखक ही संपादित कर सकते हैं।",
+          "इस लेख को केवल मास्टर एडमिन, इसके लेखक या अपलोडकर्ता ही संपादित कर सकते हैं।",
       },
       { status: 403 }
     );
@@ -169,21 +179,29 @@ export async function DELETE(request: NextRequest, context: Context) {
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
   }
 
-  const permissions = (user.permissions ?? {}) as any;
-  const userAuthorName = typeof permissions.authorName === 'string' ? permissions.authorName.trim() : null;
-  const isUploader = userAuthorName && existing.uploaderName && userAuthorName.toLowerCase() === existing.uploaderName.trim().toLowerCase();
-
-  const canRemove =
-    user.role === "MASTER_ADMIN" ||
-    (user.role === "ADMIN" &&
-      permissions.publishBlog === true &&
-      permissions.manageHomepage === true) ||
-    isUploader;
-
-  if (!canRemove) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  let parsedPermissions: any = {};
+  if (typeof user.permissions === "string") {
+    try { parsedPermissions = JSON.parse(user.permissions); } catch (e) {}
+  } else if (user.permissions && typeof user.permissions === "object") {
+    parsedPermissions = user.permissions;
   }
 
-  await prisma.blogPost.delete({ where: { id } });
+  const userAuthorName =
+    typeof parsedPermissions.authorName === "string"
+      ? parsedPermissions.authorName.trim().toLowerCase()
+      : "";
+  const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
+
+  const isMaster = user.role === "MASTER_ADMIN";
+  const isUploader = userAuthorName.length > 0 && userAuthorName === postUploaderName;
+
+  if (!isMaster && !isUploader) {
+    return NextResponse.json(
+      { error: "केवल मास्टर एडमिन या अपलोडर ही लेख हटा सकते हैं।" },
+      { status: 403 }
+    );
+  }
+
+  await prisma.blogPost.update({ where: { id }, data: { isHidden: true } });
   return NextResponse.json({ success: true });
 }

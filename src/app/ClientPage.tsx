@@ -664,27 +664,29 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
         setPostClicks(parsedClicks);
       }
     }
-    const savedManagedCategories = localStorage.getItem(MANAGED_CATEGORIES_STORAGE_KEY);
-    if (savedManagedCategories) {
-      const parsed = JSON.parse(savedManagedCategories) as unknown;
-      if (Array.isArray(parsed)) {
-        const sanitized = parsed
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .map((item) => normalizeCategoryLabel(item));
-        setManagedCategories(Array.from(new Set([...DEFAULT_CATEGORIES, ...sanitized])));
-      }
-    }
-    const savedHiddenCategories = localStorage.getItem(HIDDEN_CATEGORIES_STORAGE_KEY);
-    if (savedHiddenCategories) {
-      const parsed = JSON.parse(savedHiddenCategories) as unknown;
-      if (Array.isArray(parsed)) {
-        setHiddenCategories(
-          parsed
-            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-            .map((item) => normalizeCategoryLabel(item)),
-        );
-      }
-    }
+    
+    const loadCategories = async () => {
+      try {
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.categories) {
+            const managed: string[] = [...DEFAULT_CATEGORIES];
+            const hidden: string[] = [];
+            data.categories.forEach((cat: any) => {
+              if (cat.isHidden) {
+                hidden.push(cat.name);
+              } else {
+                managed.push(cat.name);
+              }
+            });
+            setManagedCategories(Array.from(new Set(managed)));
+            setHiddenCategories(Array.from(new Set(hidden)));
+          }
+        }
+      } catch (err) {}
+    };
+    loadCategories();
   }, []);
 
   useEffect(() => {
@@ -1439,7 +1441,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handleAddCategory = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddCategory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageCategories) {
       return;
@@ -1449,19 +1451,31 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
       setAdminMessage("कैटेगरी नाम आवश्यक है।");
       return;
     }
-    setManagedCategories((prev) => {
-      const lowerName = normalizeCategoryName(name);
-      if (prev.some((item) => normalizeCategoryName(item) === lowerName)) {
-        return prev;
-      }
-      return [...prev, name];
-    });
-    setHiddenCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(name)));
-    setNewCategoryName("");
-    setAdminMessage("कैटेगरी जोड़ दी गई।");
+    
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, isHidden: false }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      
+      setManagedCategories((prev) => {
+        const lowerName = normalizeCategoryName(name);
+        if (prev.some((item) => normalizeCategoryName(item) === lowerName)) {
+          return prev;
+        }
+        return [...prev, name];
+      });
+      setHiddenCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(name)));
+      setNewCategoryName("");
+      setAdminMessage("कैटेगरी जोड़ दी गई।");
+    } catch {
+      setAdminMessage("कैटेगरी जोड़ने में त्रुटि।");
+    }
   };
 
-  const handleRemoveCategory = (category: string) => {
+  const handleRemoveCategory = async (category: string) => {
     if (!canManageCategories) {
       return;
     }
@@ -1469,21 +1483,37 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
       setAdminMessage("ब्लॉग कैटेगरी हटाई नहीं जा सकती।");
       return;
     }
-    setManagedCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(category)));
-    setHiddenCategories((prev) => {
-      const categoryKey = normalizeCategoryName(category);
-      if (prev.some((item) => normalizeCategoryName(item) === categoryKey)) {
-        return prev;
+    
+    if (!window.confirm("क्या आप वाकई इस कैटेगरी को हटाना चाहते हैं?")) {
+      return;
+    }
+    
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: category, isHidden: true }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      
+      setManagedCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(category)));
+      setHiddenCategories((prev) => {
+        const categoryKey = normalizeCategoryName(category);
+        if (prev.some((item) => normalizeCategoryName(item) === categoryKey)) {
+          return prev;
+        }
+        return [...prev, category];
+      });
+      if (selectedCategory === category) {
+        setSelectedCategory("सभी");
       }
-      return [...prev, category];
-    });
-    if (selectedCategory === category) {
-      setSelectedCategory("सभी");
+      if (formState.category === category) {
+        setFormState((prev) => ({ ...prev, category: "ब्लॉग" }));
+      }
+      setAdminMessage("कैटेगरी हटा दी गई।");
+    } catch {
+      setAdminMessage("कैटेगरी हटाने में त्रुटि।");
     }
-    if (formState.category === category) {
-      setFormState((prev) => ({ ...prev, category: "ब्लॉग" }));
-    }
-    setAdminMessage("कैटेगरी हटा दी गई।");
   };
 
   const executeNewsletterSubscription = () => {
@@ -1634,6 +1664,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
       setHiddenCategories((prev) =>
         prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(targetCategory)),
       );
+      setPreviewPost(null); // Close the preview modal automatically
       setFormState({
         title: "",
         author: availableAuthors[0]?.name ?? "",

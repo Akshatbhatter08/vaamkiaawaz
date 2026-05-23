@@ -21,6 +21,7 @@ model BlogPost {
   authorImage  String?  @db.LongText
   authorUserId String?
   uploaderName String?
+  isHidden     Boolean  @default(false)
   User         User?    @relation(fields: [authorUserId], references: [id])
 
   @@index([authorUserId], map: "BlogPost_authorUserId_fkey")
@@ -72,3 +73,11 @@ enum Role {
   ADMIN
   CONTRIBUTOR
 }
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+

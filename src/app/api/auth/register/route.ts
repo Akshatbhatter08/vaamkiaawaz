@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         passwordHash,
         role,
-        permissions: storedPermissions,
+        permissions: JSON.stringify(storedPermissions),
       },
     });
 

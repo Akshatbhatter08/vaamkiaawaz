@@ -229,8 +229,13 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         if (d.user) {
           setSessionEmail(d.user.email);
           setUserRole(d.user.role);
-          const perm = d.user.permissions as any;
-          if (perm?.authorName) setUserAuthorName(perm.authorName.trim().toLowerCase());
+          let perm = d.user.permissions;
+          if (typeof perm === "string") {
+            try { perm = JSON.parse(perm); } catch (e) {}
+          }
+          if (perm && typeof perm === "object" && perm.authorName) {
+            setUserAuthorName(perm.authorName.trim().toLowerCase());
+          }
         }
       }).catch(() => {});
   }, []);

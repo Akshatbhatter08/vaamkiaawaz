@@ -49,6 +49,7 @@ export async function GET() {
     }
 
     const posts = await prisma.blogPost.findMany({
+      where: { isHidden: false },
       select: {
         id: true,
         category: true,
@@ -66,6 +67,7 @@ export async function GET() {
     });
 
     const topPosts = await prisma.blogPost.findMany({
+      where: { isHidden: false },
       select: {
         id: true,
         category: true,

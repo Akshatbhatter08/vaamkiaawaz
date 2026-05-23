@@ -103,11 +103,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Only master admin can update admin permissions." }, { status: 403 });
     }
     const authorProfile = extractAuthorProfile(target.permissions);
-    data.permissions = {
+    data.permissions = JSON.stringify({
       ...sanitizePermissions(body.permissions),
       ...(authorProfile.authorName ? { authorName: authorProfile.authorName } : {}),
       ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
-    } as Prisma.InputJsonValue;
+    });
   }
 
   if (body.authorName !== undefined || body.authorImage !== undefined) {
@@ -126,11 +126,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
     const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});
-    data.permissions = {
+    data.permissions = JSON.stringify({
       ...basePermissions,
       authorName: nextAuthorName,
       authorImage: nextAuthorImage,
-    } as Prisma.InputJsonValue;
+    });
   }
 
   if (body.active !== undefined) {
