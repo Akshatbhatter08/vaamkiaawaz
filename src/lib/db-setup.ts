@@ -15,7 +15,7 @@ const ensureBlogPostStorageColumns = async () => {
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'BlogPost'
-      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage', 'uploaderName')
+      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage', 'uploaderName', 'isHidden')
   `);
 
   const byName = new Map(columns.map((item) => [item.COLUMN_NAME, item]));
@@ -25,6 +25,7 @@ const ensureBlogPostStorageColumns = async () => {
   const postImage = byName.get("postImage");
   const authorImage = byName.get("authorImage");
   const uploaderName = byName.get("uploaderName");
+  const isHidden = byName.get("isHidden");
 
   if (!title || !excerpt || !content) {
     const tableExists = await prisma.$queryRawUnsafe<{ COUNT: number }[]>(`
@@ -66,6 +67,7 @@ const ensureBlogPostStorageColumns = async () => {
           \`authorImage\` LONGTEXT NULL,
           \`authorUserId\` VARCHAR(191) NULL,
           \`uploaderName\` VARCHAR(191) NULL,
+          \`isHidden\` BOOLEAN NOT NULL DEFAULT FALSE,
           PRIMARY KEY (\`id\`),
           CONSTRAINT \`BlogPost_authorUserId_fkey\` FOREIGN KEY (\`authorUserId\`) REFERENCES \`User\`(\`id\`) ON DELETE SET NULL ON UPDATE CASCADE
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -118,9 +120,24 @@ const ensureBlogPostStorageColumns = async () => {
     alterOps.push("ADD COLUMN `uploaderName` VARCHAR(191) NULL");
   }
 
+  if (!isHidden) {
+    alterOps.push("ADD COLUMN `isHidden` BOOLEAN NOT NULL DEFAULT FALSE");
+  }
+
   if (alterOps.length > 0) {
     await prisma.$executeRawUnsafe(`ALTER TABLE \`BlogPost\` ${alterOps.join(", ")}`);
   }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`Category\` (
+      \`id\` VARCHAR(191) NOT NULL,
+      \`name\` VARCHAR(191) NOT NULL,
+      \`isHidden\` BOOLEAN NOT NULL DEFAULT FALSE,
+      \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      UNIQUE INDEX \`Category_name_key\`(\`name\`),
+      PRIMARY KEY (\`id\`)
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
 };
 
 export const ensureBlogSchema = async () => {
