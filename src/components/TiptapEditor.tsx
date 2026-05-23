@@ -275,7 +275,7 @@ export const TabIndent = Extension.create({
 
 const convertQuillHtmlToStandard = (htmlString: string) => {
   if (typeof htmlString !== "string") return htmlString;
-  let html = htmlString.replace(/&nbsp;/g, " ");
+  let html = htmlString;
   
   if (typeof window !== "undefined" && window.DOMParser) {
     const parser = new DOMParser();
