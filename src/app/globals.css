@@ -146,7 +146,7 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 .ql-editor blockquote,
 .ql-editor span {
   /* Universal Multilingual Typography */
-  word-break: keep-all !important;      /* Prevent mid-word breaks in Devanagari */
+  word-break: normal !important;        /* Standard word breaking, avoids Devanagari conjunct rendering bugs */
   overflow-wrap: anywhere !important;   /* Only break massive tokens like URLs */
   white-space: pre-wrap !important;     /* Preserve editor spacing perfectly */
   line-break: auto !important;
@@ -174,7 +174,7 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
 .ql-editor {
   /* Prevent horizontal scroll while preserving word wrapping */
   overflow-x: clip !important;
-  word-break: keep-all !important;
+  word-break: normal !important;
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
@@ -260,7 +260,7 @@ body {
 }
 .excerpt-html, .excerpt-html * {
   white-space: normal !important;
-  word-break: keep-all !important;
+  word-break: normal !important;
   overflow-wrap: anywhere !important;
 }
 
@@ -312,19 +312,22 @@ body {
   display: inline-block;
   max-width: 100%;
 }
-.ProseMirror figure[style*="float: left"], .article-body figure[style*="float: left"] {
-  float: left;
-  margin-right: 1.5rem;
-  margin-bottom: 1rem;
+.ProseMirror figure:has(img[wrapperstyle*="float: left"]), .article-body figure:has(img[wrapperstyle*="float: left"]),
+.ProseMirror img[wrapperstyle*="float: left"], .article-body img[wrapperstyle*="float: left"] {
+  float: left !important;
+  margin-right: 1.5rem !important;
+  margin-bottom: 1rem !important;
 }
-.ProseMirror figure[style*="float: right"], .article-body figure[style*="float: right"] {
-  float: right;
-  margin-left: 1.5rem;
-  margin-bottom: 1rem;
+.ProseMirror figure:has(img[wrapperstyle*="float: right"]), .article-body figure:has(img[wrapperstyle*="float: right"]),
+.ProseMirror img[wrapperstyle*="float: right"], .article-body img[wrapperstyle*="float: right"] {
+  float: right !important;
+  margin-left: 1.5rem !important;
+  margin-bottom: 1rem !important;
 }
-.ProseMirror figure[style*="float: none"], .article-body figure[style*="float: none"] {
+.ProseMirror figure:has(img[wrapperstyle*="margin: 0 auto"]), .article-body figure:has(img[wrapperstyle*="margin: 0 auto"]), .ProseMirror figure:has(img:not([wrapperstyle*="float"])), .article-body figure:has(img:not([wrapperstyle*="float"])) {
   float: none;
-  display: block;
+  display: flex;
+  justify-content: center;
   margin: 1rem auto;
 }
 .ProseMirror h1 {

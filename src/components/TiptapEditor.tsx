@@ -275,6 +275,13 @@ export const TabIndent = Extension.create({
 
 const convertQuillHtmlToStandard = (htmlString: string) => {
   if (typeof htmlString !== "string") return htmlString;
+  
+  // Only process if it looks like legacy Quill HTML. 
+  // Processing Tiptap HTML via DOMParser slightly alters the string, triggering infinite setContent loops during typing!
+  if (!htmlString.includes("ql-")) {
+    return htmlString;
+  }
+
   let html = htmlString;
   
   if (typeof window !== "undefined" && window.DOMParser) {
