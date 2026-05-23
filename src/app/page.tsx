@@ -35,6 +35,7 @@ export default async function Page() {
   try {
     await ensureBlogSchema();
     const posts = await prisma.blogPost.findMany({
+      where: { isHidden: false },
       select: {
         id: true,
         category: true,
@@ -52,6 +53,7 @@ export default async function Page() {
     });
 
     const topPosts = await prisma.blogPost.findMany({
+      where: { isHidden: false },
       select: {
         id: true,
         category: true,
