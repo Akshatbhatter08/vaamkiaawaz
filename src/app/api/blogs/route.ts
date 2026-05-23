@@ -166,6 +166,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
+  let parsedPermissions: any = {};
+  if (typeof user.permissions === "string") {
+    try { parsedPermissions = JSON.parse(user.permissions); } catch (e) {}
+  } else if (user.permissions && typeof user.permissions === "object") {
+    parsedPermissions = user.permissions;
+  }
+
+  const uploaderName = 
+    (typeof parsedPermissions.authorName === 'string' ? parsedPermissions.authorName.trim() : null) || 
+    (user.role === 'MASTER_ADMIN' ? 'केशव कुमार भट्टड़' : 'अज्ञात');
+
   const created = await prisma.blogPost.create({
     data: { 
       category, 
@@ -175,7 +186,7 @@ export async function POST(request: NextRequest) {
       author, 
       postImage, 
       authorImage,
-      uploaderName: (typeof (user.permissions as any)?.authorName === 'string' ? (user.permissions as any).authorName.trim() : null) || (user.role === 'MASTER_ADMIN' ? 'केशव कुमार भट्टड़' : 'अज्ञात')
+      uploaderName: uploaderName
     },
   });
 
