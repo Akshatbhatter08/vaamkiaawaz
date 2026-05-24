@@ -11,6 +11,7 @@ import "react-quill-new/dist/quill.snow.css";
 import { SanitizedHtml } from "@/utils/sanitizeHtml";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
+import ArticleLoginModal from "@/components/ArticleLoginModal";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
@@ -241,19 +242,32 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       }).catch(() => {});
   }, []);
 
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   useEffect(() => {
-    const placeholder = document.getElementById("translate_placeholder");
-    const translateEl = document.getElementById("google_translate_element");
-    if (placeholder && translateEl) {
-      placeholder.appendChild(translateEl);
-    }
+    const checkAndMoveTranslate = () => {
+      const gTranslate = document.getElementById("google_translate_element");
+      const placeholder = document.getElementById("translate_placeholder");
+      if (gTranslate && placeholder && gTranslate.innerHTML.trim() !== "") {
+        placeholder.appendChild(gTranslate);
+      } else {
+        setTimeout(checkAndMoveTranslate, 500);
+      }
+    };
+    checkAndMoveTranslate();
+    
     return () => {
+      const translateEl = document.getElementById("google_translate_element");
       const container = document.getElementById("google_translate_container");
       if (container && translateEl) {
         container.appendChild(translateEl);
       }
     };
   }, []);
+
+  const handleLoginClick = () => {
+    setIsLoginModalOpen(true);
+  };
 
   const isMaster = userRole === "MASTER_ADMIN";
   const isAuthor = userAuthorName && userAuthorName === post.author.trim().toLowerCase();
@@ -358,11 +372,11 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               </button>
               <div 
                 id="translate_placeholder" 
-                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-50 ${showTranslate ? 'block' : 'hidden'}`}
+                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-[100] transition-all duration-200 ${showTranslate ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
               ></div>
             </div>
             <button
-              onClick={() => router.push('/')}
+              onClick={handleLoginClick}
               className="inline-flex items-center gap-1 shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
             >
               <LogIn className="h-3.5 w-3.5 shrink-0" />
@@ -918,6 +932,15 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           </div>
         </div>
       )}
+
+      <ArticleLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        sessionEmail={sessionEmail}
+        roleText={roleText}
+        onLoginSuccess={(email) => setSessionEmail(email)}
+        onLogout={() => setSessionEmail("")}
+      />
     </div>
   );
 }

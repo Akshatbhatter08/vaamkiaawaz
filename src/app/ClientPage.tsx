@@ -611,6 +611,13 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
   }, []);
 
   useEffect(() => {
+    if (sessionStorage.getItem("openLoginModal") === "true") {
+      sessionStorage.removeItem("openLoginModal");
+      setIsAuthModalOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as "light" | "dark" | null;
     if (savedTheme) {
       setTheme(savedTheme);
@@ -1948,7 +1955,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               </button>
               <div 
                 id="translate_placeholder" 
-                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-50 ${showTranslate ? 'block' : 'hidden'}`}
+                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-[100] transition-all duration-200 ${showTranslate ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
               ></div>
             </div>
             <button
