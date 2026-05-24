@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer, Languages } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -473,6 +473,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [showTranslate, setShowTranslate] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -1936,7 +1937,20 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
             <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
-            <div id="translate_placeholder" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
+            <div className="relative flex items-center shrink-0 ml-1 sm:ml-2">
+              <button
+                type="button"
+                onClick={() => setShowTranslate(!showTranslate)}
+                className="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:text-[var(--primary)] hover:border-[var(--primary)]"
+                title="Translate"
+              >
+                <Languages className="h-4 w-4" />
+              </button>
+              <div 
+                id="translate_placeholder" 
+                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-50 ${showTranslate ? 'block' : 'hidden'}`}
+              ></div>
+            </div>
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
@@ -2722,7 +2736,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                   value={formState.excerpt}
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
-                  className="h-[200px] rounded-md"
+                  className="min-h-[200px] rounded-md"
                 />
               </div>
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
@@ -2730,7 +2744,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                   value={formState.content}
                   onChange={(content) => setFormState((prev) => ({ ...prev, content }))}
                   placeholder="पूरी विस्तृत खबर / लेख"
-                  className="h-[500px] rounded-md"
+                  className="min-h-[500px] rounded-md"
                 />
               </div>
               <div className="md:col-span-2 flex justify-end">
@@ -2796,7 +2810,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                 {(getFullArticle(previewPost).includes("<p>") || getFullArticle(previewPost).includes("<h")) ? (
                   <SanitizedHtml 
                     html={getFullArticle(previewPost)} 
-                    className="ql-editor" 
+                    className="article-body ql-editor prose max-w-none" 
                     style={{ padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }} 
                     debug={true}
                   />

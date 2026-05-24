@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu } from "lucide-react";
+import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { AnimatePresence, motion } from "motion/react";
@@ -90,6 +90,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: post.title, excerpt: post.excerpt, content: post.content });
   const [saving, setSaving] = useState(false);
+  const [showTranslate, setShowTranslate] = useState(false);
   
   const [displayedSuggested, setDisplayedSuggested] = useState<Post[]>(suggestedPosts);
   const [allFetchedPosts, setAllFetchedPosts] = useState<Post[] | null>(null);
@@ -346,13 +347,26 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
               संपर्क: vaamkiaawaz@gmail.com
             </a>
-            <div id="translate_placeholder" className="flex items-center shrink-0 ml-1 sm:ml-2"></div>
+            <div className="relative flex items-center shrink-0 ml-1 sm:ml-2">
+              <button
+                type="button"
+                onClick={() => setShowTranslate(!showTranslate)}
+                className="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:text-[var(--primary)] hover:border-[var(--primary)]"
+                title="Translate"
+              >
+                <Languages className="h-4 w-4" />
+              </button>
+              <div 
+                id="translate_placeholder" 
+                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-50 ${showTranslate ? 'block' : 'hidden'}`}
+              ></div>
+            </div>
             <button
               onClick={() => router.push('/')}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              className="inline-flex items-center gap-1 shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
             >
-              <LogIn className="h-3.5 w-3.5" />
-              {sessionEmail ? roleText || "लॉगिन है" : "लॉगिन"}
+              <LogIn className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate max-w-[80px] sm:max-w-none">{sessionEmail ? roleText || "लॉगिन है" : "लॉगिन"}</span>
             </button>
           </div>
         </div>
@@ -648,7 +662,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       value={editForm.excerpt}
                       onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
                       placeholder="संक्षिप्त सारांश यहाँ लिखें..."
-                      className="h-[200px] rounded-md"
+                      className="min-h-[200px] h-auto rounded-md"
                     />
                   </div>
                 </div>
@@ -659,7 +673,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       value={editForm.content}
                       onChange={(val) => setEditForm(prev => ({...prev, content: val}))}
                       placeholder="लेख का विवरण यहाँ लिखें..."
-                      className="h-[500px] rounded-md"
+                      className="min-h-[500px] h-auto rounded-md"
                     />
                   </div>
                 </div>
@@ -730,7 +744,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <SanitizedHtml
                   html={post.content}
                   className="article-body ql-editor prose max-w-none text-[var(--foreground)] [&>*:last-child]:mb-0 pb-0"
-                  style={{ fontSize: "1.05rem", lineHeight: 2, padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }}
+                  style={{ padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }}
                   debug={true}
                 />
 

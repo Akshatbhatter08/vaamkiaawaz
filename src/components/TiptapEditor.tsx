@@ -882,6 +882,9 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onChangeRef.current = onChange;
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Keep track of the last few HTML outputs we generated.
+  // This allows us to ignore debounced "echos" from the parent that arrive late while the user is still typing.
+  const recentOutputsRef = useRef<string[]>([]);
 
 
 
@@ -934,6 +937,10 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     content: sanitizedValue,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      recentOutputsRef.current.push(html);
+      if (recentOutputsRef.current.length > 30) {
+        recentOutputsRef.current.shift(); // keep bounded
+      }
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -945,7 +952,12 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      onChangeRef.current(editor.getHTML());
+      const html = editor.getHTML();
+      recentOutputsRef.current.push(html);
+      if (recentOutputsRef.current.length > 30) {
+        recentOutputsRef.current.shift();
+      }
+      onChangeRef.current(html);
     },
     editorProps: {
       attributes: {
@@ -962,12 +974,21 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }`;
 
   useEffect(() => {
-    if (editor && !editor.isFocused && sanitizedValue !== editor.getHTML()) {
+    if (!editor) return;
+    
+    if (sanitizedValue !== editor.getHTML()) {
+      // If the incoming value is one we recently generated, it's just a delayed echo from the parent. Ignore it.
+      if (recentOutputsRef.current.includes(sanitizedValue)) {
+        return;
+      }
+      
+      // It's a genuinely new value from the outside (e.g. DB load or article switch).
       editor.commands.setContent(sanitizedValue, { emitUpdate: false });
-      // Automatically place the cursor at the end of the document after loading external content
-      // This ensures that when the user restores a draft, the cursor is ready at the bottom.
+      recentOutputsRef.current = [sanitizedValue]; // Reset queue with the new external baseline
+      
+      // Place cursor at the end to ensure smooth UX when loading drafts
       setTimeout(() => {
-        if (!editor.isDestroyed) {
+        if (!editor.isDestroyed && !editor.isFocused) {
           editor.commands.setTextSelection(editor.state.doc.content.size);
         }
       }, 10);
@@ -1067,7 +1088,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor]);
 
   return (
-    <div className={`flex flex-col bg-[var(--surface)] text-[var(--foreground)] w-full overflow-hidden ${className}`}>
+    <div className={`flex flex-col bg-[var(--surface)] text-[var(--foreground)] w-full ${className}`}>
       <style>{`
         .prose .image-resizer[style*="float: left"],
         .prose div[style*="float: left"]:has(> div > img) {
@@ -1095,7 +1116,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       <MenuBar editor={editor} toolbarClassName={toolbarClassName} />
       <div 
-        className="flex-grow overflow-y-auto relative cursor-text bg-[var(--surface)]" 
+        className="flex-grow overflow-y-auto relative cursor-text bg-[var(--surface)] min-h-[120px]" 
         onClick={() => editor?.commands.focus()}
       >
         <EditorContent editor={editor} />

@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const posts = await prisma.blogPost.findMany({ where: { title: { contains: 'Test Article' } }, orderBy: { createdAt: 'desc' }, take: 1 }); console.log(posts[0]?.content); } main().finally(() => prisma.$disconnect());
