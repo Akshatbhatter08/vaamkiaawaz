@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer, Languages } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer, Languages, Link as LinkIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -548,11 +548,22 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     time: string;
     location: string;
     details: string;
+    imageUrl?: string;
   };
   const [events, setEvents] = useState<AbhiyanEvent[]>([]);
   const [activeEvent, setActiveEvent] = useState<AbhiyanEvent | null>(null);
-  const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '' });
+  const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '', imageUrl: '' });
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventArchiveModalOpen, setEventArchiveModalOpen] = useState(false);
+  const [archiveDate, setArchiveDate] = useState("");
+
+  const formatDateWithDay = (dateStr: string) => {
+    if (!dateStr) return 'तय होना बाकी है';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const days = ["रविवार", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"];
+    return `${days[d.getDay()]}, ${d.toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  };
 
   const [resources, setResources] = useState<PlatformResource[]>([]);
   const [newResourceForm, setNewResourceForm] = useState({ title: '', type: 'link', url: '', fileData: '' });
@@ -566,6 +577,20 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
   const [previewPost, setPreviewPost] = useState<NewsPost | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
   const categoryMenuRef = useRef<HTMLDivElement | null>(null);
+  const hasScrolledToAnchor = useRef(false);
+  const clickedPostIds = useRef(new Set<string>());
+
+  const handlePostClick = (postId: string) => {
+    if (!clickedPostIds.current.has(postId)) {
+      clickedPostIds.current.add(postId);
+      setBlogs((prev) =>
+        prev.map((item) =>
+          item.id === postId ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item
+        )
+      );
+    }
+  };
+
   const [formState, setFormState] = useState({
     title: "",
     author: "",
@@ -926,9 +951,14 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
   }, [blogs, topBlogs, postClicks]);
 
   const filteredEvents = useMemo(() => {
-    if (!selectedNewsDate) return events;
-    return events.filter((ev) => ev.date === selectedNewsDate);
-  }, [events, selectedNewsDate]);
+    // Get today's date in YYYY-MM-DD for IST
+    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    return events
+      .filter((ev) => ev.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  }, [events]);
 
   const allCategories = useMemo(() => {
     const set = new Set<string>();
@@ -951,6 +981,21 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
       setSelectedCategory("सभी");
     }
   }, [allCategories, selectedCategory]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash && !hasScrolledToAnchor.current) {
+      if (blogs.length > 0 || events.length > 0 || resources.length > 0) {
+        const hash = window.location.hash.substring(1);
+        const el = document.getElementById(hash);
+        if (el) {
+          setTimeout(() => {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 300);
+          hasScrolledToAnchor.current = true;
+        }
+      }
+    }
+  }, [blogs, events, resources]);
 
   const filteredBlogs = useMemo(() => {
     const q = normalizeForSearch(searchTerm);
@@ -1334,7 +1379,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
           });
           setEvents(sorted);
         }
-        setNewEventForm({ title: '', date: '', time: '', location: '', details: '' });
+        setNewEventForm({ title: '', date: '', time: '', location: '', details: '', imageUrl: '' });
         setEditingEventId(null);
       }
     } catch {}
@@ -2245,7 +2290,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                     key={`ticker-${story.id}-${i}`} 
                     href={`/post/${story.id}`}
                     onClick={() => {
-                      setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                      handlePostClick();
                     }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
@@ -2257,7 +2302,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                     key={`ticker-dup-${story.id}-${i}`} 
                     href={`/post/${story.id}`}
                     onClick={() => {
-                      setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                      handlePostClick();
                     }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
@@ -2275,7 +2320,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               <Link
                 href={`/post/${featuredForDisplay[0].id}`}
                 onClick={() => {
-                  setBlogs((prev) => prev.map((item) => (item.id === featuredForDisplay[0].id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                  handlePostClick();
                 }}
                 className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left block"
               >
@@ -2316,7 +2361,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                   key={story.id}
                   href={`/post/${story.id}`}
                   onClick={() => {
-                    setBlogs((prev) => prev.map((item) => (item.id === story.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                    handlePostClick();
                   }}
                   className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left block"
                 >
@@ -2582,21 +2627,30 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
-              <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
+            <section id="abhiyan-calendar" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
+                <button onClick={() => setEventArchiveModalOpen(true)} className="text-xs font-semibold text-[var(--primary)] hover:underline">आर्काइव</button>
+              </div>
               <div className="mt-3 space-y-3 text-sm">
                 {filteredEvents.length === 0 ? (
-                  <p className="text-[var(--muted)]">{selectedNewsDate ? 'इस तिथि पर कोई ईवेंट नहीं' : 'कोई आगामी ईवेंट नहीं'}</p>
+                  <p className="text-[var(--muted)]">कोई आगामी ईवेंट नहीं</p>
                 ) : (
-                  filteredEvents.map(ev => (
-                    <div onClick={() => setActiveEvent(ev)} key={ev.id} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
-                      <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
-                      <p className="text-[var(--muted)] text-xs mt-0.5">
-                        {ev.date ? `${ev.date} • ${ev.time}` : 'तय होना बाकी है'}
-                        {ev.location ? ` | ${ev.location}` : ''}
-                      </p>
-                    </div>
-                  ))
+                  filteredEvents.map(ev => {
+                    const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+                    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    const isToday = ev.date === todayStr;
+                    return (
+                      <div onClick={() => setActiveEvent(ev)} key={ev.id} className={`cursor-pointer rise-on-hover rounded-md border p-3 ${isToday ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]' : 'border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)]'}`}>
+                        {isToday && <span className="mb-2 inline-block rounded bg-[var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">आज का कार्यक्रम</span>}
+                        <p className={`font-semibold ${isToday ? 'text-[var(--primary)]' : 'text-[var(--headline)]'}`}>{ev.title}</p>
+                        <p className="text-[var(--muted)] text-xs mt-0.5">
+                          {ev.date ? `${formatDateWithDay(ev.date)} • ${ev.time}` : 'तय होना बाकी है'}
+                          {ev.location ? ` | ${ev.location}` : ''}
+                        </p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>
@@ -2632,7 +2686,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                 key={post.id} 
                 href={`/post/${post.id}`}
                 onClick={() => {
-                  setBlogs((prev) => prev.map((item) => (item.id === post.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)));
+                  handlePostClick();
                 }}
                 className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block"
               >
@@ -2841,20 +2895,99 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
         {activeEvent && (
           <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+              <div className="absolute right-4 top-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${window.location.origin}/#abhiyan-calendar`;
+                    navigator.clipboard.writeText(link);
+                    alert('लिंक कॉपी किया गया!');
+                  }}
+                  className="rounded-full border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+                  title="Copy Link"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = `${window.location.origin}/#abhiyan-calendar`;
+                    const text = `${activeEvent.title}\n📅 ${formatDateWithDay(activeEvent.date)} ${activeEvent.time}\n📍 ${activeEvent.location}\n\n${activeEvent.details}\n\nवाम की आवाज़ - अभियान कैलेंडर\n${link}`;
+                    if (navigator.share) {
+                      navigator.share({ title: activeEvent.title, text, url: link }).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(text);
+                      alert('विवरण और लिंक कॉपी किया गया!');
+                    }
+                  }}
+                  className="rounded-full border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+                  title="Share"
+                >
+                  <Share2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveEvent(null)}
+                  className="rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+                >
+                  Close
+                </button>
+              </div>
+              <h3 className="pr-20 font-serif text-2xl font-bold text-[var(--headline)]">{activeEvent.title}</h3>
+              <div className="mt-4 flex flex-col gap-2 border-b border-[var(--line)] pb-4 text-sm font-semibold text-[var(--muted)]">
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date ? `${formatDateWithDay(activeEvent.date)} • ${activeEvent.time}` : 'तय होना बाकी है'}</span>
+                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location || 'तय होना बाकी है'}</span>
+              </div>
+              {activeEvent.imageUrl && (
+                <div className="mt-4">
+                  <img src={activeEvent.imageUrl} alt={activeEvent.title} className="max-h-[300px] w-full rounded-md object-contain border border-[var(--line)] bg-[var(--surface-soft)]" />
+                </div>
+              )}
+              <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+                {activeEvent.details}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {eventArchiveModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
               <button
                 type="button"
-                onClick={() => setActiveEvent(null)}
+                onClick={() => setEventArchiveModalOpen(false)}
                 className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
               >
                 Close
               </button>
-              <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">{activeEvent.title}</h3>
-              <div className="mt-4 flex flex-col gap-2 border-b border-[var(--line)] pb-4 text-sm font-semibold text-[var(--muted)]">
-                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date ? `${activeEvent.date} ${activeEvent.time}` : 'तय होना बाकी है'}</span>
-                <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location || 'तय होना बाकी है'}</span>
+              <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">प्रोग्राम आर्काइव</h3>
+              <div className="mt-4 border-b border-[var(--line)] pb-4">
+                <label className="mb-2 block text-sm font-semibold text-[var(--muted)]">तिथि चुनें</label>
+                <input 
+                  type="date" 
+                  value={archiveDate} 
+                  onChange={(e) => setArchiveDate(e.target.value)} 
+                  className="w-full rounded border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" 
+                />
               </div>
-              <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
-                {activeEvent.details}
+              <div className="mt-4 space-y-3">
+                {!archiveDate ? (
+                  <p className="text-sm text-[var(--muted)]">ईवेंट देखने के लिए तिथि चुनें।</p>
+                ) : (
+                  events.filter(ev => ev.date === archiveDate).length === 0 ? (
+                    <p className="text-sm text-[var(--muted)]">इस तिथि पर कोई ईवेंट नहीं मिला।</p>
+                  ) : (
+                    events.filter(ev => ev.date === archiveDate).map(ev => (
+                      <div onClick={() => setActiveEvent(ev)} key={ev.id} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
+                        <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
+                        <p className="text-[var(--muted)] text-xs mt-0.5">
+                          {ev.date ? `${formatDateWithDay(ev.date)} • ${ev.time}` : 'तय होना बाकी है'}
+                          {ev.location ? ` | ${ev.location}` : ''}
+                        </p>
+                      </div>
+                    ))
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -2980,7 +3113,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                       <section className="rounded-lg border border-[var(--line)] p-4">
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-lg font-semibold text-[var(--headline)]">अभियान कैलेंडर नियंत्रण</h4>
-                          {editingEventId && <button type="button" onClick={() => { setEditingEventId(null); setNewEventForm({ title: '', date: '', time: '', location: '', details: '' }); }} className="text-xs text-red-500 underline">Cancel Edit</button>}
+                          {editingEventId && <button type="button" onClick={() => { setEditingEventId(null); setNewEventForm({ title: '', date: '', time: '', location: '', details: '', imageUrl: '' }); }} className="text-xs text-red-500 underline">Cancel Edit</button>}
                         </div>
                         <form onSubmit={handleAddEvent} className="mt-4 space-y-3">
                           <input required value={newEventForm.title} onChange={e => setNewEventForm({...newEventForm, title: e.target.value})} placeholder="इवेंट का नाम (Title)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
@@ -2989,6 +3122,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                             <input type="time" value={newEventForm.time} onChange={e => setNewEventForm({...newEventForm, time: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           </div>
                           <input value={newEventForm.location} onChange={e => setNewEventForm({...newEventForm, location: e.target.value})} placeholder="स्थान (Location) (वैकल्पिक)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <input type="url" value={newEventForm.imageUrl || ''} onChange={e => setNewEventForm({...newEventForm, imageUrl: e.target.value})} placeholder="इमेज URL (Share Thumbnail) (वैकल्पिक)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <textarea required value={newEventForm.details} onChange={e => setNewEventForm({...newEventForm, details: e.target.value})} placeholder="पूरी जानकारी" className="w-full h-20 resize-none rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                             {editingEventId ? "इवेंट अपडेट करें" : "+ नया इवेंट जोड़ें"}
@@ -3002,7 +3136,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                                 <p className="text-xs text-[var(--muted)]">{ev.date ? `${ev.date} | ${ev.time}` : 'तय होना बाकी है'}</p>
                               </div>
                               <div className="flex gap-2">
-                                <button onClick={() => { setEditingEventId(ev.id); setNewEventForm({ title: ev.title, date: ev.date, time: ev.time, location: ev.location, details: ev.details }); }} className="text-xs text-blue-500 hover:underline">संपादित करें</button>
+                                <button onClick={() => { setEditingEventId(ev.id); setNewEventForm({ title: ev.title, date: ev.date, time: ev.time, location: ev.location, details: ev.details, imageUrl: ev.imageUrl || '' }); }} className="text-xs text-blue-500 hover:underline">संपादित करें</button>
                                 <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
                               </div>
                             </div>

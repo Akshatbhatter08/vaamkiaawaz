@@ -43,9 +43,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     time: string;
     location: string;
     details: string;
+    imageUrl?: string | null;
   };
 
-  const { title, date, time, location, details } = body;
+  const { title, date, time, location, details, imageUrl } = body;
   
   if (!title || !details) {
     return NextResponse.json({ error: "शीर्षक और विवरण आवश्यक हैं।" }, { status: 400 });
@@ -53,10 +54,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     await prisma.$executeRawUnsafe(
-      `UPDATE \`AbhiyanEvent\` SET title = ?, date = ?, time = ?, location = ?, details = ? WHERE id = ?`,
-      title, date, time, location, details, id
+      `UPDATE \`AbhiyanEvent\` SET title = ?, date = ?, time = ?, location = ?, details = ?, imageUrl = ? WHERE id = ?`,
+      title, date, time, location, details, imageUrl || null, id
     );
-    return NextResponse.json({ success: true, event: { id, title, date, time, location, details } }, { status: 200 });
+    return NextResponse.json({ success: true, event: { id, title, date, time, location, details, imageUrl } }, { status: 200 });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "इवेंट अपडेट करने में विफल।" }, { status: 500 });

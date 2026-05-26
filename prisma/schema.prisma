@@ -46,6 +46,7 @@ model AbhiyanEvent {
   time      String
   location  String
   details   String   @db.LongText
+  imageUrl  String?  @db.LongText
   createdAt DateTime @default(now())
 }
 

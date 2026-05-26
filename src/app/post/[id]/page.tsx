@@ -160,12 +160,6 @@ export default async function PostPage({ params }: Props) {
     );
   }
 
-  // Start non-critical updates asynchronously
-  prisma.blogPost.update({
-    where: { id },
-    data: { clickCount: { increment: 1 } },
-  }).catch(() => {});
-
   const mappedPost = mapPostForClient(post, true);
 
   const selectSidebarFields = {

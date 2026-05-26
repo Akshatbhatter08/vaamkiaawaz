@@ -18,9 +18,23 @@ const ensureEventsSchema = async () => {
         \`time\` VARCHAR(191) NOT NULL,
         \`location\` VARCHAR(191) NOT NULL,
         \`details\` LONGTEXT NOT NULL,
+        \`imageUrl\` LONGTEXT NULL,
         \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
       ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     `);
+  } else {
+    // Check if imageUrl column exists
+    const columnCheck = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT COUNT(*) as count 
+      FROM information_schema.columns 
+      WHERE table_schema = DATABASE() AND table_name = 'AbhiyanEvent' AND column_name = 'imageUrl'
+    `);
+    
+    if (Number(columnCheck[0].count) === 0) {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE \`AbhiyanEvent\` ADD COLUMN \`imageUrl\` LONGTEXT NULL;
+      `);
+    }
   }
 };
 
@@ -61,9 +75,10 @@ export async function POST(request: NextRequest) {
     time: string;
     location: string;
     details: string;
+    imageUrl?: string | null;
   };
 
-  const { title, date, time, location, details } = body;
+  const { title, date, time, location, details, imageUrl } = body;
   
   if (!title || !details) {
     return NextResponse.json({ error: "शीर्षक और विवरण आवश्यक हैं।" }, { status: 400 });
@@ -72,9 +87,9 @@ export async function POST(request: NextRequest) {
   const id = crypto.randomUUID();
 
   await prisma.$executeRawUnsafe(
-    `INSERT INTO \`AbhiyanEvent\` (\`id\`, \`title\`, \`date\`, \`time\`, \`location\`, \`details\`) VALUES (?, ?, ?, ?, ?, ?)`,
-    id, title, date, time, location, details
+    `INSERT INTO \`AbhiyanEvent\` (\`id\`, \`title\`, \`date\`, \`time\`, \`location\`, \`details\`, \`imageUrl\`) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    id, title, date, time, location, details, imageUrl || null
   );
 
-  return NextResponse.json({ success: true, event: { id, title, date, time, location, details } }, { status: 201 });
+  return NextResponse.json({ success: true, event: { id, title, date, time, location, details, imageUrl } }, { status: 201 });
 }

@@ -99,6 +99,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  const hasIncrementedRef = useRef(false);
+  useEffect(() => {
+    if (!hasIncrementedRef.current) {
+      hasIncrementedRef.current = true;
+      fetch(`/api/blogs/${post.id}/click`, { method: "POST" }).catch(() => {});
+    }
+  }, [post.id]);
+
   useEffect(() => {
     setDisplayedSuggested(suggestedPosts);
     setAllFetchedPosts(null);
