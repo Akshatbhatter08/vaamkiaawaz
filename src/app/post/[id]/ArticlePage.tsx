@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages } from "lucide-react";
+import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages, Link as LinkIcon } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { AnimatePresence, motion } from "motion/react";
@@ -20,7 +20,7 @@ type Post = {
   createdAt: string; time: string; source: "blog";
 };
 type SidebarPost = Post;
-type Evt = { id: string; title: string; date: string; time: string; location: string; details: string };
+type Evt = { id: string; title: string; date: string; time: string; location: string; details: string; imageUrl?: string };
 type Res = { id: string; title: string; type: string; url: string | null; createdAt: string };
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -98,6 +98,30 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [activeEvent, setActiveEvent] = useState<Evt | null>(null);
+
+  const formatDateWithDay = (dateStr: string) => {
+    if (!dateStr) return 'तय होना बाकी है';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const days = ["रविवार", "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार"];
+    return `${days[d.getDay()]}, ${d.toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+  };
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  
+  const filteredEvents = useMemo(() => {
+    return events
+      .filter((ev) => !ev.date || ev.date >= todayStr)
+      .sort((a, b) => {
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`).getTime();
+        const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`).getTime();
+        return dateA - dateB;
+      });
+  }, [events, todayStr]);
 
   const hasIncrementedRef = useRef(false);
   useEffect(() => {
@@ -685,6 +709,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       onChange={(val) => setEditForm(prev => ({...prev, excerpt: val}))}
                       placeholder="संक्षिप्त सारांश यहाँ लिखें..."
                       className="min-h-[200px] h-auto rounded-md"
+                      hideMediaLinks={true}
                     />
                   </div>
                 </div>
@@ -883,17 +908,27 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             )}
 
             {/* Calendar */}
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="abhiyan-calendar" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
               <div className="mt-3 space-y-2 text-sm">
-                {events.length === 0 ? (
+                {filteredEvents.length === 0 ? (
                   <p className="text-[var(--muted)]">कोई आगामी ईवेंट नहीं</p>
-                ) : events.map(ev => (
-                  <div key={ev.id} className="rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] p-3">
-                    <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
-                    <p className="text-xs text-[var(--muted)] mt-0.5">{ev.date ? `${ev.date} • ${ev.time}` : "तय होना बाकी"}{ev.location ? ` | ${ev.location}` : ""}</p>
-                  </div>
-                ))}
+                ) : filteredEvents.map(ev => {
+                  const isToday = ev.date === todayStr;
+                  const link = `${window.location.origin}/#abhiyan-calendar`;
+                  const shareText = `${ev.title}\n📅 ${formatDateWithDay(ev.date)} ${ev.time}\n📍 ${ev.location}\n\n${ev.details}\n\nवाम की आवाज़ - अभियान कैलेंडर\n${link}`;
+                  return (
+                    <div 
+                      key={ev.id} 
+                      onClick={() => setActiveEvent(ev)}
+                      className={`rise-on-hover rounded-md border p-3 cursor-pointer ${isToday ? 'border-[var(--primary)] bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]' : 'border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)]'}`}
+                    >
+                      {isToday && <span className="mb-2 inline-block rounded bg-[var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">आज का कार्यक्रम</span>}
+                      <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">{ev.date ? `${formatDateWithDay(ev.date)} • ${ev.time}` : "तय होना बाकी"}{ev.location ? ` | ${ev.location}` : ""}</p>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -936,6 +971,64 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               <button onClick={() => setConfirmDelete(false)} className="flex-1 rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold hover:border-[var(--primary)]">
                 रद्द करें
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeEvent && (
+        <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+            <div className="absolute right-4 top-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const link = `${window.location.origin}/#abhiyan-calendar`;
+                  navigator.clipboard.writeText(link);
+                  alert('लिंक कॉपी किया गया!');
+                }}
+                className="rounded-full border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+                title="Copy Link"
+              >
+                <LinkIcon className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = `${window.location.origin}/#abhiyan-calendar`;
+                  const text = `${activeEvent.title}\n📅 ${formatDateWithDay(activeEvent.date)} ${activeEvent.time}\n📍 ${activeEvent.location}\n\n${activeEvent.details}\n\nवाम की आवाज़ - अभियान कैलेंडर\n${link}`;
+                  if (navigator.share) {
+                    navigator.share({ title: activeEvent.title, text, url: link }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(text);
+                    alert('विवरण और लिंक कॉपी किया गया!');
+                  }
+                }}
+                className="rounded-full border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+                title="Share"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveEvent(null)}
+                className="rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)] text-[var(--foreground)]"
+              >
+                Close
+              </button>
+            </div>
+            <h3 className="pr-20 font-serif text-2xl font-bold text-[var(--headline)]">{activeEvent.title}</h3>
+            <div className="mt-4 flex flex-col gap-2 border-b border-[var(--line)] pb-4 text-sm font-semibold text-[var(--muted)]">
+              <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📅</span> {activeEvent.date ? `${formatDateWithDay(activeEvent.date)} • ${activeEvent.time}` : 'तय होना बाकी है'}</span>
+              <span className="flex items-center gap-1"><span className="text-[var(--primary)]">📍</span> {activeEvent.location || 'तय होना बाकी है'}</span>
+            </div>
+            {activeEvent.imageUrl && (
+              <div className="mt-4">
+                <img src={activeEvent.imageUrl} alt={activeEvent.title} className="max-h-[300px] w-full rounded-md object-contain border border-[var(--line)] bg-[var(--surface-soft)]" />
+              </div>
+            )}
+            <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+              {activeEvent.details}
             </div>
           </div>
         </div>

@@ -2798,6 +2798,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                   onChange={(val) => setFormState((prev) => ({ ...prev, excerpt: val }))}
                   placeholder="संक्षिप्त सारांश / एब्स्ट्रैक्ट"
                   className="min-h-[200px] rounded-md"
+                  hideMediaLinks={true}
                 />
               </div>
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">

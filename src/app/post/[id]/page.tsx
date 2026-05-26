@@ -246,6 +246,7 @@ export default async function PostPage({ params }: Props) {
         time: e.time,
         location: e.location,
         details: e.details,
+        imageUrl: e.imageUrl,
       }))}
       resources={resources.map((r: any) => ({
         id: r.id,

@@ -400,6 +400,7 @@ interface TiptapEditorProps {
   placeholder?: string;
   className?: string;
   toolbarClassName?: string;
+  hideMediaLinks?: boolean;
 }
 
 const PreserveStyles = Extension.create({
@@ -445,7 +446,7 @@ const PreserveStyles = Extension.create({
   },
 });
 
-const MenuBar = ({ editor, toolbarClassName }: { editor: any, toolbarClassName?: string }) => {
+const MenuBar = ({ editor, toolbarClassName, hideMediaLinks }: { editor: any, toolbarClassName?: string, hideMediaLinks?: boolean }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const setLink = useCallback(() => {
@@ -739,51 +740,54 @@ const MenuBar = ({ editor, toolbarClassName }: { editor: any, toolbarClassName?:
         <Quote className="w-4 h-4" />
       </button>
 
-      <div className="w-px h-5 bg-[var(--line)] mx-1" />
+      {!hideMediaLinks && (
+        <>
+          <div className="w-px h-5 bg-[var(--line)] mx-1" />
+          <button
+            type="button"
+            onClick={setLink}
+            className={toggleButtonClass(editor.isActive("link"))}
+            title="Add/Edit Link"
+          >
+            <LinkIcon className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().unsetLink().run()}
+            disabled={!editor.isActive("link")}
+            className={toggleButtonClass(false)}
+            title="Remove Link"
+          >
+            <Unlink className="w-4 h-4" />
+          </button>
 
-      <button
-        type="button"
-        onClick={setLink}
-        className={toggleButtonClass(editor.isActive("link"))}
-        title="Insert Link"
-      >
-        <LinkIcon className="w-4 h-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => editor.chain().focus().unsetLink().run()}
-        disabled={!editor.isActive("link")}
-        className={toggleButtonClass(false)}
-        title="Remove Link"
-      >
-        <Unlink className="w-4 h-4" />
-      </button>
+          <div className="w-px h-5 bg-[var(--line)] mx-1" />
 
-      <div className="w-px h-5 bg-[var(--line)] mx-1" />
-
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        className={toggleButtonClass(false)}
-        title="Insert Image"
-      >
-        <ImageIcon className="w-4 h-4" />
-      </button>
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleImageUpload}
-        accept="image/*"
-        className="hidden"
-      />
-      <button
-        type="button"
-        onClick={addYoutubeVideo}
-        className={toggleButtonClass(false)}
-        title="Insert YouTube Video"
-      >
-        <VideoIcon className="w-4 h-4" />
-      </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={toggleButtonClass(false)}
+            title="Insert Image"
+          >
+            <ImageIcon className="w-4 h-4" />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={addYoutubeVideo}
+            className={toggleButtonClass(false)}
+            title="Insert YouTube Video"
+          >
+            <VideoIcon className="w-4 h-4" />
+          </button>
+        </>
+      )}
 
       <div className="w-px h-5 bg-[var(--line)] mx-1" />
 
@@ -877,6 +881,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   placeholder,
   className = "h-[400px]",
   toolbarClassName,
+  hideMediaLinks,
 }) => {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -1114,7 +1119,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
       `}</style>
 
-      <MenuBar editor={editor} toolbarClassName={toolbarClassName} />
+      <MenuBar editor={editor} toolbarClassName={toolbarClassName} hideMediaLinks={hideMediaLinks} />
       <div 
         className="flex-grow overflow-y-auto relative cursor-text bg-[var(--surface)] min-h-[120px]" 
         onClick={() => editor?.commands.focus()}
