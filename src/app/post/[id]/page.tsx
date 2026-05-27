@@ -19,7 +19,7 @@ function extractFirstImageFromContent(html: string): string | null {
 function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
   // 1. Post thumbnail
   if (post.postImage && post.postImage.startsWith("data:")) {
-    return `/api/image/blog/${post.id}/og.jpg`;
+    return `/api/image/blog/${post.id}`;
   }
   if (post.postImage) {
     return post.postImage;
@@ -28,14 +28,14 @@ function getOgImage(post: { id: string; postImage: string | null; content: strin
   // 2. First image inside the article content
   const contentImage = extractFirstImageFromContent(post.content);
   if (contentImage && contentImage.startsWith("data:")) {
-    return `/api/image/blog/${post.id}/og.jpg`;
+    return `/api/image/blog/${post.id}`;
   }
   if (contentImage) {
     return contentImage;
   }
 
-  // 3. Fallback to large website logo (optimized for WhatsApp)
-  return "/fbpage-og.jpg";
+  // 3. Fallback to large website logo
+  return "/fbpage.png";
 }
 
 function formatRelativeTime(isoDate: string) {
