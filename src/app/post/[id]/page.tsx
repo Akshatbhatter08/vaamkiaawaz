@@ -109,11 +109,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
   const metaDescription = `${plainExcerpt} | लेखक: ${post.author} — वाम की आवाज़`;
 
+  const maxOgTitleLen = 70;
+  let ogTitle = `${post.title}। वाम की आवाज`;
+  if (post.title.length > maxOgTitleLen) {
+    ogTitle = `${post.title.substring(0, maxOgTitleLen).trim()}... । वाम की आवाज`;
+  }
+
   return {
     title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
     description: metaDescription,
     openGraph: {
-      title: `${post.title}। वाम की आवाज`,
+      title: ogTitle,
       description: metaDescription,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       url: `https://vaamkiaawaz.in/post/${id}`,
@@ -129,7 +135,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `${post.title}। वाम की आवाज`,
+      title: ogTitle,
       description: metaDescription,
       images: [absoluteOgImage],
     },
