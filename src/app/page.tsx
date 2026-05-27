@@ -97,10 +97,13 @@ export default async function Page() {
 
   let initialEvents = [];
   try {
-    const events = await prisma.event.findMany({
+    const events = await prisma.abhiyanEvent.findMany({
       orderBy: [{ date: "desc" }, { time: "desc" }],
     });
-    initialEvents = events;
+    initialEvents = events.map((e: any) => ({
+      ...e,
+      createdAt: e.createdAt.toISOString(),
+    }));
   } catch (error) {
     console.error("Error fetching initial events:", error);
   }
