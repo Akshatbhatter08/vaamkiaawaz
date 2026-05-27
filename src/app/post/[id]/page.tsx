@@ -34,8 +34,8 @@ function getOgImage(post: { id: string; postImage: string | null; content: strin
     return contentImage;
   }
 
-  // 3. Fallback to website logo
-  return "/vaamki-logo-sm.png";
+  // 3. Fallback to large website logo
+  return "/fbpage.png";
 }
 
 function formatRelativeTime(isoDate: string) {

@@ -19,6 +19,27 @@ export const metadata: Metadata = {
   title: "वाम की आवाज़ | जन समाचार मंच",
   description:
     "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
+  openGraph: {
+    title: "वाम की आवाज़ | जन समाचार मंच",
+    description: "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
+    siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
+    url: "https://vaamkiaawaz.in",
+    images: [
+      {
+        url: "https://vaamkiaawaz.in/fbpage.png",
+        width: 1200,
+        height: 630,
+        alt: "वाम की आवाज़ | जन समाचार मंच",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "वाम की आवाज़ | जन समाचार मंच",
+    description: "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
+    images: ["https://vaamkiaawaz.in/fbpage.png"],
+  },
   other: {
     "google-adsense-account": "ca-pub-5595988052361058"
   }

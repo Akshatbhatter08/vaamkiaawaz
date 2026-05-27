@@ -255,9 +255,10 @@ export default function ContextMenu() {
           icon={<Share2 className="h-4 w-4" />} 
           label="WhatsApp पर साझा करें" 
           onClick={() => {
-            const url = encodeURIComponent(window.location.href);
-            const title = encodeURIComponent(document.title);
-            window.open(`https://api.whatsapp.com/send?text=${title}%20${url}`, '_blank');
+            const urlToShare = context.linkUrl || window.location.href;
+            const textToShare = context.linkUrl ? (context.text || document.title) : document.title;
+            const text = encodeURIComponent(`${textToShare} | वाम की आवाज़\n\n${urlToShare}`);
+            window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
             setIsOpen(false);
           }}
         />
