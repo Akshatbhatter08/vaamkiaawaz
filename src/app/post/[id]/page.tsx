@@ -16,19 +16,21 @@ function extractFirstImageFromContent(html: string): string | null {
   return match ? match[1] : null;
 }
 
-/**
- * Determine the best Open Graph image for a post.
- * Priority: postImage > first image in content > website logo
- */
-function getOgImage(post: { postImage: string | null; content: string }): string {
-  // 1. Post thumbnail (skip data URIs — WhatsApp can't use them)
-  if (post.postImage && !post.postImage.startsWith("data:")) {
+function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
+  // 1. Post thumbnail
+  if (post.postImage && post.postImage.startsWith("data:")) {
+    return `/api/image/blog/${post.id}`;
+  }
+  if (post.postImage) {
     return post.postImage;
   }
 
-  // 2. First image inside the article content (skip data URIs)
+  // 2. First image inside the article content
   const contentImage = extractFirstImageFromContent(post.content);
-  if (contentImage && !contentImage.startsWith("data:")) {
+  if (contentImage && contentImage.startsWith("data:")) {
+    return `/api/image/blog/${post.id}`;
+  }
+  if (contentImage) {
     return contentImage;
   }
 
@@ -90,6 +92,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await prisma.blogPost.findUnique({
     where: { id },
     select: {
+      id: true,
       title: true,
       excerpt: true,
       content: true,
