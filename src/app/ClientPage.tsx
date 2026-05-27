@@ -637,6 +637,19 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
             return dA - dB;
           });
           setEvents(sorted);
+          
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const eventId = params.get("event");
+            if (eventId) {
+              const targetEvent = sorted.find((e: AbhiyanEvent) => e.id === eventId);
+              if (targetEvent) {
+                setActiveEvent(targetEvent);
+                // After opening the modal, we might want to clear the parameter so 
+                // reloading doesn't keep popping it up? Actually it's fine to leave it.
+              }
+            }
+          }
         }
       } catch {}
     };
@@ -2855,7 +2868,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                 <button
                   type="button"
                   onClick={() => {
-                    const link = `${window.location.origin}/#abhiyan-calendar`;
+                    const link = `${window.location.origin}/?event=${activeEvent.id}#abhiyan-calendar`;
                     navigator.clipboard.writeText(link);
                     alert('लिंक कॉपी किया गया!');
                   }}
@@ -2867,12 +2880,12 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                 <button
                   type="button"
                   onClick={() => {
-                    const link = `${window.location.origin}/#abhiyan-calendar`;
-                    const text = `${activeEvent.title}\n📅 ${formatDateWithDay(activeEvent.date)} ${activeEvent.time}\n📍 ${activeEvent.location}\n\n${activeEvent.details}\n\nवाम की आवाज़ - अभियान कैलेंडर\n${link}`;
+                    const link = `${window.location.origin}/?event=${activeEvent.id}#abhiyan-calendar`;
+                    const text = `${activeEvent.title}\n📅 ${formatDateWithDay(activeEvent.date)} ${activeEvent.time}\n📍 ${activeEvent.location}`;
                     if (navigator.share) {
                       navigator.share({ title: activeEvent.title, text, url: link }).catch(() => {});
                     } else {
-                      navigator.clipboard.writeText(text);
+                      navigator.clipboard.writeText(`${text}\n${link}`);
                       alert('विवरण और लिंक कॉपी किया गया!');
                     }
                   }}

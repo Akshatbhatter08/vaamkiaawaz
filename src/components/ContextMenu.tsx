@@ -169,7 +169,7 @@ export default function ContextMenu() {
         {context.imgUrl && (
           <MenuItem 
             icon={<ImageIcon className="h-4 w-4" />} 
-            label="इमेज कॉपी करें (Copy Image URL)" 
+            label="इमेज कॉपी करें (Copy Image)" 
             onClick={() => copyToClipboard(context.imgUrl, "इमेज लिंक कॉपी हो गया!")}
           />
         )}
