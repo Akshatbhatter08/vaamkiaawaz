@@ -257,7 +257,7 @@ export default function ContextMenu() {
           onClick={() => {
             const urlToShare = context.linkUrl || window.location.href;
             const textToShare = context.linkUrl ? (context.text || document.title) : document.title;
-            const text = encodeURIComponent(`${textToShare} | वाम की आवाज़\n\n${urlToShare}`);
+            const text = encodeURIComponent(`${textToShare}\n\n${urlToShare}`);
             window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
             setIsOpen(false);
           }}

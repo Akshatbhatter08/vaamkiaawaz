@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       dataUri = match ? match[1] : null;
     }
 
-    if (!dataUri || !dataUri.startsWith('data:image/')) {
+    if (!dataUri) {
       const defaultUrl = new URL('/fbpage.png', req.url);
       return NextResponse.redirect(defaultUrl);
     }

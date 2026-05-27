@@ -18,20 +18,14 @@ function extractFirstImageFromContent(html: string): string | null {
 
 function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
   // 1. Post thumbnail
-  if (post.postImage && post.postImage.startsWith("data:")) {
-    return `/api/image/blog/${post.id}`;
-  }
   if (post.postImage) {
-    return post.postImage;
+    return `/api/image/blog/${post.id}`;
   }
 
   // 2. First image inside the article content
   const contentImage = extractFirstImageFromContent(post.content);
-  if (contentImage && contentImage.startsWith("data:")) {
-    return `/api/image/blog/${post.id}`;
-  }
   if (contentImage) {
-    return contentImage;
+    return `/api/image/blog/${post.id}`;
   }
 
   // 3. Fallback to large website logo
@@ -119,7 +113,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
     description: metaDescription,
     openGraph: {
-      title: post.title,
+      title: `${post.title}। वाम की आवाज`,
       description: metaDescription,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       url: `https://vaamkiaawaz.in/post/${id}`,
@@ -135,7 +129,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: post.title,
+      title: `${post.title}। वाम की आवाज`,
       description: metaDescription,
       images: [absoluteOgImage],
     },
