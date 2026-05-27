@@ -95,5 +95,36 @@ export default async function Page() {
     console.error("Error fetching initial blogs:", error);
   }
 
-  return <ClientPage initialBlogs={initialBlogs} initialTopBlogs={initialTopBlogs} />;
+  let initialEvents = [];
+  try {
+    const events = await prisma.event.findMany({
+      orderBy: [{ date: "desc" }, { time: "desc" }],
+    });
+    initialEvents = events;
+  } catch (error) {
+    console.error("Error fetching initial events:", error);
+  }
+
+  let initialResources = [];
+  try {
+    const resources = await prisma.platformResource.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    initialResources = resources.map((r: any) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Error fetching initial resources:", error);
+  }
+
+  return (
+    <ClientPage
+      initialBlogs={initialBlogs}
+      initialTopBlogs={initialTopBlogs}
+      initialEvents={initialEvents}
+      initialResources={initialResources}
+    />
+  );
 }

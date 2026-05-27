@@ -432,7 +432,17 @@ const YoutubeIcon = ({ className = "" }) => (
 //   </svg>
 // );
 
-export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { initialBlogs: NewsPost[], initialTopBlogs?: NewsPost[] }) {
+export default function ClientPage({ 
+  initialBlogs, 
+  initialTopBlogs = [],
+  initialEvents = [],
+  initialResources = [],
+}: { 
+  initialBlogs: NewsPost[], 
+  initialTopBlogs?: NewsPost[],
+  initialEvents?: any[],
+  initialResources?: any[]
+}) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -528,7 +538,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     details: string;
     imageUrl?: string;
   };
-  const [events, setEvents] = useState<AbhiyanEvent[]>([]);
+  const [events, setEvents] = useState<AbhiyanEvent[]>(initialEvents);
   const [activeEvent, setActiveEvent] = useState<AbhiyanEvent | null>(null);
   const [newEventForm, setNewEventForm] = useState({ title: '', date: '', time: '', location: '', details: '', imageUrl: '' });
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -543,7 +553,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     return `${days[d.getDay()]}, ${d.toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`;
   };
 
-  const [resources, setResources] = useState<PlatformResource[]>([]);
+  const [resources, setResources] = useState<PlatformResource[]>(initialResources);
   const [newResourceForm, setNewResourceForm] = useState({ title: '', type: 'link', url: '', fileData: '' });
   const [activeResource, setActiveResource] = useState<PlatformResource | null>(null);
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
@@ -626,45 +636,19 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
       setTheme(savedTheme);
     }
     
-    const loadEvents = async () => {
-      try {
-        const res = await fetch("/api/events");
-        const data = await res.json();
-        if (data.events) {
-          const sorted = data.events.sort((a: any, b: any) => {
-            const dA = (a.date && a.time) ? new Date(`${a.date}T${a.time}`).getTime() : Infinity;
-            const dB = (b.date && b.time) ? new Date(`${b.date}T${b.time}`).getTime() : Infinity;
-            return dA - dB;
-          });
-          setEvents(sorted);
-          
-          if (typeof window !== "undefined") {
-            const params = new URLSearchParams(window.location.search);
-            const eventId = params.get("event");
-            if (eventId) {
-              const targetEvent = sorted.find((e: AbhiyanEvent) => e.id === eventId);
-              if (targetEvent) {
-                setActiveEvent(targetEvent);
-                // After opening the modal, we might want to clear the parameter so 
-                // reloading doesn't keep popping it up? Actually it's fine to leave it.
-              }
-            }
-          }
+    // Check for ?event=... in URL instantly on load
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const eventId = params.get("event");
+      if (eventId && events.length > 0) {
+        const targetEvent = events.find((e: any) => e.id === eventId);
+        if (targetEvent && !activeEvent) {
+          setActiveEvent(targetEvent);
         }
-      } catch {}
-    };
-    loadEvents();
+      }
+    }
     
-    const loadResources = async () => {
-      try {
-        const res = await fetch("/api/resources");
-        const data = await res.json();
-        if (data.resources) {
-          setResources(data.resources);
-        }
-      } catch {}
-    };
-    loadResources();
+    // Resources are now passed as props, no need to fetch client-side
     
     fetchUsers();
     fetch("/api/auth/me", { cache: "no-store", credentials: "include" })
