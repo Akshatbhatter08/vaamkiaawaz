@@ -329,7 +329,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + "\n\n" + articleUrl)}`, "_blank");
   };
   const handleFacebook = () => {
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}`, "_blank");
+    const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}&quote=${encodeURIComponent(plainExcerpt)}`, "_blank");
   };
   const handlePrint = () => window.print();
   const handleDelete = async () => {
