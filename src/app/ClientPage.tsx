@@ -1,14 +1,14 @@
 "use client";
 
-import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Printer, Languages, Link as LinkIcon } from "lucide-react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { TiptapEditor } from "@/components/TiptapEditor";
-import { SanitizedHtml, useSanitizedHtml } from "@/utils/sanitizeHtml";
+import { SanitizedHtml } from "@/utils/sanitizeHtml";
 import "react-quill-new/dist/quill.snow.css";
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -107,14 +107,6 @@ const normalizeCategoryLabel = (value: string) => {
   const normalizedValue = value.trim();
   return CATEGORY_LABEL_MAP[normalizedValue] ?? normalizedValue;
 };
-
-const allPermissionsEnabled = (): Permissions => ({
-  manageHomepage: true,
-  publishBlog: true,
-  manageCategories: true,
-  manageNewsletter: true,
-  manageUsers: true,
-});
 
 const noPermissions = (): Permissions => ({
   manageHomepage: false,
@@ -420,12 +412,6 @@ const FacebookIcon = ({ className = "" }) => (
   </svg>
 );
 
-const WhatsappIcon = ({ className = "" }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-  </svg>
-);
-
 // const YoutubeIcon = () => (
 //   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
 //     <path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2A30 30 0 0 0 2 12a30 30 0 0 0 .4 4.8 2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2A30 30 0 0 0 22 12a30 30 0 0 0-.4-4.8zM10 15.1V8.9l5.2 3.1L10 15.1z" />
@@ -445,14 +431,6 @@ const YoutubeIcon = ({ className = "" }) => (
 //     <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
 //   </svg>
 // );
-
-const TwitterIcon = ({ className = "" }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <g transform="scale(0.9) translate(0 -1)">
-      <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
-    </g>
-  </svg>
-);
 
 export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { initialBlogs: NewsPost[], initialTopBlogs?: NewsPost[] }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -1039,7 +1017,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
       const res = await fetch("/api/auth/login", {
@@ -1102,7 +1080,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handleAddAdmin = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAddAdmin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageUsers) return;
 
@@ -1249,7 +1227,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handleAddContributor = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAddContributor = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageUsers) return;
 
@@ -1359,7 +1337,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handleAddEvent = async (e: FormEvent<HTMLFormElement>) => {
+  const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isMaster) return;
     try {
@@ -1418,7 +1396,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     reader.readAsDataURL(file);
   };
 
-  const handleAddResource = async (e: FormEvent<HTMLFormElement>) => {
+  const handleAddResource = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isMaster) return;
     setIsResourceLoading(true);
@@ -1460,7 +1438,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     } catch {}
   };
 
-  const handleSaveMasterAuthorProfile = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveMasterAuthorProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentUser || currentUser.role !== "master") {
       return;
@@ -1495,7 +1473,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handleAddCategory = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAddCategory = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManageCategories) {
       return;
@@ -1577,7 +1555,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     setNewsletterPhone("");
   };
 
-  const handleNewsletter = async (event: FormEvent<HTMLFormElement>) => {
+  const handleNewsletter = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!newsletterName.trim() || !newsletterPhone.trim() || !newsletterEmail.trim()) {
       setNewsletterMessage("कृपया नाम, फ़ोन नंबर और वैध ईमेल दर्ज करें।");
@@ -1626,7 +1604,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     }
   };
 
-  const handlePreviewBlog = (event: FormEvent<HTMLFormElement>) => {
+  const handlePreviewBlog = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canPublishBlog) {
       setBlogMessage("नई पोस्ट केवल अधिकृत एडमिन या अधिकृत योगदानकर्ता ही जोड़ सकते हैं।");
@@ -1733,30 +1711,6 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
     } catch (error) {
       const message = error instanceof Error && error.message ? error.message : "पोस्ट सेव नहीं हो सकी। कृपया दोबारा प्रयास करें।";
       setBlogMessage(message);
-    }
-  };
-
-  const handleDeleteArticle = async (post: NewsPost) => {
-    if (!canRemoveArticle) {
-      setBlogMessage("इस पोस्ट को हटाने की अनुमति नहीं है।");
-      return;
-    }
-    if (post.source !== "blog") {
-      setBlogMessage("केवल प्रकाशित ब्लॉग पोस्ट हटाई जा सकती हैं।");
-      return;
-    }
-    try {
-      const response = await fetch(`/api/blogs/${post.id}`, { method: "DELETE" });
-      const data = (await response.json()) as { error?: string };
-      if (!response.ok) {
-        setBlogMessage(data.error || "पोस्ट हटाई नहीं जा सकी।");
-        return;
-      }
-      setBlogs((prev) => prev.filter((item) => item.id !== post.id));
-
-      setBlogMessage("पोस्ट हटा दी गई।");
-    } catch {
-      setBlogMessage("पोस्ट हटाई नहीं जा सकी।");
     }
   };
 
@@ -2291,7 +2245,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                     key={`ticker-${story.id}-${i}`} 
                     href={`/post/${story.id}`}
                     onClick={() => {
-                      handlePostClick();
+                      handlePostClick(story.id);
                     }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
@@ -2303,7 +2257,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                     key={`ticker-dup-${story.id}-${i}`} 
                     href={`/post/${story.id}`}
                     onClick={() => {
-                      handlePostClick();
+                      handlePostClick(story.id);
                     }}
                     className="cursor-pointer hover:text-[var(--primary)] hover:underline"
                   >
@@ -2321,7 +2275,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               <Link
                 href={`/post/${featuredForDisplay[0].id}`}
                 onClick={() => {
-                  handlePostClick();
+                  handlePostClick(featuredForDisplay[0].id);
                 }}
                 className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left block"
               >
@@ -2362,7 +2316,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                   key={story.id}
                   href={`/post/${story.id}`}
                   onClick={() => {
-                    handlePostClick();
+                    handlePostClick(story.id);
                   }}
                   className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left block"
                 >
@@ -2687,7 +2641,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
                 key={post.id} 
                 href={`/post/${post.id}`}
                 onClick={() => {
-                  handlePostClick();
+                  handlePostClick(post.id);
                 }}
                 className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block"
               >
