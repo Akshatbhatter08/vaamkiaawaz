@@ -915,8 +915,6 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <p className="text-[var(--muted)]">कोई आगामी ईवेंट नहीं</p>
                 ) : filteredEvents.map(ev => {
                   const isToday = ev.date === todayStr;
-                  const link = `${window.location.origin}/#abhiyan-calendar`;
-                  const shareText = `${ev.title}\n📅 ${formatDateWithDay(ev.date)} ${ev.time}\n📍 ${ev.location}\n\n${ev.details}\n\nवाम की आवाज़ - अभियान कैलेंडर\n${link}`;
                   return (
                     <div 
                       key={ev.id} 
