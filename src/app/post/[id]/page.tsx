@@ -94,6 +94,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       excerpt: true,
       content: true,
       postImage: true,
+      author: true,
     },
   });
 
@@ -109,13 +110,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogImage = getOgImage(post);
   const absoluteOgImage = ogImage.startsWith("http") ? ogImage : `https://vaamkiaawaz.in${ogImage.startsWith("/") ? "" : "/"}${ogImage}`;
   const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
+  const metaDescription = `${plainExcerpt} | लेखक: ${post.author} — वाम की आवाज़`;
 
   return {
     title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
-    description: `${plainExcerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
+    description: metaDescription,
     openGraph: {
       title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
-      description: `${plainExcerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
+      description: metaDescription,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       url: `https://vaamkiaawaz.in/post/${id}`,
       images: [
@@ -131,7 +133,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
-      description: `${plainExcerpt} — जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल`,
+      description: metaDescription,
       images: [absoluteOgImage],
     },
   };
