@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     url: "https://vaamkiaawaz.in",
     images: [
       {
-        url: "https://vaamkiaawaz.in/fbpage.png",
+        url: "https://vaamkiaawaz.in/fbpage-og.jpg",
         width: 1200,
         height: 630,
         alt: "वाम की आवाज़ | जन समाचार मंच",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "वाम की आवाज़ | जन समाचार मंच",
     description: "जन-संघर्ष, सामाजिक न्याय, अल्पसंख्यक और लोकतांत्रिक मुद्दों पर खबर और विचार केंद्रित न्यूज पोर्टल",
-    images: ["https://vaamkiaawaz.in/fbpage.png"],
+    images: ["https://vaamkiaawaz.in/fbpage-og.jpg"],
   },
   other: {
     "google-adsense-account": "ca-pub-5595988052361058"
