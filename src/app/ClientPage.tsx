@@ -990,6 +990,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
         if (el) {
           setTimeout(() => {
             el.scrollIntoView({ behavior: "smooth", block: "start" });
+            window.history.replaceState(null, '', window.location.pathname);
           }, 300);
           hasScrolledToAnchor.current = true;
         }
@@ -2394,7 +2395,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               ))}
             </div>
 
-            <section id="latest" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="latest" className="scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ताज़ा खबरें</h3>
                 <span className="text-sm text-[var(--muted)]">
@@ -2627,7 +2628,7 @@ export default function ClientPage({ initialBlogs, initialTopBlogs = [] }: { ini
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section id="abhiyan-calendar" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="abhiyan-calendar" className="scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
                 <button onClick={() => setEventArchiveModalOpen(true)} className="text-xs font-semibold text-[var(--primary)] hover:underline">आर्काइव</button>

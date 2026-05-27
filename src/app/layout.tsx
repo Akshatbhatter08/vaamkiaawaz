@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_Devanagari, Source_Serif_4 } from "next/font/google";
 import Script from "next/script";
+import ContextMenu from "@/components/ContextMenu";
 import "./globals.css";
 
 const notoSansDevanagari = Noto_Sans_Devanagari({
@@ -54,6 +55,7 @@ export default function RootLayout({
             gtag('config', 'G-7RC0RY6QDQ');
           `}
         </Script>
+        <ContextMenu />
         {children}
         <Script id="google-translate-init" strategy="afterInteractive">
           {`

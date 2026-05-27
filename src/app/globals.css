@@ -12,6 +12,18 @@
   --headline: #14110f;
 }
 
+[data-theme="dark"], .theme-dark, .dark {
+  --background: #1a1a1a;
+  --surface: #222222;
+  --surface-soft: #2a2a2a;
+  --foreground: #ece9e4;
+  --muted: #b0a8a2;
+  --primary: #d02c31;
+  --primary-dark: #a51e22;
+  --line: #38312e;
+  --headline: #f7f5f3;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
