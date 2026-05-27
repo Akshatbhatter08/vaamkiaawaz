@@ -116,7 +116,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
     description: metaDescription,
     openGraph: {
-      title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
+      title: post.title,
       description: metaDescription,
       siteName: "वाम की आवाज़ — विकल्प की डिजिटल दुनिया",
       url: `https://vaamkiaawaz.in/post/${id}`,
@@ -132,7 +132,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `${post.title} | वाम की आवाज़ | जन समाचार मंच`,
+      title: post.title,
       description: metaDescription,
       images: [absoluteOgImage],
     },
