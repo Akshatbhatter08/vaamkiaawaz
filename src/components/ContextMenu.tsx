@@ -49,6 +49,15 @@ export default function ContextMenu() {
       setIsOpen(true);
     };
 
+    window.addEventListener("contextmenu", handleContextMenu);
+    return () => {
+      window.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsOpen(false);
@@ -57,16 +66,14 @@ export default function ContextMenu() {
     
     const handleScroll = () => setIsOpen(false);
 
-    window.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("click", handleClick);
     window.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
-      window.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("click", handleClick);
       window.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && menuRef.current) {
