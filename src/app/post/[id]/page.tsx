@@ -126,8 +126,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [
         {
           url: absoluteOgImage,
-          width: 1200,
-          height: 630,
           alt: post.title,
         },
       ],
