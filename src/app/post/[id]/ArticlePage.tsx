@@ -232,18 +232,34 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   };
 
   useEffect(() => {
+    let ticking = false;
+    let lastCompact = "";
+
     const update = () => {
       const scrollY = window.scrollY;
       const isScrolled = scrollY > 12;
       setIsScrolledHeader((prev) => (prev === isScrolled ? prev : isScrolled));
+      
       const compact = isScrolled ? "1" : "0";
-      if (stickyHeaderRef.current) {
-        stickyHeaderRef.current.style.setProperty("--compact-progress", compact);
+      if (lastCompact !== compact) {
+        lastCompact = compact;
+        if (stickyHeaderRef.current) {
+          stickyHeaderRef.current.style.setProperty("--compact-progress", compact);
+        }
+      }
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(update);
+        ticking = true;
       }
     };
+
     update();
-    window.addEventListener("scroll", update, { passive: true });
-    return () => window.removeEventListener("scroll", update);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const mins = useMemo(() => readingTime(post.content), [post.content]);

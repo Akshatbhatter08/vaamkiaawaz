@@ -738,15 +738,31 @@ export default function ClientPage({
   }, [hiddenCategories]);
 
   useEffect(() => {
+    let ticking = false;
+    let lastCompact = "";
+
     const update = () => {
       const isScrolled = window.scrollY > 12;
       const compact = isScrolled ? "1" : "0";
-      stickyHeaderRef.current?.style.setProperty("--compact-progress", compact);
+      
+      if (lastCompact !== compact) {
+        lastCompact = compact;
+        if (stickyHeaderRef.current) {
+          stickyHeaderRef.current.style.setProperty("--compact-progress", compact);
+        }
+      }
+      
       setIsScrolledHeader((prev) => (prev === isScrolled ? prev : isScrolled));
+      ticking = false;
     };
+
     const onScroll = () => {
-      update();
+      if (!ticking) {
+        window.requestAnimationFrame(update);
+        ticking = true;
+      }
     };
+
     update();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
