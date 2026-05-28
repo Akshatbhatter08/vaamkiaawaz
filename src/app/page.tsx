@@ -110,13 +110,13 @@ export default async function Page() {
 
   let initialResources = [];
   try {
-    const resources = await prisma.platformResource.findMany({
+    const resources = await prisma.resource.findMany({
       orderBy: { createdAt: "desc" },
     });
     initialResources = resources.map((r: any) => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
+      updatedAt: r.updatedAt ? r.updatedAt.toISOString() : undefined,
     }));
   } catch (error) {
     console.error("Error fetching initial resources:", error);
