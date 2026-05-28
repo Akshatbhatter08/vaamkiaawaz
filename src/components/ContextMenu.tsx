@@ -132,6 +132,47 @@ export default function ContextMenu() {
     setIsOpen(false);
   };
 
+  const copyImage = async (url: string) => {
+    try {
+      const fullUrl = new URL(url, window.location.origin).href;
+      
+      // We'll try to fetch the image and copy it as a PNG blob
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.src = fullUrl;
+      
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0);
+        
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+              alert("इमेज कॉपी हो गई! (Image copied to clipboard)");
+            } catch (err) {
+               // Fallback if browser blocks image copying
+               copyToClipboard(fullUrl, "इमेज लिंक कॉपी हो गया! (Image link copied!)");
+            }
+          }
+        }, "image/png");
+      };
+      
+      img.onerror = () => {
+        // Fallback if image fails to load (CORS etc)
+        copyToClipboard(fullUrl, "इमेज लिंक कॉपी हो गया! (Image link copied!)");
+      };
+      
+    } catch (e) {
+      // Final fallback
+      const fallbackUrl = new URL(url, window.location.origin).href;
+      copyToClipboard(fallbackUrl, "इमेज लिंक कॉपी हो गया! (Image link copied!)");
+    }
+  };
+
   const handlePaste = async () => {
     try {
       let text = "";
@@ -261,7 +302,7 @@ export default function ContextMenu() {
           <MenuItem 
             icon={<ImageIcon className="h-4 w-4" />} 
             label="इमेज कॉपी करें (Copy Image)" 
-            onClick={() => copyToClipboard(context.imgUrl, "इमेज लिंक कॉपी हो गया!")}
+            onClick={() => copyImage(context.imgUrl)}
           />
         )}
 

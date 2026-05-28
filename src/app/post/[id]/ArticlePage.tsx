@@ -342,7 +342,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     setTimeout(() => setCopied(false), 2000);
   };
   const handleWhatsapp = () => {
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(articleUrl)}`, "_blank");
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + "\n\n" + articleUrl)}`, "_blank");
   };
   const handleFacebook = () => {
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}`, "_blank");

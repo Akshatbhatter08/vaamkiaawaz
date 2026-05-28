@@ -2,7 +2,9 @@ import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import ArticlePage from "./ArticlePage";
 
-export const dynamic = "force-dynamic";
+// Use ISR to cache the page for 30 seconds. This is critical for WhatsApp link previews,
+// as WhatsApp will time out and show a generic fallback if the server takes too long to respond.
+export const revalidate = 30;
 
 type Props = {
   params: Promise<{ id: string }>;
