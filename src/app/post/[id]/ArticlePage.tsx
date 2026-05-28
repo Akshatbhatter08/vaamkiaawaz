@@ -342,11 +342,10 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     setTimeout(() => setCopied(false), 2000);
   };
   const handleWhatsapp = () => {
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + "\n\n" + articleUrl)}`, "_blank");
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(articleUrl)}`, "_blank");
   };
   const handleFacebook = () => {
-    const plainExcerpt = (post.excerpt || "").replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ").trim();
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}&quote=${encodeURIComponent(plainExcerpt)}`, "_blank");
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}`, "_blank");
   };
   const handlePrint = () => window.print();
   const handleDelete = async () => {
