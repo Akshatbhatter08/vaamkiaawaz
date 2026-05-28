@@ -163,7 +163,19 @@ input::placeholder, textarea::placeholder { color: #6b7280 !important; opacity: 
   white-space: pre-wrap !important;     /* Preserve editor spacing perfectly */
   line-break: auto !important;
   hyphens: none !important;
-  line-height: 1.8 !important;
+}
+
+.ql-editor,
+.ql-editor p,
+.ql-editor li,
+.ql-editor h1,
+.ql-editor h2,
+.ql-editor h3,
+.ql-editor h4,
+.ql-editor h5,
+.ql-editor h6,
+.ql-editor blockquote {
+  line-height: 1.8;
 }
 
 /* Prevent Quill nested spans from resetting safe multilingual wrapping */

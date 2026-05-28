@@ -966,7 +966,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     editorProps: {
       attributes: {
-        class: `prose max-w-none focus:outline-none p-4 text-[var(--foreground)] min-h-full`,
+        class: `article-body ql-editor prose max-w-none focus:outline-none p-4 text-[var(--foreground)] min-h-full`,
       },
     },
   });

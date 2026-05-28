@@ -2821,7 +2821,7 @@ export default function ClientPage({
                 <img src={previewPost.postImage} alt={previewPost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
               <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
-                {(getFullArticle(previewPost).includes("<p>") || getFullArticle(previewPost).includes("<h")) ? (
+                {/<[a-z][\s\S]*>/i.test(getFullArticle(previewPost)) ? (
                   <SanitizedHtml 
                     html={getFullArticle(previewPost)} 
                     className="article-body ql-editor prose max-w-none" 

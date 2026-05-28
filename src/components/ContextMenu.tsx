@@ -14,7 +14,8 @@ import {
   Link as LinkIcon, 
   Copy, 
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ClipboardPaste
 } from "lucide-react";
 
 export default function ContextMenu() {
@@ -24,24 +25,31 @@ export default function ContextMenu() {
     text: string;
     linkUrl: string;
     imgUrl: string;
-  }>({ text: "", linkUrl: "", imgUrl: "" });
+    isInput: boolean;
+  }>({ text: "", linkUrl: "", imgUrl: "", isInput: false });
   
   const [isSpeaking, setIsSpeaking] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const clickPos = useRef({ x: 0, y: 0 });
+  const rightClickedElRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
       
       const selection = window.getSelection()?.toString() || "";
-      const linkTarget = (e.target as HTMLElement).closest("a");
-      const imgTarget = (e.target as HTMLElement).closest("img");
+      const target = e.target as HTMLElement;
+      rightClickedElRef.current = target;
+      
+      const linkTarget = target.closest("a");
+      const imgTarget = target.closest("img");
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       
       setContext({
         text: selection,
         linkUrl: linkTarget ? linkTarget.href : "",
-        imgUrl: imgTarget ? imgTarget.src : ""
+        imgUrl: imgTarget ? imgTarget.src : "",
+        isInput
       });
 
       clickPos.current = { x: e.clientX, y: e.clientY };
@@ -124,6 +132,83 @@ export default function ContextMenu() {
     setIsOpen(false);
   };
 
+  const handlePaste = async () => {
+    try {
+      let text = "";
+      let html = "";
+      
+      try {
+        if (navigator.clipboard.read) {
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+            if (item.types.includes('text/html')) {
+              const blob = await item.getType('text/html');
+              html = await blob.text();
+            }
+            if (item.types.includes('text/plain')) {
+              const blob = await item.getType('text/plain');
+              text = await blob.text();
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback for browsers that don't support read() or if it fails
+      }
+      
+      // If we still don't have text, try the standard readText
+      if (!text && !html) {
+        text = await navigator.clipboard.readText();
+      }
+      
+      // Determine the best target element: either the one we right-clicked on, or the currently active one
+      const targetEl = rightClickedElRef.current || document.activeElement;
+      
+      if (targetEl) {
+        targetEl.focus(); // Ensure it's focused
+        
+        if (targetEl.tagName === 'INPUT' || targetEl.tagName === 'TEXTAREA') {
+          const input = targetEl as HTMLInputElement | HTMLTextAreaElement;
+          const start = input.selectionStart || 0;
+          const end = input.selectionEnd || 0;
+          const value = input.value;
+          input.value = value.substring(0, start) + text + value.substring(end);
+          input.selectionStart = input.selectionEnd = start + text.length;
+          const event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+        } else if ((targetEl as HTMLElement).isContentEditable) {
+          // For rich text editors (like TipTap/ProseMirror)
+          
+          // Fallback 1: dispatch a paste event with HTML and plain text
+          const dataTransfer = new DataTransfer();
+          if (text) dataTransfer.setData('text/plain', text);
+          if (html) dataTransfer.setData('text/html', html);
+          
+          const pasteEvent = new ClipboardEvent('paste', {
+            clipboardData: dataTransfer,
+            bubbles: true,
+            cancelable: true
+          });
+          const wasIntercepted = !targetEl.dispatchEvent(pasteEvent);
+          
+          // Fallback 2: if event wasn't natively handled by the editor, force execCommand
+          if (!wasIntercepted) {
+            if (html) {
+              document.execCommand("insertHTML", false, html);
+            } else {
+              document.execCommand("insertText", false, text);
+            }
+          }
+        }
+      }
+      
+      setIsOpen(false);
+    } catch (err) {
+      console.error("Paste failed", err);
+      alert("पेस्ट करने की अनुमति नहीं है (Paste permission denied)");
+      setIsOpen(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -147,6 +232,12 @@ export default function ContextMenu() {
             onClick={() => copyToClipboard(context.text, "टेक्स्ट कॉपी हो गया!")}
           />
         )}
+        
+        <MenuItem 
+          icon={<ClipboardPaste className="h-4 w-4" />} 
+          label="पेस्ट करें (Paste)" 
+          onClick={handlePaste}
+        />
         
         {context.linkUrl && (
           <>
@@ -270,6 +361,7 @@ export default function ContextMenu() {
 function MenuItem({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <button
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] text-left"
     >
