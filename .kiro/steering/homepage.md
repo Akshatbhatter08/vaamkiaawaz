@@ -1,0 +1,34 @@
+---
+inclusion: fileMatch
+fileMatchPattern: ['app/**/ClientPage.tsx']
+---
+
+Only modify the homepage.
+
+Ignore every other page.
+
+Only edit:
+
+- ClientPage.tsx
+- globals.css
+- directly imported presentation components
+
+Do not modify:
+
+- ArticlePage
+- AuthorPage
+- routing
+- layouts
+- APIs
+- CMS
+- authentication
+- search
+- read aloud
+- translation
+- business logic
+
+The screenshot is the source of truth.
+
+Match it as closely as possible.
+
+Stop once visual parity is achieved.

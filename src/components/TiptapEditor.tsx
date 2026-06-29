@@ -212,7 +212,7 @@ export const LineHeight = Extension.create({
 
   addOptions() {
     return {
-      types: ['paragraph', 'heading', 'list_item'],
+      types: ['paragraph', 'heading', 'listItem'],
       defaultLineHeight: 'normal',
     };
   },
@@ -949,9 +949,8 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      debounceTimerRef.current = setTimeout(() => {
-        onChangeRef.current(html);
-      }, 300);
+      debounceTimerRef.current = null;
+      onChangeRef.current(html);
     },
     onBlur: ({ editor }) => {
       if (debounceTimerRef.current) {

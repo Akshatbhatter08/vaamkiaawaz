@@ -8,7 +8,10 @@ import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { TiptapEditor } from "@/components/TiptapEditor";
-import { SanitizedHtml } from "@/utils/sanitizeHtml";
+import { ArticleRichText } from "@/utils/sanitizeHtml";
+import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
+import { SectionHeader } from "@/components/SectionHeader";
+import { ArticleCard } from "@/components/ArticleCard";
 import "react-quill-new/dist/quill.snow.css";
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -169,6 +172,24 @@ const opinionPieces = [
   "शहरी गरीबों के आवास संकट पर नीति पुनर्विचार",
   "जलवायु न्याय और श्रमिक वर्ग का भविष्य",
 ];
+
+type MovementStatus = "active" | "strike" | "success";
+const movementTracker: {
+  name: string;
+  location: string;
+  startDate: string;
+  description: string;
+  status: MovementStatus;
+  statusLabel: string;
+}[] = [
+  { name: "किसान आंदोलन", location: "दिल्ली सीमा", startDate: "नवंबर 2024", description: "न्यूनतम समर्थन मूल्य की कानूनी गारंटी की मांग जारी।", status: "active", statusLabel: "सक्रिय" },
+  { name: "आशा कर्मी हड़ताल", location: "महाराष्ट्र", startDate: "जनवरी 2026", description: "वेतन और स्थायीकरण को लेकर राज्यव्यापी हड़ताल।", status: "strike", statusLabel: "हड़ताल" },
+  { name: "मनरेगा मज़दूर मोर्चा", location: "झारखंड", startDate: "मार्च 2026", description: "बकाया भुगतान और कार्यदिवस बढ़ाने की माँग।", status: "active", statusLabel: "सक्रिय" },
+  { name: "शिक्षक भर्ती संघर्ष", location: "उत्तर प्रदेश", startDate: "दिसंबर 2025", description: "लंबित नियुक्तियों पर अदालती फैसले के बाद आंशिक जीत।", status: "success", statusLabel: "आंशिक जीत" },
+];
+
+const resistanceSlogans =
+  "इंकलाब ज़िंदाबाद \u00A0\u00A0✊\u00A0\u00A0 मेहनतकश एक हों \u00A0\u00A0✊\u00A0\u00A0 न्याय, समानता, प्रगति \u00A0\u00A0✊\u00A0\u00A0 उठो ! बोलो ! बदलो ! \u00A0\u00A0✊\u00A0\u00A0 जन संघर्ष जारी है \u00A0\u00A0✊\u00A0\u00A0 हम न रुकेंगे, न झुकेंगे \u00A0\u00A0✊\u00A0\u00A0 संविधान बचाओ \u00A0\u00A0✊\u00A0\u00A0 लोकतंत्र हमारा अधिकार है \u00A0\u00A0✊\u00A0\u00A0 विकल्प की आवाज़ \u00A0\u00A0✊\u00A0\u00A0 ";
 
 const formatDate = () =>
   new Date().toLocaleDateString("hi-IN", {
@@ -406,7 +427,7 @@ const SunIcon = () => (
 
 const FacebookIcon = ({ className = "" }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <g transform="scale(1.4) translate(0 -5)">
+    <g transform="scale(1.25) translate(0 -5)">
       <path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z" />
     </g>
   </svg>
@@ -426,11 +447,21 @@ const YoutubeIcon = ({ className = "" }) => (
   </svg>
 );
 
-// const TwitterIcon = () => (
-//   <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-//     <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
-//   </svg>
-// );
+const TwitterIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <g transform="scale(1.03) translate(0 -2)">
+      <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
+    </g>
+  </svg>
+);
+
+const InstagramIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <g transform="scale(1.03) translate(0 -2)">
+      <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z" />
+    </g>
+  </svg>
+);
 
 export default function ClientPage({ 
   initialBlogs, 
@@ -1883,18 +1914,14 @@ export default function ClientPage({
     }
     const nowMs = Date.now();
     const diffMs = nowMs - parsed;
-    if (diffMs <= 20 * 1000) {
-      return "अभी";
-    }
-    if (diffMs < 60 * 1000) {
-      return "कुछ पल पहले";
-    }
-    if (diffMs < 60 * 60 * 1000) {
-      return "कुछ मिनट पहले";
-    }
-    if (diffMs < 24 * 60 * 60 * 1000) {
-      return "कुछ घंटे पहले";
-    }
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return "अभी";
+    if (diffMins < 60) return `${diffMins} मिनट पहले`;
+    if (diffHours < 24) return `${diffHours} घंटे पहले`;
+    if (diffDays === 1) return "कल";
+    if (diffDays < 7) return `${diffDays} दिन पहले`;
     return new Date(parsed).toLocaleDateString("hi-IN", {
       day: "2-digit",
       month: "long",
@@ -1920,6 +1947,30 @@ export default function ClientPage({
     router.push(`/post/${post.id}`);
   };
 
+  const changeFontSize = (delta: number) => {
+    if (typeof document === "undefined") return;
+    const current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const next = Math.min(22, Math.max(13, current + delta));
+    document.documentElement.style.fontSize = `${next}px`;
+  };
+
+  // Map an existing NewsPost into ArticleCard props
+  const articleCardProps = (post: NewsPost, size: "normal" | "large" = "normal") => ({
+    title: post.title,
+    excerpt: post.excerpt,
+    imageUrl: getPreviewImage(post),
+    categoryName: post.category,
+    categorySlug: post.category,
+    authorName: post.author,
+    authorAvatar: post.authorImage,
+    timeLabel: getPostTimeLabel(post),
+    readTime: readingTime(post.content || post.excerpt || ""),
+    views: getPostClicks(post),
+    slug: post.id,
+    size,
+    onCardClick: () => handlePostClick(post.id),
+  });
+
 
   useEffect(() => {
     if (activeResource && activeResource.type === 'pdf' && !activeResource.fileData) {
@@ -1938,23 +1989,43 @@ export default function ClientPage({
 
   return (
     <>
-    <div className={`print:hidden ${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
+    <div className={`print:hidden ${theme === "dark" ? "theme-dark" : "theme-light"} news-shell min-h-screen`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
-          <span className="shrink-0 whitespace-nowrap">{formatDate()}</span>
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--divider)] text-xs sm:text-sm"
+          style={{ minHeight: "32px", color: "var(--text-muted)", fontFamily: "Inter, sans-serif", paddingTop: 4, paddingBottom: 4 }}
+        >
+          <span className="shrink-0 whitespace-nowrap" style={{ fontSize: 11 }}>{formatDate()}</span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              onClick={() => changeFontSize(-1)}
+              title="फ़ॉन्ट छोटा करें"
+              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
+            >
+              अ−
+            </button>
+            <button
+              type="button"
+              onClick={() => changeFontSize(1)}
+              title="फ़ॉन्ट बड़ा करें"
+              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
+            >
+              अ+
+            </button>
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
               <FacebookIcon className="h-4 w-4" />
             </a>
 
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer">
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer">
               <YoutubeIcon className="h-4 w-4" />
             </a>
 
-            <button type="button" className="interactive-link hidden rounded-md px-2 py-1 text-xs hover:cursor-pointer sm:inline-flex">
-              सदस्यता
-            </button>
-            <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} href="https://www.x.com/VaamKiAawaz" target="_blank" rel="noreferrer">
+              <TwitterIcon className="h-4 w-4" />
+            </a>
+
+            <a href="mailto:vaamkiaawaz@gmail.com" className={`interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`}>
               संपर्क: vaamkiaawaz@gmail.com
             </a>
             <div className="relative flex items-center shrink-0 ml-1 sm:ml-2">
@@ -1979,89 +2050,62 @@ export default function ClientPage({
               <LogIn className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate max-w-[80px] sm:max-w-none">{currentUser ? `${roleText}` : "लॉगिन"}</span>
             </button>
+            <a href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer" className="btn-primary hidden sm:inline-flex" style={{ padding: "3px 12px", fontSize: 11 }}>
+              सदस्यता में
+            </a>
           </div>
         </div>
 
         <div
           ref={stickyHeaderRef}
-          className={`sticky top-0 z-50 ${isScrolledHeader ? (theme === "dark" ? "bg-[var(--surface)]" : "bg-white") : "bg-transparent"}`}
-          style={{ "--compact-progress": 0 } as CSSProperties}
+          className={`sticky top-0 z-50 transition-colors duration-200`}
+          style={{ "--compact-progress": 0, background: isScrolledHeader ? 'var(--surface-mid)' : 'transparent', borderBottom: isScrolledHeader ? '1px solid var(--divider)' : 'none' } as CSSProperties}
         >
           <header
             id="top"
-            className="headline-fade border-b border-[var(--line)]"
+            className="headline-fade"
             style={{
-              paddingTop: "calc(28px - 16px * var(--compact-progress))",
-              paddingBottom: "calc(28px - 16px * var(--compact-progress))",
+              background: "var(--ink)",
+              padding: "10px 24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              borderBottom: "1px solid var(--divider)",
             }}
           >
-            <div className="flex flex-col gap-2 px-1 sm:gap-4 sm:px-2 lg:flex-row lg:items-center lg:justify-between lg:px-0">
-              <div className="flex items-start gap-3 sm:items-center sm:gap-5">
-                <img
-                  src="/vaamki-logo.png"
-                  alt="वाम की आवाज़ लोगो"
-                  onError={(event) => {
-                    event.currentTarget.src = "/vercel.svg";
-                  }}
-                  className="shrink-0 rounded-lg border border-[var(--line)] object-contain bg-white"
-                  style={{
-                    width: "calc(120px - 40px * var(--compact-progress))",
-                    height: "calc(120px - 40px * var(--compact-progress))",
-                  }}
-                />
-                <div className="space-y-2 min-w-0">
-                  <p
-                    className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 font-semibold text-[var(--primary)] hover:cursor-pointer"
-                    style={{
-                      fontSize: "calc(0.75rem - 0.1rem * var(--compact-progress))",
-                      paddingTop: "calc(4px - 2px * var(--compact-progress))",
-                      paddingBottom: "calc(4px - 2px * var(--compact-progress))",
-                    }}
-                  >
-                    विकल्प की डिजिटल दुनिया
-                  </p>
-                  <h1
-                    className="font-serif font-bold leading-tight text-[var(--headline)]"
-                    style={{
-                      fontSize: "calc(2rem - 0.65rem * var(--compact-progress))",
-                    }}
-                  >
-                    वाम की आवाज़ (Vaam ki Aawaz)
-                  </h1>
-                  <p
-                    className="hidden text-[var(--muted)] sm:block whitespace-nowrap overflow-hidden text-ellipsis"
-                    style={{
-                      opacity: "calc(1 - var(--compact-progress))",
-                      fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
-                    }}
-                  >
-                    अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, न्याय, समानता और प्रगति में हैं विश्वास तो — उठो ! बोलो ! बदलो !
-                  </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img
+                src="/vaamki-logo.png"
+                alt="वाम की आवाज़ लोगो"
+                onError={(event) => {
+                  event.currentTarget.src = "/vercel.svg";
+                }}
+                className="shrink-0 object-contain"
+                style={{ width: 65, height: 65, border: "1px solid var(--divider)", background: "var(--surface-mid)", padding: 3 }}
+              />
+              <div>
+                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
+                  वाम की आवाज़ (Vaam Ki Aawaz)
+                </div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
+                  विकल्प की डिजिटल दुनिया
                 </div>
               </div>
-              <a href="https://www.youtube.com/@VaamKiAawaz" className="mt-1 w-full px-1 sm:mt-0 sm:w-auto sm:px-0">
-                <button
-                  className="rise-on-hover w-full sm:w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
-                  style={{
-                    paddingLeft: "calc(20px - 4px * var(--compact-progress))",
-                    paddingRight: "calc(20px - 4px * var(--compact-progress))",
-                    paddingTop: "calc(8px - 2px * var(--compact-progress))",
-                    paddingBottom: "calc(8px - 2px * var(--compact-progress))",
-                    fontSize: "calc(0.875rem - 0.1rem * var(--compact-progress))",
-                  }}
-                >
-                  लाइव कवरेज
-                </button>
+            </div>
+            <div className="hidden sm:block" style={{ position: "absolute", right: 24 }}>
+              <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary">
+                लाइव कवरेज
               </a>
             </div>
           </header>
 
           <nav
-            className="mx-1 rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-md sm:mx-0"
+            className="backdrop-blur-md"
             style={{
-              marginTop: "calc(16px - 8px * var(--compact-progress))",
-              marginBottom: "calc(16px - 8px * var(--compact-progress))",
-              padding: "calc(12px - 4px * var(--compact-progress))",
+              background: isScrolledHeader ? "rgba(15,15,15,0.96)" : "var(--ink)",
+              borderBottom: "2px solid var(--crimson)",
+              padding: "8px 12px",
             }}
           >
             <div className="relative flex flex-row items-center justify-between gap-2 px-1 sm:px-0">
@@ -2090,7 +2134,7 @@ export default function ClientPage({
                   ref={categoryMenuRef}
                   className="absolute left-0 top-12 z-30 hidden w-[min(95vw,540px)] rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-lg lg:block"
                 >
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Mega Menu</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>कैटेगरी चुनें</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
                       <button
@@ -2123,14 +2167,33 @@ export default function ClientPage({
                     collapsedWidth={140}
                     expandedWidth={220}
                     expandedOffset={49}
+                    // classNames={{
+                    //   trigger: theme === "dark"
+                    //     ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
+                    //     : "bg-[#E8DDD8] border-[#D6C7C0] text-[#6B7280]",
+
+                    //   bubbleSurface: theme === "dark"
+                    //     ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
+                    //     : "bg-[#E8DDD8] border-[#D6C7C0] text-[#6B7280]",
+                        
+                    //   input: theme === "dark"
+                    //     ? "text-white placeholder:text-white/70"
+                    //     : "text-black placeholder:text-black/70"
+                    // }}
+
                     classNames={{
                       trigger: theme === "dark"
                         ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
-                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
-
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#6B7280]",
+                
                       bubbleSurface: theme === "dark"
                         ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
-                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#6B7280]",
+                        
+                      // Customized placeholder colors to match backgrounds directly
+                      input: theme === "dark"
+                        ? "text-white"
+                        : "text-black placeholder:text-[#6B7280]! placeholder:opacity-100!"
                     }}
                   />
                 </div>
@@ -2246,121 +2309,170 @@ export default function ClientPage({
           </AnimatePresence>
         </div>
 
-        <section className="my-4 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--surface)]">
-          <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-2">
-            <span className="rounded bg-[var(--primary)] px-2 py-1 text-xs font-semibold tracking-wide text-white">
-              ब्रेकिंग
-            </span>
-            <div className="overflow-hidden">
-              <div className="ticker-move flex min-w-max gap-10 text-sm text-[var(--muted)]">
-                {filteredNews.slice(0, 8).map((story, i) => (
-                  <Link 
-                    key={`ticker-${story.id}-${i}`} 
-                    href={`/post/${story.id}`}
-                    onClick={() => {
-                      handlePostClick(story.id);
-                    }}
-                    className="cursor-pointer hover:text-[var(--primary)] hover:underline"
-                  >
+        <section style={{ height: 36, background: "var(--crimson)", display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0 }}>
+          <div
+            style={{
+              background: "var(--crimson-dark)",
+              color: "white",
+              fontFamily: "Inter, sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "4px 12px",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              borderRight: "1px solid rgba(255,255,255,0.2)",
+              alignSelf: "stretch",
+              display: "flex",
+              alignItems: "center",
+              letterSpacing: "0.04em",
+            }}
+          >
+            ब्रेकिंग
+          </div>
+          <div style={{ overflow: "hidden", flex: 1 }}>
+            <div className="ticker-track" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, fontWeight: 700, color: "white" }}>
+              {[...filteredNews.slice(0, 8), ...filteredNews.slice(0, 8)].map((story, i) => (
+                <span key={`ticker-${story.id}-${i}`}>
+                  <Link href={`/post/${story.id}`} onClick={() => handlePostClick(story.id)} style={{ color: "white", textDecoration: "none" }}>
                     {story.title}
                   </Link>
-                ))}
-                {filteredNews.slice(0, 8).map((story, i) => (
-                  <Link 
-                    key={`ticker-dup-${story.id}-${i}`} 
-                    href={`/post/${story.id}`}
-                    onClick={() => {
-                      handlePostClick(story.id);
-                    }}
-                    className="cursor-pointer hover:text-[var(--primary)] hover:underline"
-                  >
-                    {story.title}
-                  </Link>
-                ))}
-              </div>
+                  <span style={{ color: "var(--gold)", fontWeight: 700, margin: "0 16px" }}>॥</span>
+                </span>
+              ))}
             </div>
           </div>
         </section>
 
-        <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <section className="space-y-6 lg:col-span-8">
-            {featuredForDisplay[0] && (
-              <Link
-                href={`/post/${featuredForDisplay[0].id}`}
-                onClick={() => {
-                  handlePostClick(featuredForDisplay[0].id);
-                }}
-                className="card-fade rise-on-hover w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 text-left block"
-              >
-                {getPreviewImage(featuredForDisplay[0]) && (
-                  <img src={getPreviewImage(featuredForDisplay[0])!} alt={featuredForDisplay[0].title} className="mb-4 h-64 w-full rounded-lg object-cover" />
-                )}
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
-                  {featuredForDisplay[0].category}
-                </p>
-                <h2 className="line-clamp-3 font-serif text-2xl font-bold leading-tight text-[var(--headline)] sm:text-4xl">
-                  {featuredForDisplay[0].title}
-                </h2>
-                <div className="mt-3 line-clamp-3 text-base leading-7 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }} />
-                <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)] sm:gap-4">
-                  <div className="flex items-center gap-2">
-                    {featuredForDisplay[0].authorImage && (
-                      <img src={featuredForDisplay[0].authorImage} alt="" className="h-6 w-6 rounded-full border border-[var(--line)] object-cover" />
-                    )}
-                    <span 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(featuredForDisplay[0].author)}`); }}
-                    className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
-                  >
-                    {featuredForDisplay[0].author}
-                  </span>
-                  </div>
-                  <span>•</span>
-                  <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
-                  <span>•</span>
-                  <span>{getPostClicks(featuredForDisplay[0])} क्लिक</span>
-                </div>
-                <span className="mt-4 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
-              </Link>
+        {featuredForDisplay[0] && (
+          <section className="hero-section" style={{ position: "relative", height: 520, overflow: "hidden", background: "var(--ink)", marginTop: 16, marginBottom: 16 }}>
+            {getPreviewImage(featuredForDisplay[0]) && (
+              <img
+                src={getPreviewImage(featuredForDisplay[0])!}
+                alt={featuredForDisplay[0].title}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", filter: "saturate(0.85) contrast(1.05)" }}
+              />
             )}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.25) 35%, rgba(0,0,0,0.88) 100%)" }} />
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {featuredForDisplay.slice(1).map((story) => (
-                <Link
-                  key={story.id}
-                  href={`/post/${story.id}`}
-                  onClick={() => {
-                    handlePostClick(story.id);
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                height: 30,
+                background: "rgba(0,0,0,0.58)",
+                backdropFilter: "blur(4px)",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <div className="resistance-track" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em" }}>
+                {resistanceSlogans}
+                {resistanceSlogans}
+              </div>
+            </div>
+
+            <div style={{ position: "absolute", bottom: 40, left: 40, right: 16, maxWidth: 620, zIndex: 10 }}>
+              <span className={`cat-pill ${getCategoryClass(featuredForDisplay[0].category)}`} style={{ marginBottom: 10, display: "inline-block" }}>
+                {featuredForDisplay[0].category}
+              </span>
+              <Link href={`/post/${featuredForDisplay[0].id}`} onClick={() => handlePostClick(featuredForDisplay[0].id)} style={{ textDecoration: "none" }}>
+                <h1
+                  style={{
+                    fontFamily: "'Noto Serif Devanagari', serif",
+                    fontSize: "clamp(30px, 5vw, 52px)",
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    letterSpacing: "-0.02em",
+                    color: "white",
+                    margin: "8px 0 12px",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
                   }}
-                  className="card-fade rise-on-hover rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 text-left block"
                 >
-                  {getPreviewImage(story) && (
-                    <img src={getPreviewImage(story)!} alt={story.title} className="mb-3 h-48 w-full rounded-lg object-cover" />
-                  )}
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
-                    {story.category}
-                  </p>
-                  <h3 className="line-clamp-2 mt-2 font-serif text-xl font-semibold leading-snug text-[var(--headline)]">
-                    {story.title}
-                  </h3>
-                  <div className="line-clamp-3 mt-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(story.excerpt) }} />
-                  <div className="mt-4 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
-                    <div className="flex items-center gap-1.5">
-                      {story.authorImage && (
-                        <img src={story.authorImage} alt="" className="h-5 w-5 rounded-full border border-[var(--line)] object-cover" />
-                      )}
-                      <span
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
-                      className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
+                  {featuredForDisplay[0].title}
+                </h1>
+              </Link>
+              <div
+                className="excerpt-html"
+                style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 16, lineHeight: 1.7, color: "var(--cream-dim)", marginBottom: 16, WebkitLineClamp: 2 }}
+                dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--gold)", marginBottom: 20 }}>
+                {featuredForDisplay[0].authorImage && (
+                  <img src={featuredForDisplay[0].authorImage} alt="" className="avatar-circle" style={{ width: 24, height: 24, objectFit: "cover", border: "2px solid var(--crimson)" }} />
+                )}
+                <span>{featuredForDisplay[0].author}</span>
+                <span style={{ opacity: 0.5 }}>·</span>
+                <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
+                <span style={{ opacity: 0.5 }}>·</span>
+                <span>{readingTime(featuredForDisplay[0].content || featuredForDisplay[0].excerpt || "")} मिनट पाठ</span>
+                <span style={{ opacity: 0.5 }}>·</span>
+                <span>{formatViews(getPostClicks(featuredForDisplay[0]))} पाठक</span>
+              </div>
+              <Link href={`/post/${featuredForDisplay[0].id}`} onClick={() => handlePostClick(featuredForDisplay[0].id)} className="btn-primary">
+                पूरा पढ़ें →
+              </Link>
+            </div>
+
+            <div className="hero-side-panel" style={{ position: "absolute", bottom: 0, right: 0, width: 272, background: "rgba(0,0,0,0.90)", borderLeft: "2px solid var(--crimson)", zIndex: 15 }}>
+              <div style={{ padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, fontWeight: 700, color: "var(--crimson)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  और खबरें ›
+                </span>
+              </div>
+              {filteredNews.slice(1, 4).map((story) => (
+                <Link
+                  href={`/post/${story.id}`}
+                  key={story.id}
+                  onClick={() => handlePostClick(story.id)}
+                  style={{ textDecoration: "none", display: "block" }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(178,34,34,0.08)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+                >
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                    <span className={`cat-pill ${getCategoryClass(story.category)}`}>{story.category}</span>
+                    <p
+                      style={{
+                        fontFamily: "'Noto Serif Devanagari', serif",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "var(--cream)",
+                        lineHeight: 1.4,
+                        marginTop: 4,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
                     >
-                      {story.author}
+                      {story.title}
+                    </p>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, display: "block" }}>
+                      {getPostTimeLabel(story)} · {readingTime(story.content || story.excerpt || "")} मिनट पाठ
                     </span>
-                    </div>
-                    <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
                   </div>
-                  <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
                 </Link>
               ))}
             </div>
+          </section>
+        )}
+
+        <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <section className="space-y-6 lg:col-span-8">
+            <section style={{ background: "var(--surface)", padding: "8px 0 16px" }}>
+              <SectionHeader title="आज की प्राथमिकताएँ" href="/" linkText="सभी देखें →" />
+              <div className="cards-grid-responsive" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+                {filteredNews.slice(1, 5).map((story) => (
+                  <ArticleCard key={story.id} {...articleCardProps(story)} />
+                ))}
+              </div>
+            </section>
 
             <section id="latest" className="scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2431,7 +2543,7 @@ export default function ClientPage({
             </section>
           </section>
 
-          <aside className="space-y-6 lg:col-span-4">
+          <aside className="space-y-6 lg:col-span-4 lg:self-start lg:sticky lg:top-[170px] lg:max-h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
             <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="mb-3 font-serif text-xl font-bold text-[var(--headline)]">सबसे ज्यादा पढ़ी गईं</h3>
               <div className="space-y-3">
@@ -2624,6 +2736,108 @@ export default function ClientPage({
             </section>
           </aside>
         </main>
+
+        {filteredNews.slice(5, 8).length > 0 && (
+          <section style={{ background: "var(--cream)", padding: "60px 24px", marginTop: 16, marginLeft: -16, marginRight: -16 }}>
+            <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
+                <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--crimson)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                  ग्राउंड रिपोर्ट
+                </span>
+                <div style={{ flex: 1, height: 1, background: "var(--crimson)" }} />
+              </div>
+              {(() => {
+                const gr = filteredNews.slice(5, 8);
+                return (
+                  <div className="ground-report-grid">
+                    <Link href={`/post/${gr[0].id}`} onClick={() => handlePostClick(gr[0].id)} style={{ textDecoration: "none", display: "block" }} className="card-lift">
+                      <div style={{ border: "1px solid rgba(0,0,0,0.1)", background: "#fff" }}>
+                        <div style={{ aspectRatio: "4/3", overflow: "hidden", background: "#e7e0d4" }}>
+                          {getPreviewImage(gr[0]) && <img src={getPreviewImage(gr[0])!} alt={gr[0].title} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.9)" }} />}
+                        </div>
+                        <div style={{ padding: 20 }}>
+                          <span className={`cat-pill ${getCategoryClass(gr[0].category)}`}>{gr[0].category}</span>
+                          <h3 style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 24, fontWeight: 600, lineHeight: 1.4, color: "var(--text-cream)", marginTop: 10 }}>{gr[0].title}</h3>
+                          <div
+                            className="excerpt-html"
+                            style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15, lineHeight: 1.75, color: "rgba(15,15,15,0.65)", marginTop: 8 }}
+                            dangerouslySetInnerHTML={{ __html: cleanHtml(gr[0].excerpt) }}
+                          />
+                          <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--crimson-dark)", marginTop: 12 }}>{gr[0].author} · {getPostTimeLabel(gr[0])}</div>
+                        </div>
+                      </div>
+                    </Link>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                      {gr.slice(1, 3).map((article) => (
+                        <Link href={`/post/${article.id}`} key={article.id} onClick={() => handlePostClick(article.id)} style={{ textDecoration: "none", display: "block", flex: 1 }} className="card-lift">
+                          <div style={{ border: "1px solid rgba(0,0,0,0.1)", height: "100%", background: "#fff" }}>
+                            <div style={{ aspectRatio: "16/9", overflow: "hidden", background: "#e7e0d4" }}>
+                              {getPreviewImage(article) && <img src={getPreviewImage(article)!} alt={article.title} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.9)" }} />}
+                            </div>
+                            <div style={{ padding: 14 }}>
+                              <span className={`cat-pill ${getCategoryClass(article.category)}`}>{article.category}</span>
+                              <h3 style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 17, fontWeight: 600, lineHeight: 1.4, color: "var(--text-cream)", marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{article.title}</h3>
+                              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--crimson-dark)", marginTop: 8 }}>{article.author} · {getPostTimeLabel(article)}</div>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+
+        {filteredNews.length > 1 && (
+          <section style={{ background: "var(--surface)", padding: "60px 0" }}>
+            <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+              <SectionHeader title="समझें सिर्फ 3 मिनट में" badge="3 मिनट" />
+            </div>
+            <div className="explainer-scroll" style={{ display: "flex", gap: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              {(filteredNews.slice(8, 14).length > 0 ? filteredNews.slice(8, 14) : filteredNews.slice(0, 6)).map((item, i) => (
+                <Link href={`/post/${item.id}`} key={`ex-${item.id}`} onClick={() => handlePostClick(item.id)} style={{ textDecoration: "none", flexShrink: 0, width: 260, display: "block" }} className="card-lift">
+                  <div style={{ background: "var(--surface-mid)", border: "1px solid var(--divider)", padding: 24, height: "100%" }}>
+                    <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 64, fontWeight: 700, color: "var(--crimson)", lineHeight: 1, marginBottom: 16 }}>{String(i + 1).padStart(2, "0")}</div>
+                    <h3 style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 16, fontWeight: 600, lineHeight: 1.5, color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.title}</h3>
+                    <div className="excerpt-html" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.7, color: "var(--text-secondary)", marginTop: 8, WebkitLineClamp: 3 }} dangerouslySetInnerHTML={{ __html: cleanHtml(item.excerpt) }} />
+                    <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--gold)", marginTop: 16, letterSpacing: "0.04em" }}>पढ़ना शुरू करें →</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section style={{ background: "var(--surface)", padding: "40px 0" }}>
+          <SectionHeader title="सक्रिय संघर्ष ट्रैकर" badge="LIVE" />
+          <div style={{ border: "1px solid var(--divider)" }}>
+            {movementTracker.map((m, i) => (
+              <div
+                key={m.name}
+                style={{
+                  padding: "14px 16px",
+                  borderBottom: i < movementTracker.length - 1 ? "1px solid var(--divider)" : "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{m.name}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--gold)", border: "1px solid var(--divider)", padding: "1px 6px" }}>{m.location}</span>
+                    <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--text-muted)" }}>{m.startDate} से</span>
+                  </div>
+                  <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>{m.description}</div>
+                </div>
+                <span className={m.status === "active" ? "badge-active" : m.status === "strike" ? "badge-strike" : "badge-success"}>{m.statusLabel}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2837,20 +3051,7 @@ export default function ClientPage({
                 <img src={previewPost.postImage} alt={previewPost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
               )}
               <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
-                {/<[a-z][\s\S]*>/i.test(getFullArticle(previewPost)) ? (
-                  <SanitizedHtml 
-                    html={getFullArticle(previewPost)} 
-                    className="article-body ql-editor prose max-w-none" 
-                    style={{ padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }} 
-                    debug={true}
-                  />
-                ) : (
-                  <div className="ql-editor space-y-4" style={{ padding: 0, whiteSpace: 'pre-wrap' }}>
-                    {getFullArticle(previewPost).split("\n\n").map((paragraph, index) => (
-                      <p key={`${previewPost.id}-${index}`}>{paragraph}</p>
-                    ))}
-                  </div>
-                )}
+                <ArticleRichText html={getFullArticle(previewPost)} debug={true} />
               </div>
               {previewPost.uploaderName && (
                 <div className="mt-8 border-t border-[var(--line)] pt-4 text-right">
@@ -3358,25 +3559,77 @@ export default function ClientPage({
           </div>
         )}
 
-        <footer className="border-t border-[var(--line)] py-8 text-sm text-[var(--muted)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
-            <div className="flex flex-wrap items-center gap-4">
-              <Link href="/editorial-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
-                संपादकीय नीति
-              </Link>
-              <Link href="/corrections-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
-                सुधार नीति
-              </Link>
-              <Link href="/privacy-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">
-                गोपनीयता नीति
-              </Link>
-              <Link href="/about-us" className="interactive-link hover:text-[var(--primary)] transition-colors">
-                हमारे बारे में
-              </Link>
-              <Link href="/contact-us" className="interactive-link hover:text-[var(--primary)] transition-colors">
-                संपर्क करें
-              </Link>
+        <footer style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+          <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+            <div className="footer-grid" style={{ marginBottom: 40 }}>
+              <div>
+              <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12}}className={theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}>वाम की आवाज़</div>
+                <p style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", marginBottom: 16 }}>
+                  जन संघर्षों की कहानियाँ, संदर्भ और आवाज़। हम पत्रकार नहीं, पहरेदार हैं—न्याय और समता के।
+                </p>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <a href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="Facebook">
+                    <FacebookIcon className="h-[18px] w-[18px]" />
+                  </a>
+                  <a href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <YoutubeIcon className="h-[18px] w-[18px]" />
+                  </a>
+                  <a href="https://www.x.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <TwitterIcon className="h-[18px] w-[18px]" />
+                  </a>
+                  <a href="https://www.instagram.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <InstagramIcon className="h-[18px] w-[18px]" />
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>मुख्य पन्ने</div>
+                {[
+                  { label: "होम", value: "home" },
+                  { label: "ताज़ा खबरें", value: "latest" },
+                  { label: "ब्लॉग", value: "blogs" },
+                  { label: "संसाधन", value: "resources" },
+                  { label: "न्यूज़लेटर", value: "newsletter" },
+                ].map((link) => (
+                  <div key={link.label} style={{ marginBottom: 8 }}>
+                    <button type="button" onClick={() => handleNavTabChange(link.value)} style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}>
+                      {link.label}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>जानकारी</div>
+                {[
+                  { label: "हमारे बारे में", href: "/about-us" },
+                  { label: "संपादकीय नीति", href: "/editorial-policy" },
+                  { label: "सुधार नीति", href: "/corrections-policy" },
+                  { label: "गोपनीयता नीति", href: "/privacy-policy" },
+                  { label: "संपर्क करें", href: "/contact-us" },
+                ].map((link) => (
+                  <div key={link.label} style={{ marginBottom: 8 }}>
+                    <Link href={link.href} style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
+                      {link.label}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>आर्काइव</div>
+                {["2026 के लेख", "विशेष रिपोर्ट", "पॉडकास्ट"].map((link) => (
+                  <div key={link} style={{ marginBottom: 8 }}>
+                    <span style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)" }}>{link}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--divider)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--text-muted)" }}>© 2026 वाम की आवाज़ — जन संघर्ष का डिजिटल पुरालेख</span>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--text-muted)" }}>Made for the Movement</span>
             </div>
           </div>
         </footer>

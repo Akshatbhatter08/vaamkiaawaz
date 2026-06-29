@@ -117,3 +117,31 @@ export const SanitizedHtml = ({ html, className, style, debug = false }: { html:
     />
   );
 };
+
+export const ARTICLE_RICH_TEXT_CLASS = "article-body ql-editor prose max-w-none";
+
+export const ARTICLE_RICH_TEXT_STYLE: React.CSSProperties = {
+  padding: 0,
+  maxWidth: "100%",
+  overflowX: "clip",
+  whiteSpace: "pre-wrap",
+};
+
+export const ArticleRichText = ({
+  html,
+  className,
+  style,
+  debug = false,
+}: {
+  html: string;
+  className?: string;
+  style?: React.CSSProperties;
+  debug?: boolean;
+}) => (
+  <SanitizedHtml
+    html={html}
+    className={className ? `${ARTICLE_RICH_TEXT_CLASS} ${className}` : ARTICLE_RICH_TEXT_CLASS}
+    style={{ ...ARTICLE_RICH_TEXT_STYLE, ...style }}
+    debug={debug}
+  />
+);

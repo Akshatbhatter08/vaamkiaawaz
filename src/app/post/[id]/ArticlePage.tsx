@@ -8,10 +8,12 @@ import { GooeyInput } from "@/components/ui/gooey-input";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
-import { SanitizedHtml } from "@/utils/sanitizeHtml";
+import { ArticleRichText } from "@/utils/sanitizeHtml";
+import { getCategoryClass, formatViews, readingTime, cleanHtml, getTodayHindi, fmtDate, speakHindiText } from "@/utils/designUtils";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
 import ArticleLoginModal from "@/components/ArticleLoginModal";
+import { SectionHeader } from "@/components/SectionHeader";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
@@ -23,24 +25,7 @@ type SidebarPost = Post;
 type Evt = { id: string; title: string; date: string; time: string; location: string; details: string; imageUrl?: string };
 type Res = { id: string; title: string; type: string; url: string | null; createdAt: string };
 
-const cleanHtml = (html: string | undefined | null) => {
-  if (!html) return "";
-  // Strip zero-width chars and replace non-breaking spaces with normal spaces
-  return html
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\u00A0/g, " ");
-};
-
 const THEME_KEY = "vaamki-aawaz-theme";
-const readingTime = (html: string) => {
-  if (!html) return 1;
-  const text = html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\u00A0/g, " ");
-  const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
-  return Math.max(1, Math.ceil(words / 200));
-};
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("hi-IN", { day: "2-digit", month: "long", year: "numeric" });
 
 const navTabs = [
   { title: "होम", value: "home" },
@@ -71,6 +56,21 @@ const WhatsappIcon = () => (
 );
 const FacebookIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5.5 w-5.5" fill="currentColor"><g transform="translate(0 -1.5)"><path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z"/></g></svg>
+);
+const TwitterIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <g transform="scale(1.03) translate(0 -2)">
+      <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
+    </g>
+  </svg>
+);
+
+const InstagramIcon = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <g transform="scale(1.03) translate(0 -2)">
+      <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z" />
+    </g>
+  </svg>
 );
 
 export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, authorPosts, events, resources }: {
@@ -348,6 +348,19 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(articleUrl)}`, "_blank");
   };
   const handlePrint = () => window.print();
+  const changeFontSize = (delta: number) => {
+    if (typeof document === "undefined") return;
+    const current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const next = Math.min(22, Math.max(13, current + delta));
+    document.documentElement.style.fontSize = `${next}px`;
+  };
+  const readArticleAloud = () => {
+    const plain = `${post.title}. ${(post.excerpt || "").replace(/<[^>]*>/g, " ")} ${(post.content || "").replace(/<[^>]*>/g, " ")}`
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    speakHindiText(plain);
+  };
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -383,7 +396,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const heroImg = post.postImage || null;
 
   return (
-    <div className={`${theme === "dark" ? "theme-dark" : ""} news-shell min-h-screen text-[var(--foreground)]`}>
+    <div className={`${theme === "dark" ? "theme-dark" : "theme-light"} news-shell min-h-screen`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
 
         {/* ─── Top bar ─── */}
@@ -397,16 +410,32 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             })}
           </span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              onClick={() => changeFontSize(-1)}
+              title="फ़ॉन्ट छोटा करें"
+              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
+            >
+              अ−
+            </button>
+            <button
+              type="button"
+              onClick={() => changeFontSize(1)}
+              title="फ़ॉन्ट बड़ा करें"
+              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
+            >
+              अ+
+            </button>
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`} href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
               <FacebookIcon />
             </a>
-            <a className="interactive-link inline-flex items-center justify-center h-8 w-8" href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer">
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`} href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer">
               <YoutubeIcon />
             </a>
-            <button type="button" className="interactive-link hidden rounded-md px-2 py-1 text-xs hover:cursor-pointer sm:inline-flex">
-              सदस्यता
-            </button>
-            <a href="mailto:vaamkiaawaz@gmail.com" className="interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm">
+            <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`} href="https://www.instagram.com/VaamKiAawaz" target="_blank" rel="noreferrer">
+              <TwitterIcon className="h-4 w-4" />
+            </a>
+            <a href="mailto:vaamkiaawaz@gmail.com" className={`interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`}>
               संपर्क: vaamkiaawaz@gmail.com
             </a>
             <div className="relative flex items-center shrink-0 ml-1 sm:ml-2">
@@ -430,6 +459,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               <LogIn className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate max-w-[80px] sm:max-w-none">{sessionEmail ? roleText || "लॉगिन है" : "लॉगिन"}</span>
             </button>
+            <a href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer" className="btn-primary hidden sm:inline-flex" style={{ padding: "3px 12px", fontSize: 11 }}>
+              सदस्यता में
+            </a>
           </div>
         </div>
 
@@ -441,79 +473,49 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         >
           <header
             id="top"
-            className="headline-fade border-b border-[var(--line)]"
+            className="headline-fade"
             style={{
-              paddingTop: "calc(28px - 16px * var(--compact-progress))",
-              paddingBottom: "calc(28px - 16px * var(--compact-progress))",
+              background: "var(--ink)",
+              padding: "10px 24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              position: "relative",
+              borderBottom: "1px solid var(--divider)",
             }}
           >
-            <div className="flex flex-col gap-2 px-1 sm:gap-4 sm:px-2 lg:flex-row lg:items-center lg:justify-between lg:px-0">
-              <div className="flex items-start gap-3 sm:items-center sm:gap-5">
-                <img
-                  src="/vaamki-logo.png"
-                  alt="वाम की आवाज़ लोगो"
-                  onError={(event) => {
-                    event.currentTarget.src = "/vercel.svg";
-                  }}
-                  className="shrink-0 rounded-lg border border-[var(--line)] object-contain bg-white"
-                  style={{
-                    width: "calc(120px - 40px * var(--compact-progress))",
-                    height: "calc(120px - 40px * var(--compact-progress))",
-                  }}
-                />
-                <div className="space-y-2 min-w-0">
-                  <p
-                    className="inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 font-semibold text-[var(--primary)] hover:cursor-pointer"
-                    style={{
-                      fontSize: "calc(0.75rem - 0.1rem * var(--compact-progress))",
-                      paddingTop: "calc(4px - 2px * var(--compact-progress))",
-                      paddingBottom: "calc(4px - 2px * var(--compact-progress))",
-                    }}
-                  >
-                    विकल्प की डिजिटल दुनिया
-                  </p>
-                  <h1
-                    className="font-serif font-bold leading-tight text-[var(--headline)]"
-                    style={{
-                      fontSize: "calc(2rem - 0.65rem * var(--compact-progress))",
-                    }}
-                  >
-                    वाम की आवाज़ (Vaam ki Aawaz)
-                  </h1>
-                  <p
-                    className="hidden text-[var(--muted)] sm:block whitespace-nowrap overflow-hidden text-ellipsis"
-                    style={{
-                      opacity: "calc(1 - var(--compact-progress))",
-                      fontSize: "calc(0.85rem - 0.13rem * var(--compact-progress))",
-                    }}
-                  >
-                    अगर थक गए हो चुप रहकर सहने से, रगों में खून उबल रहा है अन्याय के खिलाफ, न्याय, समानता और प्रगति में हैं विश्वास तो — उठो ! बोलो ! बदलो !
-                  </p>
+            <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
+            <img
+                src="/vaamki-logo.png"
+                alt="वाम की आवाज़ लोगो"
+                onError={(event) => {
+                  event.currentTarget.src = "/vercel.svg";
+                }}
+                className="shrink-0 object-contain"
+                style={{ width: 65, height: 65, border: "1px solid var(--divider)", background: "var(--surface-mid)", padding: 3 }}
+              />
+              <div>
+                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
+                  वाम की आवाज़ (Vaam Ki Aawaz)
+                </div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
+                  विकल्प की डिजिटल दुनिया
                 </div>
               </div>
-              <a href="https://www.youtube.com/@VaamKiAawaz" className="mt-1 w-full px-1 sm:mt-0 sm:w-auto sm:px-0">
-                <button
-                  className="rise-on-hover w-full sm:w-fit rounded-md border border-[var(--primary)] bg-[var(--primary)] font-semibold text-white hover:cursor-pointer hover:bg-[var(--primary-dark)]"
-                  style={{
-                    paddingLeft: "calc(20px - 4px * var(--compact-progress))",
-                    paddingRight: "calc(20px - 4px * var(--compact-progress))",
-                    paddingTop: "calc(8px - 2px * var(--compact-progress))",
-                    paddingBottom: "calc(8px - 2px * var(--compact-progress))",
-                    fontSize: "calc(0.875rem - 0.1rem * var(--compact-progress))",
-                  }}
-                >
-                  लाइव कवरेज
-                </button>
+            </Link>
+            <div className="hidden sm:block" style={{ position: "absolute", right: 24 }}>
+              <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary">
+                लाइव कवरेज
               </a>
             </div>
           </header>
 
           <nav
-            className="mx-1 rounded-lg border border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-md sm:mx-0"
+            className="backdrop-blur-md"
             style={{
-              marginTop: "calc(16px - 8px * var(--compact-progress))",
-              marginBottom: "calc(16px - 8px * var(--compact-progress))",
-              padding: "calc(12px - 4px * var(--compact-progress))",
+              background: isScrolledHeader ? "rgba(15,15,15,0.96)" : "var(--ink)",
+              borderBottom: "2px solid var(--crimson)",
+              padding: "8px 12px",
             }}
           >
             <div className="relative flex flex-row items-center justify-between gap-2 px-1 sm:px-0">
@@ -576,11 +578,15 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     classNames={{
                       trigger: theme === "dark"
                         ? "bg-[#2A1E1E] border-[#3A2A2A] text-[#F5EDEB]"
-                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]",
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#0F0F0F]",
 
                       bubbleSurface: theme === "dark"
                         ? "bg-[#7D0F13] border-[#5E0B0E] text-white"
-                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#2B2B2B]"
+                        : "bg-[#E8DDD8] border-[#D6C7C0] text-[#0F0F0F]",
+                        
+                      input: theme === "dark"
+                        ? "text-white placeholder:text-white/70"
+                        : "text-black placeholder:text-black/70"
                     }}
                   />
                 </div>
@@ -698,14 +704,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           <ChevronRight className="h-3 w-3" />
           <Link href={`/?tab=fresh`} className="hover:text-[var(--primary)]">ताज़ा खबरें</Link>
           <ChevronRight className="h-3 w-3" />
-          <span className="text-[var(--primary)] font-semibold">{post.category}</span>
+          <span style={{ color: "var(--gold)" }} className="font-semibold">{post.category}</span>
         </nav>
 
         {/* ─── Main layout ─── */}
         <main className="grid gap-8 pb-4 lg:grid-cols-12">
 
           {/* Article column */}
-          <article className="lg:col-span-8 min-w-0 h-fit space-y-4 rounded-xl bg-white p-5 sm:p-8 border border-[var(--line)]" style={{ background: theme === 'dark' ? 'var(--surface)' : '#ffffff' }}>
+          <article className="article-paper lg:col-span-8 min-w-0 h-fit space-y-4 p-5 sm:p-8">
 
             {isEditing ? (
               <div className="space-y-4 mb-8 bg-[var(--surface-soft)] p-6 rounded-xl border border-[var(--primary)]">
@@ -768,7 +774,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
                 {/* Category + Title */}
                 <div>
-                  <span className="inline-block rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[var(--primary)]">
+                  <span className={`cat-pill ${getCategoryClass(post.category)}`}>
                     {post.category}
                   </span>
                   <h1 className="mt-3 font-serif text-3xl font-bold leading-tight text-[var(--headline)] sm:text-4xl lg:text-[2.6rem]">
@@ -787,13 +793,24 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <span>•</span>
                   <span>{fmtDate(post.createdAt)}</span>
                   <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{mins} मिनट पठन</span>
-                  <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{post.clickCount ?? 0} बार पढ़ा गया</span>
+                  <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{formatViews(post.clickCount ?? 0)} बार पढ़ा गया</span>
+                  <button
+                    type="button"
+                    onClick={readArticleAloud}
+                    className="article-no-print inline-flex items-center gap-1.5"
+                    style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--gold)", background: "transparent", border: "1px solid var(--gold)", padding: "4px 12px", cursor: "pointer" }}
+                  >
+                    🔊 <span>सुनें</span>
+                  </button>
                 </div>
 
                 {/* Abstract box */}
-                <div className="rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
-                  <p className="text-sm font-semibold text-[var(--primary)] mb-1">सारांश</p>
-                  <div className="text-base leading-7 text-[var(--foreground)] italic ql-editor px-0 py-0" dangerouslySetInnerHTML={{ __html: cleanHtml(post.excerpt) }} />
+                <div className="article-invert rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
+                  <ArticleRichText
+                    html={post.excerpt || ""}
+                    className="italic"
+                    debug={true}
+                  />
                 </div>
 
                 {/* Hero image - only show if not already embedded in content */}
@@ -804,12 +821,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 )}
 
                 {/* Article content */}
-                <SanitizedHtml
-                  html={post.content}
-                  className="article-body ql-editor prose max-w-none text-[var(--foreground)] [&>*:last-child]:mb-0 pb-0"
-                  style={{ padding: 0, maxWidth: '100%', overflowX: 'clip', whiteSpace: 'pre-wrap' }}
-                  debug={true}
-                />
+                <ArticleRichText html={post.content || ""} className="[&>*:last-child]:mb-0 pb-0" debug={true} />
 
                 {/* Uploader credit - Web view only */}
                 {displayUploaderName && (
@@ -835,59 +847,48 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             )}
 
 
-            {/* Share + Actions bar */}
-            <div className="article-no-print flex flex-wrap items-center gap-3 border-y border-[var(--line)] py-3 mt-1">
-              <button onClick={handleCopy} className="article-share-btn inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]">
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                {copied ? "कॉपी हुआ!" : "लिंक कॉपी"}
-              </button>
-              <button onClick={handleWhatsapp} className="article-share-btn inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-medium text-white">
-                <WhatsappIcon /> WhatsApp
-              </button>
-              <button onClick={handleFacebook} className="article-share-btn inline-flex items-center gap-2 rounded-lg bg-[#1877F2] px-4 py-2 text-sm font-medium text-white">
-                <FacebookIcon /> Facebook
-              </button>
-              <button onClick={handlePrint} className="article-share-btn inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-medium hover:border-[var(--primary)] hover:text-[var(--primary)]">
-                <Printer className="h-4 w-4" /> प्रिंट
-              </button>
-              {canEdit && (
-                <button onClick={() => setIsEditing(true)} className="article-share-btn inline-flex items-center gap-2 rounded-lg border border-blue-400 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-600">
-                  <Edit3 className="h-4 w-4" /> संपादित करें
-                </button>
-              )}
-              {canDelete && (
-                <button onClick={() => setConfirmDelete(true)} className="article-share-btn inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-600">
-                  <Trash2 className="h-4 w-4" /> हटाएं
-                </button>
-              )}
-            </div>
-
             {/* Ad Placeholder - Bottom of article */}
-            <div className="article-no-print my-6 flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
+            <div className="article-invert article-no-print my-6 flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
               <span className="text-sm font-semibold uppercase tracking-wide">विज्ञापन</span>
             </div>
 
-            {/* Suggested posts */}
-            {displayedSuggested.length > 0 && (
-              <section className="mt-4">
-                <h3 className="font-serif text-2xl font-bold text-[var(--headline)] mb-4">और पढ़ें</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {displayedSuggested.slice(0, 4).map(sp => (
-                    <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover group rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 block">
-                      {sp.postImage && <img src={sp.postImage} alt="" className="mb-3 h-36 w-full rounded-lg object-cover" />}
-                      <p className="text-xs font-semibold uppercase text-[var(--primary)]">{sp.category}</p>
-                      <h4 className="mt-1 line-clamp-2 font-serif text-lg font-semibold text-[var(--headline)] group-hover:text-[var(--primary)]">{sp.title}</h4>
-                      <div className="mt-1 line-clamp-2 text-sm text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(sp.excerpt) }} />
-                      <p className="mt-2 text-xs text-[var(--muted)]">{sp.author} • {sp.time}</p>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            )}
           </article>
 
           {/* Sidebar */}
-          <aside className="article-no-print lg:col-span-4 space-y-6">
+          <aside className="article-no-print lg:col-span-4 space-y-6 lg:sticky lg:top-[170px] lg:h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
+            {/* Share + Actions */}
+            <section className="article-share-card rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+              <h3 className="article-share-card__title mb-3">शेयर करें</h3>
+              <div className="grid grid-cols-4 gap-2.5">
+                <button onClick={handleCopy} title={copied ? "कॉपी हुआ!" : "लिंक कॉपी"} className="article-share-icon">
+                  {copied ? <Check className="h-5 w-5 text-green-500" /> : <LinkIcon className="h-5 w-5" />}
+                </button>
+                <button onClick={handleWhatsapp} title="WhatsApp" className="article-share-icon hover:!text-[#25D366] hover:!border-[#25D366]">
+                  <WhatsappIcon />
+                </button>
+                <button onClick={handleFacebook} title="Facebook" className="article-share-icon hover:!text-[#1877F2] hover:!border-[#1877F2]">
+                  <FacebookIcon />
+                </button>
+                <button onClick={handlePrint} title="प्रिंट" className="article-share-icon">
+                  <Printer className="h-5 w-5" />
+                </button>
+              </div>
+              {(canEdit || canDelete) && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {canEdit && (
+                    <button onClick={() => setIsEditing(true)} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${theme === "dark" ? "border-blue-700 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50" : "border-blue-400 bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+                      <Edit3 className="h-4 w-4" /> संपादित करें
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={() => setConfirmDelete(true)} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${theme === "dark" ? "border-red-700 bg-red-900/30 text-red-400 hover:bg-red-900/50" : "border-red-300 bg-red-50 text-red-600 hover:bg-red-100"}`}>
+                      <Trash2 className="h-4 w-4" /> हटाएं
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+
             {/* Top reads */}
             <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)] mb-3">सबसे ज्यादा पढ़ी गईं</h3>
@@ -947,29 +948,144 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             </section>
 
             {/* Newsletter CTA */}
-            <section className="rounded-xl border border-[var(--line)] bg-gradient-to-br from-[var(--primary)]/10 to-transparent p-5">
-              <h3 className="font-serif text-xl font-bold text-[var(--headline)]">न्यूज़लेटर</h3>
-              <p className="mt-2 text-sm text-[var(--muted)]">रोज़ शाम 7 बजे प्रमुख खबरें सीधे आपके ईमेल पर।</p>
-              <Link href="/#newsletter" className="mt-3 inline-block rise-on-hover rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
-                सदस्य बनें
+            <section className="rounded-xl p-5" style={{ background: "var(--crimson)", border: "2px solid var(--gold)" }}>
+              <h3 className="font-serif text-xl font-bold text-white">जुड़े रहने के लिए</h3>
+              <p className="mt-2 text-sm text-white/85">रोज़ शाम 7 बजे प्रमुख खबरें सीधे आपके ईमेल पर।</p>
+              <Link
+                href="/#newsletter"
+                className="mt-4 block w-full rounded-md px-4 py-2 text-center text-sm font-semibold text-[var(--gold)] transition-colors hover:bg-black/30"
+                style={{ background: "var(--ink)", border: "1px solid var(--gold)" }}
+              >
+                सदस्यता लें
               </Link>
             </section>
           </aside>
         </main>
 
+        {/* Related posts (full width) */}
+        {displayedSuggested.length > 0 && (
+          <section className="article-no-print pb-8 pt-2">
+            <SectionHeader title="और पढ़ें" href="/" linkText="सभी देखें →" />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {displayedSuggested.slice(0, 3).map(sp => (
+                <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover card-lift group flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
+                  {sp.postImage && (
+                    <div className="card-image-container">
+                      <img src={sp.postImage} alt="" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2 p-4">
+                    <span className={`cat-pill self-start ${getCategoryClass(sp.category)}`}>{sp.category}</span>
+                    <h4 className="line-clamp-2 font-serif text-lg font-semibold leading-snug text-[var(--headline)] group-hover:text-[var(--primary)]">{sp.title}</h4>
+                    <div className="line-clamp-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(sp.excerpt) }} />
+                    <p className="mt-1 text-xs text-[var(--muted)]">{sp.author} • {sp.time}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Footer */}
-        <footer className="article-no-print border-t border-[var(--line)] py-4 mt-2 text-sm text-[var(--muted)]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p>© 2026 वाम की आवाज़ • जन समाचार मंच</p>
-            <div className="flex flex-wrap items-center gap-4">
-              <Link href="/editorial-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">संपादकीय नीति</Link>
-              <Link href="/corrections-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">सुधार नीति</Link>
-              <Link href="/privacy-policy" className="interactive-link hover:text-[var(--primary)] transition-colors">गोपनीयता नीति</Link>
-              <Link href="/about-us" className="interactive-link hover:text-[var(--primary)] transition-colors">हमारे बारे में</Link>
-              <Link href="/contact-us" className="interactive-link hover:text-[var(--primary)] transition-colors">संपर्क करें</Link>
+        <footer className="article-no-print" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+          <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+            <div className="footer-grid" style={{ marginBottom: 40 }}>
+              <div>
+                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12 }} className={theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}>वाम की आवाज़</div>
+                <p style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", marginBottom: 16 }}>
+                  जन संघर्षों की कहानियाँ, संदर्भ और आवाज़। हम पत्रकार नहीं, पहरेदार हैं—न्याय और समता के।
+                </p>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <a href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="Facebook">
+                    <FacebookIcon />
+                  </a>
+                  <a href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <YoutubeIcon className="h-[18px] w-[18px]" />
+                  </a>
+                  <a href="https://www.x.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <TwitterIcon className="h-[18px] w-[18px]" />
+                  </a>
+                  <a href="https://www.instagram.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
+                    <InstagramIcon className="h-[18px] w-[18px]" />
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>मुख्य पन्ने</div>
+                {[
+                  { label: "होम", value: "home" },
+                  { label: "ताज़ा खबरें", value: "latest" },
+                  { label: "ब्लॉग", value: "blogs" },
+                  { label: "संसाधन", value: "resources" },
+                  { label: "न्यूज़लेटर", value: "newsletter" },
+                ].map((link) => (
+                  <div key={link.label} style={{ marginBottom: 8 }}>
+                    <button type="button" onClick={() => handleNavTabChange(link.value)} style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}>
+                      {link.label}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>जानकारी</div>
+                {[
+                  { label: "हमारे बारे में", href: "/about-us" },
+                  { label: "संपादकीय नीति", href: "/editorial-policy" },
+                  { label: "सुधार नीति", href: "/corrections-policy" },
+                  { label: "गोपनीयता नीति", href: "/privacy-policy" },
+                  { label: "संपर्क करें", href: "/contact-us" },
+                ].map((link) => (
+                  <div key={link.label} style={{ marginBottom: 8 }}>
+                    <Link href={link.href} style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
+                      {link.label}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>आर्काइव</div>
+                {["2026 के लेख", "विशेष रिपोर्ट", "पॉडकास्ट"].map((link) => (
+                  <div key={link} style={{ marginBottom: 8 }}>
+                    <span style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)" }}>{link}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--divider)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--text-muted)" }}>© 2026 वाम की आवाज़ — जन संघर्ष का डिजिटल पुरालेख</span>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--text-muted)" }}>Made for the Movement</span>
             </div>
           </div>
         </footer>
+      </div>
+
+      {/* Mobile sticky share bar */}
+      <div
+        className="mobile-share-bar article-no-print"
+        style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 52, background: "var(--surface-mid)", borderTop: "1px solid var(--divider)", zIndex: 100, padding: "0 16px" }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", height: "100%" }}>
+          <button onClick={handleWhatsapp} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "#25D366", cursor: "pointer" }}>
+            <WhatsappIcon />
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>WhatsApp</span>
+          </button>
+          <button onClick={handleFacebook} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "#1877F2", cursor: "pointer" }}>
+            <FacebookIcon />
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>Facebook</span>
+          </button>
+          <button onClick={handleCopy} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
+            {copied ? <Check className="h-[18px] w-[18px]" /> : <Copy className="h-[18px] w-[18px]" />}
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>कॉपी</span>
+          </button>
+          <button onClick={handlePrint} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
+            <Printer className="h-[18px] w-[18px]" />
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>प्रिंट</span>
+          </button>
+        </div>
       </div>
 
       {/* Delete confirm dialog */}

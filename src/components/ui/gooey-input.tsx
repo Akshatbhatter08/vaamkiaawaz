@@ -229,7 +229,7 @@ export function GooeyInput({
               disabled={disabled || !isExpanded}
               placeholder={placeholder}
               className={cn(
-                "h-full min-w-0 flex-1 bg-transparent text-sm text-[var(--foreground)] outline-none",
+                "gooey-search-input h-full min-w-0 flex-1 bg-transparent text-sm text-[var(--foreground)] outline-none",
                 isExpanded
                   ? "placeholder:text-[var(--muted)]/70"
                   : "pointer-events-none placeholder:text-[var(--muted)]/90",

@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Devanagari, Source_Serif_4 } from "next/font/google";
+import { Inter } from "next/font/google";
 import Script from "next/script";
 import ContextMenu from "@/components/ContextMenu";
 import "./globals.css";
 
-const notoSansDevanagari = Noto_Sans_Devanagari({
-  variable: "--font-noto-devanagari",
-  subsets: ["latin"],
-});
-
-const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -53,16 +48,23 @@ export default function RootLayout({
   return (
     <html
       lang="hi"
-      className={`${notoSansDevanagari.variable} ${sourceSerif.variable} h-full antialiased`}
+      className={`${inter.variable} h-full`}
     >
       <head>
+        {/* Google Fonts — Noto Serif Devanagari, Noto Sans Devanagari, Inter */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5595988052361058"
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body suppressHydrationWarning className="min-h-full flex flex-col">
+      <body suppressHydrationWarning className="min-h-full flex flex-col antialiased">
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-7RC0RY6QDQ"
           strategy="afterInteractive"
@@ -72,7 +74,6 @@ export default function RootLayout({
             window.dataLayer = window.dataLayer || [];
             function gtag(){window.dataLayer.push(arguments);}
             gtag('js', new Date());
-
             gtag('config', 'G-7RC0RY6QDQ');
           `}
         </Script>

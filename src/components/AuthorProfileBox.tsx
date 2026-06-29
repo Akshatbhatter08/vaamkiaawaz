@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { User, PenTool, CheckCircle, Users } from "lucide-react";
+import { User, Share2, AtSign, CheckCircle, Users } from "lucide-react";
+import { formatViews } from "@/utils/designUtils";
 
 type Post = {
   id: string;
   title: string;
   category: string;
   createdAt: string;
+  clickCount?: number;
 };
+
+// Removed toDevanagari conversion as per user request for English numerals
 
 type AuthorProfileBoxProps = {
   authorName: string;
@@ -65,114 +68,83 @@ const getAuthorInfo = (name: string) => {
 };
 
 export default function AuthorProfileBox({ authorName, authorImage, authorPosts }: AuthorProfileBoxProps) {
-  const [activeTab, setActiveTab] = useState<"about" | "posts">("about");
   const authorInfo = getAuthorInfo(authorName);
 
+  const totalPosts = authorPosts.length;
+  const totalViews = authorPosts.reduce((sum, post) => sum + (post.clickCount ?? 0), 0);
+
+  const earliest = authorPosts.reduce<Date | null>((min, post) => {
+    const date = new Date(post.createdAt);
+    if (Number.isNaN(date.getTime())) return min;
+    return !min || date < min ? date : min;
+  }, null);
+
+  const memberSinceLabel = earliest
+    ? `${new Intl.DateTimeFormat("hi-IN", { month: "long" }).format(earliest)} ${earliest.getFullYear()}`
+    : null;
+
+  const experienceYears = earliest
+    ? Math.max(1, new Date().getFullYear() - earliest.getFullYear())
+    : 1;
+
+  const stats: { label: string; value: string }[] = [
+    { label: "कुल लेख", value: String(totalPosts) },
+    { label: "कुल पाठक", value: formatViews(totalViews) },
+    { label: "अनुभव", value: `${experienceYears} वर्ष` },
+  ];
+
   return (
-    <div className="article-no-print my-8 rounded-xl border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-6 text-[var(--foreground)] font-sans">
-      
-      {/* Header Profile Section */}
-      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 mb-6">
+    <section className="article-no-print author-hero text-[var(--foreground)] font-sans">
+      {/* Identity column */}
+      <div className="author-hero__identity">
         {authorImage ? (
-          <img src={authorImage} alt={authorName} className="h-20 w-20 rounded-full border-2 border-[var(--primary)] object-cover flex-shrink-0" />
+          <img src={authorImage} alt={authorName} className="avatar-circle author-hero__avatar" />
         ) : (
-          <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-            <User className="h-10 w-10 text-gray-500" />
+          <div className="avatar-circle author-hero__avatar author-hero__avatar--placeholder">
+            <User className="h-12 w-12" style={{ color: "var(--text-muted)" }} />
           </div>
         )}
-        <div className="text-center sm:text-left flex-1">
-          <Link href={`/author/${encodeURIComponent(authorName)}`} className="hover:underline">
-            <h3 className="text-2xl font-bold text-[var(--headline)]">{authorName}</h3>
-          </Link>
-          <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-sm">
-            <span className="font-medium text-[var(--muted)]">{authorInfo.role}</span>
-            {authorInfo.tags.map((tag) => (
-              <span key={tag} className="px-2 py-0.5 rounded bg-gray-200 text-gray-700 text-xs font-semibold">
-                {tag}
-              </span>
-            ))}
+
+        <Link href={`/author/${encodeURIComponent(authorName)}`} className="hover:underline" style={{ textDecoration: "none" }}>
+          <h1 className="author-hero__name">{authorName}</h1>
+        </Link>
+        <div className="author-hero__role">{authorInfo.role}</div>
+        {memberSinceLabel && <div className="author-hero__meta">सदस्य: {memberSinceLabel} से</div>}
+
+        <div className="author-hero__icons">
+          <button type="button" className="author-hero__icon" aria-label="साझा करें">
+            <Share2 className="h-[18px] w-[18px]" />
+          </button>
+          <button type="button" className="author-hero__icon" aria-label="संपर्क">
+            <AtSign className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+
+        <div className="author-hero__trust">
+          <div className="author-hero__trust-item">
+            <CheckCircle className="h-4 w-4" style={{ color: "var(--gold)" }} />
+            <span>तथ्य-जाँचित एवं संपादकीय दिशा-निर्देश</span>
+          </div>
+          <div className="author-hero__trust-item">
+            <Users className="h-4 w-4" style={{ color: "var(--gold)" }} />
+            <span>विशेषज्ञों द्वारा समीक्षित</span>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-[var(--line)] flex gap-6">
-        <button
-          onClick={() => setActiveTab("about")}
-          className={`pb-3 text-sm font-semibold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === "about" ? "border-[var(--primary)] text-[var(--foreground)]" : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-          } cursor-pointer`}
-        >
-          <User className="h-4 w-4" /> About the Author
-        </button>
-        <button
-          onClick={() => setActiveTab("posts")}
-          className={`pb-3 text-sm font-semibold uppercase tracking-wider flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === "about" ? "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]" : "border-[var(--primary)] text-[var(--foreground)]"
-          } cursor-pointer`}
-        >
-          <PenTool className="h-4 w-4" /> Latest Posts
-        </button>
-      </div>
+      {/* Editorial column: quote + statistics */}
+      <div>
+        <blockquote className="author-hero__quote">{authorInfo.bio}</blockquote>
 
-      {/* Tab Content */}
-      <div className="py-6 min-h-[140px]">
-        {activeTab === "about" && (
-          <div className="animate-in fade-in duration-300">
-            <p className="text-[var(--muted)] leading-relaxed text-[15px] mb-4">
-              {authorInfo.bio}
-            </p>
-            {authorPosts.length > 0 && (
-              <div className="border-l-4 border-[var(--primary)] bg-[var(--background)] p-3 rounded-r-md">
-                <span className="text-[var(--primary)] font-bold mr-2">यह भी पढ़ें:</span>
-                <Link href={`/post/${authorPosts[0].id}`} className="font-semibold text-[var(--headline)] hover:underline">
-                  {authorPosts[0].title}
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "posts" && (
-          <div className="animate-in fade-in duration-300">
-            {authorPosts.length > 0 ? (
-              <ul className="space-y-3">
-                {authorPosts.slice(0, 4).map((post) => (
-                  <li key={post.id}>
-                    <Link href={`/post/${post.id}`} className="group flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                      <span className="text-xs font-semibold text-[var(--primary)] uppercase tracking-wide shrink-0">
-                        {post.category}
-                      </span>
-                      <span className="font-medium text-[var(--headline)] group-hover:underline line-clamp-1">
-                        {post.title}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[var(--muted)] italic">इस लेखक का कोई अन्य लेख उपलब्ध नहीं है।</p>
-            )}
-            <div className="mt-4 pt-2">
-              <Link href={`/author/${encodeURIComponent(authorName)}`} className="text-sm font-semibold text-[var(--primary)] hover:underline">
-                सभी लेख देखें →
-              </Link>
+        <div className="author-stats">
+          {stats.map((stat) => (
+            <div key={stat.label} className="author-stat-card">
+              <div className="author-stat-card__label">{stat.label}</div>
+              <div className="author-stat-card__value">{stat.value}</div>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer Details */}
-      <div className="border-t border-[var(--line)] pt-4 mt-2 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm font-medium text-gray-600">
-        <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-orange-500" />
-          <span>Fact Checked & Editorial Guidelines</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-orange-500" />
-          <span>Reviewed by: Subject Matter Experts</span>
+          ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
