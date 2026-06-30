@@ -503,7 +503,7 @@ const MenuBar = ({ editor, toolbarClassName, hideMediaLinks }: { editor: any, to
     }`;
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 border-b border-[var(--line)] bg-[var(--surface)] p-2 shrink-0 ${toolbarClassName || ""}`}>
+    <div className={`sticky top-0 z-20 flex flex-wrap items-center gap-1 border-b border-[var(--line)] bg-[var(--surface)] p-2 shrink-0 ${toolbarClassName || ""}`}>
       <button
         type="button"
         onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1092,7 +1092,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor]);
 
   return (
-    <div className={`flex flex-col bg-[var(--surface)] text-[var(--foreground)] w-full ${className}`}>
+    <div className={`flex flex-col overflow-y-auto max-h-[70vh] bg-[var(--surface)] text-[var(--foreground)] w-full ${className}`}>
       <style>{`
         .prose .image-resizer[style*="float: left"],
         .prose div[style*="float: left"]:has(> div > img) {
@@ -1120,7 +1120,7 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
       <MenuBar editor={editor} toolbarClassName={toolbarClassName} hideMediaLinks={hideMediaLinks} />
       <div 
-        className="flex-grow overflow-y-auto relative cursor-text bg-[var(--surface)] min-h-[120px]" 
+        className="flex-grow relative cursor-text bg-[var(--surface)] min-h-[120px]" 
         onClick={() => editor?.commands.focus()}
       >
         <EditorContent editor={editor} />

@@ -1992,10 +1992,10 @@ export default function ClientPage({
     <div className={`print:hidden ${theme === "dark" ? "theme-dark" : "theme-light"} news-shell min-h-screen`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
         <div
-          className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--divider)] text-xs sm:text-sm"
+          className="home-topbar hidden min-[450px]:flex flex-wrap items-center justify-between gap-2 border-b border-[var(--divider)] text-xs sm:text-sm"
           style={{ minHeight: "32px", color: "var(--text-muted)", fontFamily: "Inter, sans-serif", paddingTop: 4, paddingBottom: 4 }}
         >
-          <span className="shrink-0 whitespace-nowrap" style={{ fontSize: 11 }}>{formatDate()}</span>
+          <span className="home-topbar__date shrink-0 whitespace-nowrap" style={{ fontSize: 11 }}>{formatDate()}</span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <button
               type="button"
@@ -2063,7 +2063,7 @@ export default function ClientPage({
         >
           <header
             id="top"
-            className="headline-fade"
+            className="headline-fade home-header"
             style={{
               background: "var(--ink)",
               padding: "10px 24px",
@@ -2074,26 +2074,26 @@ export default function ClientPage({
               borderBottom: "1px solid var(--divider)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="home-header__brand" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <img
                 src="/vaamki-logo.png"
                 alt="वाम की आवाज़ लोगो"
                 onError={(event) => {
                   event.currentTarget.src = "/vercel.svg";
                 }}
-                className="shrink-0 object-contain"
+                className="home-header__logo shrink-0 object-contain"
                 style={{ width: 65, height: 65, border: "1px solid var(--divider)", background: "var(--surface-mid)", padding: 3 }}
               />
-              <div>
-                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
+              <div className="home-header__titles">
+                <div className="home-header__title" style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
                   वाम की आवाज़ (Vaam Ki Aawaz)
                 </div>
-                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
+                <div className="home-header__subtitle" style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
                   विकल्प की डिजिटल दुनिया
                 </div>
               </div>
             </div>
-            <div className="hidden sm:block" style={{ position: "absolute", right: 24 }}>
+            <div className="hidden lg:block" style={{ position: "absolute", right: 24 }}>
               <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary">
                 लाइव कवरेज
               </a>
@@ -2101,15 +2101,15 @@ export default function ClientPage({
           </header>
 
           <nav
-            className="backdrop-blur-md"
+            className="home-nav backdrop-blur-md"
             style={{
               background: isScrolledHeader ? "rgba(15,15,15,0.96)" : "var(--ink)",
               borderBottom: "2px solid var(--crimson)",
               padding: "8px 12px",
             }}
           >
-            <div className="relative flex flex-row items-center justify-between gap-2 px-1 sm:px-0">
-              <div className="flex items-center gap-2 flex-1 pr-2">
+            <div className="home-nav__inner relative flex flex-row items-center justify-between gap-2 px-1 sm:px-0">
+              <div className="home-nav__left flex items-center gap-2 flex-1 pr-2">
                 <button
                   type="button"
                   onClick={() => setIsMobileNavOpen(true)}
@@ -2157,7 +2157,7 @@ export default function ClientPage({
                   </div>
                 </div>
               )}
-              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 pr-1 sm:pr-0 lg:w-auto lg:flex-none lg:justify-end">
+              <div className="home-nav__actions ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 pr-1 sm:pr-0 lg:w-auto lg:flex-none lg:justify-end">
                 <div className="hidden md:block">
                   <GooeyInput
                     value={searchTerm}
@@ -2254,6 +2254,67 @@ export default function ClientPage({
                       <X className="h-4 w-4" />
                     </button>
                   </div>
+                  
+                  <div className="mb-4 flex flex-col gap-3 min-[450px]:hidden border-b border-[var(--line)] pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => changeFontSize(-1)}
+                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
+                        >
+                          अ−
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => changeFontSize(1)}
+                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
+                        >
+                          अ+
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon className="h-4 w-4" /></a>
+                        <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon className="h-4 w-4" /></a>
+                        <a href="https://www.x.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
+                      </div>
+                    </div>
+                    
+                    <a href="mailto:vaamkiaawaz@gmail.com" className="text-[var(--muted)] text-sm hover:text-[var(--primary)] block">
+                      संपर्क: vaamkiaawaz@gmail.com
+                    </a>
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTranslate(!showTranslate)}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
+                        title="Translate"
+                      >
+                        <Languages className="h-4 w-4" />
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => { setIsMobileNavOpen(false); setIsAuthModalOpen(true); }}
+                        className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)]"
+                      >
+                        <LogIn className="h-3.5 w-3.5" />
+                        <span className="truncate">{currentUser ? `${roleText}` : "लॉगिन"}</span>
+                      </button>
+                      
+                      <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary text-xs px-3 py-1.5">
+                        सदस्यता में
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 lg:hidden">
+                    <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary flex w-full justify-center">
+                      लाइव कवरेज
+                    </a>
+                  </div>
+                  
                   <div className="mb-4">
                     <input
                       type="search"
@@ -2309,7 +2370,7 @@ export default function ClientPage({
           </AnimatePresence>
         </div>
 
-        <section style={{ height: 36, background: "var(--crimson)", display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0 }}>
+        <section className="home-breaking" style={{ height: 36, background: "var(--crimson)", display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0 }}>
           <div
             style={{
               background: "var(--crimson-dark)",
@@ -2375,12 +2436,13 @@ export default function ClientPage({
               </div>
             </div>
 
-            <div style={{ position: "absolute", bottom: 40, left: 40, right: 16, maxWidth: 620, zIndex: 10 }}>
+            <div className="hero-overlay" style={{ position: "absolute", bottom: 40, left: 40, right: 16, maxWidth: 620, zIndex: 10 }}>
               <span className={`cat-pill ${getCategoryClass(featuredForDisplay[0].category)}`} style={{ marginBottom: 10, display: "inline-block" }}>
                 {featuredForDisplay[0].category}
               </span>
               <Link href={`/post/${featuredForDisplay[0].id}`} onClick={() => handlePostClick(featuredForDisplay[0].id)} style={{ textDecoration: "none" }}>
                 <h1
+                  className="hero-overlay__title"
                   style={{
                     fontFamily: "'Noto Serif Devanagari', serif",
                     fontSize: "clamp(30px, 5vw, 52px)",
@@ -2399,11 +2461,11 @@ export default function ClientPage({
                 </h1>
               </Link>
               <div
-                className="excerpt-html"
+                className="excerpt-html hero-overlay__excerpt"
                 style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 16, lineHeight: 1.7, color: "var(--cream-dim)", marginBottom: 16, WebkitLineClamp: 2 }}
                 dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--gold)", marginBottom: 20 }}>
+              <div className="hero-overlay__meta" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--gold)", marginBottom: 20 }}>
                 {featuredForDisplay[0].authorImage && (
                   <img src={featuredForDisplay[0].authorImage} alt="" className="avatar-circle" style={{ width: 24, height: 24, objectFit: "cover", border: "2px solid var(--crimson)" }} />
                 )}
@@ -2463,18 +2525,18 @@ export default function ClientPage({
           </section>
         )}
 
-        <main className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          <section className="space-y-6 lg:col-span-8">
-            <section style={{ background: "var(--surface)", padding: "8px 0 16px" }}>
+        <main className="home-main grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <section className="home-main__primary space-y-6 lg:col-span-8">
+            <section className="home-priorities" style={{ background: "var(--surface)", padding: "8px 0 16px" }}>
               <SectionHeader title="आज की प्राथमिकताएँ" href="/" linkText="सभी देखें →" />
-              <div className="cards-grid-responsive" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+              <div className="cards-grid-responsive cards-grid-2up">
                 {filteredNews.slice(1, 5).map((story) => (
                   <ArticleCard key={story.id} {...articleCardProps(story)} />
                 ))}
               </div>
             </section>
 
-            <section id="latest" className="scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="latest" className="home-latest scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">ताज़ा खबरें</h3>
                 <span className="text-sm text-[var(--muted)]">
@@ -2527,7 +2589,7 @@ export default function ClientPage({
               )}
             </section>
 
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section className="home-vichar rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="mb-4 font-serif text-2xl font-bold text-[var(--headline)]">विचार</h3>
               <div className="grid gap-3">
                 {opinionPieces.map((item) => (
@@ -2543,8 +2605,8 @@ export default function ClientPage({
             </section>
           </section>
 
-          <aside className="space-y-6 lg:col-span-4 lg:self-start lg:sticky lg:top-[170px] lg:max-h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
-            <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+          <aside className="home-aside space-y-6 lg:col-span-4 lg:self-start lg:sticky lg:top-[170px] lg:max-h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
+            <section className="home-topread rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="mb-3 font-serif text-xl font-bold text-[var(--headline)]">सबसे ज्यादा पढ़ी गईं</h3>
               <div className="space-y-3">
                 {topReadPosts.map((story, index) => (
@@ -2564,7 +2626,7 @@ export default function ClientPage({
               </div>
             </section>
 
-            <section id="resources" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="resources" className="home-resources rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">संसाधन</h3>
               <div className="mt-3 space-y-3 text-sm">
                 {resources.length === 0 ? (
@@ -2673,7 +2735,7 @@ export default function ClientPage({
               )}
             </section>
 
-            <section id="newsletter" className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="newsletter" className="home-newsletter rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="font-serif text-xl font-bold text-[var(--headline)]">न्यूज़लेटर</h3>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
                 रोज़ शाम 7 बजे दिनभर की प्रमुख खबरें और विश्लेषण सीधे आपके ईमेल पर।
@@ -2707,7 +2769,7 @@ export default function ClientPage({
               {newsletterMessage && <p className="mt-3 text-sm text-[var(--primary)]">{newsletterMessage}</p>}
             </section>
 
-            <section id="abhiyan-calendar" className="scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+            <section id="abhiyan-calendar" className="home-calendar scroll-m-32 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-serif text-xl font-bold text-[var(--headline)]">अभियान कैलेंडर</h3>
                 <button onClick={() => setEventArchiveModalOpen(true)} className="text-xs font-semibold text-[var(--primary)] hover:underline">आर्काइव</button>
@@ -2738,7 +2800,7 @@ export default function ClientPage({
         </main>
 
         {filteredNews.slice(5, 8).length > 0 && (
-          <section style={{ background: "var(--cream)", padding: "60px 24px", marginTop: 16, marginLeft: -16, marginRight: -16 }}>
+          <section className="home-ground" style={{ background: "var(--cream)", padding: "60px 24px", marginTop: 16, marginLeft: -16, marginRight: -16 }}>
             <div style={{ maxWidth: 1280, margin: "0 auto" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
                 <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--crimson)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
@@ -2791,7 +2853,7 @@ export default function ClientPage({
         )}
 
         {filteredNews.length > 1 && (
-          <section style={{ background: "var(--surface)", padding: "60px 0" }}>
+          <section className="home-explainer-section" style={{ background: "var(--surface)", padding: "60px 0" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto" }}>
               <SectionHeader title="समझें सिर्फ 3 मिनट में" badge="3 मिनट" />
             </div>
@@ -2810,7 +2872,7 @@ export default function ClientPage({
           </section>
         )}
 
-        <section style={{ background: "var(--surface)", padding: "40px 0" }}>
+        <section className="home-tracker-section" style={{ background: "var(--surface)", padding: "40px 0" }}>
           <SectionHeader title="सक्रिय संघर्ष ट्रैकर" badge="LIVE" />
           <div style={{ border: "1px solid var(--divider)" }}>
             {movementTracker.map((m, i) => (
@@ -2839,7 +2901,7 @@ export default function ClientPage({
           </div>
         </section>
 
-        <section id="blogs" className="mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+        <section id="blogs" className="home-blogs mt-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="mb-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">समाचार</h3>
             <div className="flex items-center gap-3">
@@ -2915,7 +2977,7 @@ export default function ClientPage({
           )}
         </section>
 
-        <section className="my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+        <section className="home-addnews my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई खबर जोड़ें</h3>
           {!canPublishBlog && (
             <p className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
@@ -3559,11 +3621,11 @@ export default function ClientPage({
           </div>
         )}
 
-        <footer style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+        <footer className="site-footer" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="footer-grid" style={{ marginBottom: 40 }}>
               <div>
-              <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12}}className={theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}>वाम की आवाज़</div>
+              <div className={`site-footer__brand ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12}}>वाम की आवाज़</div>
                 <p style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", marginBottom: 16 }}>
                   जन संघर्षों की कहानियाँ, संदर्भ और आवाज़। हम पत्रकार नहीं, पहरेदार हैं—न्याय और समता के।
                 </p>

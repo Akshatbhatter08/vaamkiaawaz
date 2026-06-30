@@ -139,12 +139,59 @@ export function getTodayHindi(): string {
 /**
  * Speak Hindi text using the best available browser voice
  */
+// Warm up the voice list early. Chrome populates voices asynchronously, so we
+// prime getVoices() and cache via the voiceschanged event. This way the list is
+// ready by the time the user clicks, and we can speak synchronously in the
+// click handler (Chrome ignores speak() calls made outside a user gesture).
+let cachedVoices: SpeechSynthesisVoice[] = [];
+if (typeof window !== "undefined" && window.speechSynthesis) {
+  const refreshVoices = () => {
+    const v = window.speechSynthesis.getVoices();
+    if (v.length) cachedVoices = v;
+  };
+  refreshVoices();
+  window.speechSynthesis.addEventListener?.("voiceschanged", refreshVoices);
+}
+
+// Split into short, sentence-sized chunks. Chrome silently fails to speak (or
+// cuts off after ~15s on) long single utterances, while Firefox handles them.
+// Queuing many short utterances avoids this entirely.
+function chunkForSpeech(text: string): string[] {
+  const pieces = text.match(/[^।.!?\n]+[।.!?\n]*/g) || [text];
+  const chunks: string[] = [];
+  let current = "";
+  for (const piece of pieces) {
+    if ((current + piece).length > 180 && current) {
+      chunks.push(current.trim());
+      current = piece;
+    } else {
+      current += piece;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
 let lastSpokenText = "";
+let keepAlive: ReturnType<typeof setInterval> | null = null;
+function stopKeepAlive() {
+  if (keepAlive) {
+    clearInterval(keepAlive);
+    keepAlive = null;
+  }
+}
+
 export function speakHindiText(text: string) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
+  const synth = window.speechSynthesis;
 
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
+  // Recover the engine if a previous run left it paused/stuck (Chrome quirk)
+  if (synth.paused) synth.resume();
+
+  // Toggle off if the same text is already being spoken
+  if (synth.speaking || synth.pending) {
+    stopKeepAlive();
+    synth.cancel();
     if (lastSpokenText === text) {
       lastSpokenText = "";
       return;
@@ -152,34 +199,51 @@ export function speakHindiText(text: string) {
   }
 
   lastSpokenText = text;
-  const u = new SpeechSynthesisUtterance(text.slice(0, 4000));
-  u.lang = "hi-IN";
-  u.rate = 0.8; // Noticeably slower for clarity
-  
-  const voices = window.speechSynthesis.getVoices();
-  const hindiVoices = voices.filter(v => v.lang.includes("hi") || v.lang.includes("hi-IN"));
-  
-  const preferredVoices = [
-    "swara",
-    "madhur",
-    "google",
-    "lekha",
-    "hemant",
-    "kalpana"
-  ];
-  
-  let selectedVoice = null;
-  for (const pref of preferredVoices) {
-    selectedVoice = hindiVoices.find(v => v.name.toLowerCase().includes(pref));
-    if (selectedVoice) break;
-  }
-  
-  if (selectedVoice) {
-    u.voice = selectedVoice;
-  } else if (hindiVoices.length > 0) {
-    u.voice = hindiVoices[0];
-  }
 
-  window.speechSynthesis.speak(u);
+  const voices = cachedVoices.length ? cachedVoices : synth.getVoices();
+  const hindiVoices = voices.filter(v => v.lang.toLowerCase().includes("hi"));
+
+  const preferredVoices = ["swara", "madhur", "lekha", "hemant", "kalpana", "google"];
+  const pickByName = (list: SpeechSynthesisVoice[]) => {
+    for (const pref of preferredVoices) {
+      const found = list.find(v => v.name.toLowerCase().includes(pref));
+      if (found) return found;
+    }
+    return undefined;
+  };
+  // Prefer locally-installed voices: Chrome can silently fail on network
+  // ("online"/Google) voices when they're unavailable.
+  const localHindi = hindiVoices.filter(v => v.localService);
+  const selectedVoice =
+    pickByName(localHindi) ||
+    localHindi[0] ||
+    pickByName(hindiVoices) ||
+    hindiVoices[0];
+
+  const chunks = chunkForSpeech(text.slice(0, 8000));
+  chunks.forEach((chunk, i) => {
+    const u = new SpeechSynthesisUtterance(chunk);
+    u.lang = "hi-IN";
+    u.rate = 0.85;
+    if (selectedVoice) u.voice = selectedVoice;
+    if (i === chunks.length - 1) {
+      u.onend = stopKeepAlive;
+      u.onerror = stopKeepAlive;
+    }
+    // Speak synchronously within the user gesture — deferring (setTimeout /
+    // voiceschanged) silently fails in Chrome.
+    synth.speak(u);
+  });
+
+  // Keep-alive: defeats Chrome's bug where speech halts after ~15s.
+  stopKeepAlive();
+  keepAlive = setInterval(() => {
+    if (!synth.speaking) {
+      stopKeepAlive();
+      return;
+    }
+    synth.pause();
+    synth.resume();
+  }, 9000);
 }
 

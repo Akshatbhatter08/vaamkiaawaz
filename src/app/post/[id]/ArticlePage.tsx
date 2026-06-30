@@ -54,11 +54,11 @@ const SunIcon = () => (
 const WhatsappIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.885-9.885 9.885m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
 );
-const FacebookIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5.5 w-5.5" fill="currentColor"><g transform="translate(0 -1.5)"><path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z"/></g></svg>
+const FacebookIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className || "h-5.5 w-5.5"} fill="currentColor"><g transform="translate(0 -1.5)"><path d="M13.5 21v-7h2.3l.4-2.8h-2.7V9.5c0-.8.2-1.4 1.4-1.4h1.4V5.6c-.2 0-1.1-.1-2.1-.1-2.1 0-3.5 1.3-3.5 3.7v2h-2.3V14H11v7h2.5z"/></g></svg>
 );
 const TwitterIcon = ({ className = "" }) => (
-  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
     <g transform="scale(1.03) translate(0 -2)">
       <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.3L6.5 22H3.4l7.3-8.3L1 2h6.2l4.3 5.7L18.9 2zm-1.1 18h1.7L6.3 3.9H4.5L17.8 20z" />
     </g>
@@ -66,7 +66,7 @@ const TwitterIcon = ({ className = "" }) => (
 );
 
 const InstagramIcon = ({ className = "" }) => (
-  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
     <g transform="scale(1.03) translate(0 -2)">
       <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z" />
     </g>
@@ -400,7 +400,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
 
         {/* ─── Top bar ─── */}
-        <div className="article-no-print flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
+        <div className="article-no-print hidden min-[550px]:flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span className="shrink-0 whitespace-nowrap">
             {new Date().toLocaleDateString("hi-IN", {
               day: "2-digit",
@@ -473,7 +473,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         >
           <header
             id="top"
-            className="headline-fade"
+            className="headline-fade home-header"
             style={{
               background: "var(--ink)",
               padding: "10px 24px",
@@ -484,26 +484,26 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               borderBottom: "1px solid var(--divider)",
             }}
           >
-            <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
+            <Link href="/" className="home-header__brand" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
             <img
                 src="/vaamki-logo.png"
                 alt="वाम की आवाज़ लोगो"
                 onError={(event) => {
                   event.currentTarget.src = "/vercel.svg";
                 }}
-                className="shrink-0 object-contain"
+                className="home-header__logo shrink-0 object-contain"
                 style={{ width: 65, height: 65, border: "1px solid var(--divider)", background: "var(--surface-mid)", padding: 3 }}
               />
-              <div>
-                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
+              <div className="home-header__titles">
+                <div className="home-header__title" style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
                   वाम की आवाज़ (Vaam Ki Aawaz)
                 </div>
-                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
+                <div className="home-header__subtitle" style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
                   विकल्प की डिजिटल दुनिया
                 </div>
               </div>
             </Link>
-            <div className="hidden sm:block" style={{ position: "absolute", right: 24 }}>
+            <div className="hidden lg:block" style={{ position: "absolute", right: 24 }}>
               <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary">
                 लाइव कवरेज
               </a>
@@ -646,6 +646,66 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       <X className="h-4 w-4" />
                     </button>
                   </div>
+
+                  <div className="mb-4 flex flex-col gap-3 min-[450px]:hidden border-b border-[var(--line)] pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => changeFontSize(-1)}
+                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
+                        >
+                          अ−
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => changeFontSize(1)}
+                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
+                        >
+                          अ+
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon /></a>
+                        <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon /></a>
+                        <a href="https://www.instagram.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
+                      </div>
+                    </div>
+                    
+                    <a href="mailto:vaamkiaawaz@gmail.com" className="text-[var(--muted)] text-sm hover:text-[var(--primary)] block">
+                      संपर्क: vaamkiaawaz@gmail.com
+                    </a>
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowTranslate(!showTranslate)}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
+                        title="Translate"
+                      >
+                        <Languages className="h-4 w-4" />
+                      </button>
+                      
+                      <button
+                        onClick={() => { setIsMobileNavOpen(false); handleLoginClick(); }}
+                        className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)]"
+                      >
+                        <LogIn className="h-3.5 w-3.5" />
+                        <span className="truncate">{sessionEmail ? roleText || "लॉगिन है" : "लॉगिन"}</span>
+                      </button>
+                      
+                      <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary text-xs px-3 py-1.5">
+                        सदस्यता में
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="mb-4 lg:hidden">
+                    <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary flex w-full justify-center">
+                      लाइव कवरेज
+                    </a>
+                  </div>
+
                   <div className="mb-4">
                     <input
                       type="search"
@@ -714,7 +774,21 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           <article className="article-paper lg:col-span-8 min-w-0 h-fit space-y-4 p-5 sm:p-8">
 
             {isEditing ? (
-              <div className="space-y-4 mb-8 bg-[var(--surface-soft)] p-6 rounded-xl border border-[var(--primary)]">
+              <div
+                className="article-edit-shell space-y-4 mb-8 bg-[var(--surface-soft)] p-6 rounded-xl border border-[var(--primary)]"
+                style={theme === "dark" ? ({
+                  "--surface": "#ffffff",
+                  "--surface-soft": "#f8f3ea",
+                  "--surface-mid": "#ede9e0",
+                  "--surface-high": "#ede9e0",
+                  "--foreground": "#0F0F0F",
+                  "--headline": "#14110f",
+                  "--text-primary": "#0F0F0F",
+                  "--muted": "#0F0F0F",
+                  "--line": "#e5ded9",
+                  background: "#f8f3ea",
+                } as CSSProperties) : undefined}
+              >
                 <h2 className="text-xl font-bold text-[var(--primary)] mb-4">लेख संपादित करें</h2>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">शीर्षक (Title)</label>
@@ -805,7 +879,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 </div>
 
                 {/* Abstract box */}
-                <div className="article-invert rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
+                <div className="article-invert article-abstract rounded-xl border-l-4 border-[var(--primary)] bg-[var(--surface-soft)] p-5">
                   <ArticleRichText
                     html={post.excerpt || ""}
                     className="italic"
@@ -867,7 +941,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <WhatsappIcon />
                 </button>
                 <button onClick={handleFacebook} title="Facebook" className="article-share-icon hover:!text-[#1877F2] hover:!border-[#1877F2]">
-                  <FacebookIcon />
+                  <FacebookIcon/>
                 </button>
                 <button onClick={handlePrint} title="प्रिंट" className="article-share-icon">
                   <Printer className="h-5 w-5" />
@@ -987,17 +1061,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         )}
 
         {/* Footer */}
-        <footer className="article-no-print" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+        <footer className="article-no-print site-footer" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="footer-grid" style={{ marginBottom: 40 }}>
               <div>
-                <div style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12 }} className={theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}>वाम की आवाज़</div>
+                <div className={`site-footer__brand ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12 }}>वाम की आवाज़</div>
                 <p style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", marginBottom: 16 }}>
                   जन संघर्षों की कहानियाँ, संदर्भ और आवाज़। हम पत्रकार नहीं, पहरेदार हैं—न्याय और समता के।
                 </p>
                 <div style={{ display: "flex", gap: 12 }}>
                   <a href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="Facebook">
-                    <FacebookIcon />
+                    <FacebookIcon className="h-5.5 w-5.5" />
                   </a>
                   <a href="https://www.youtube.com/@VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="YouTube">
                     <YoutubeIcon className="h-[18px] w-[18px]" />
@@ -1066,24 +1140,32 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       {/* Mobile sticky share bar */}
       <div
         className="mobile-share-bar article-no-print"
-        style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 52, background: "var(--surface-mid)", borderTop: "1px solid var(--divider)", zIndex: 100, padding: "0 16px" }}
+        style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--surface-mid)", borderTop: "1px solid var(--divider)", zIndex: 100, padding: "5px 14px calc(5px + env(safe-area-inset-bottom))" }}
       >
-        <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", height: "100%" }}>
-          <button onClick={handleWhatsapp} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "#25D366", cursor: "pointer" }}>
-            <WhatsappIcon />
-            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>WhatsApp</span>
+        <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start", width: "100%" }}>
+          <button onClick={handleWhatsapp} aria-label="WhatsApp" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "50%", background: "#25D366", color: "#fff" }}>
+              <span style={{ display: "flex", transform: "scale(1.1)" }}><WhatsappIcon /></span>
+            </span>
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--text-secondary)" }}>WhatsApp</span>
           </button>
-          <button onClick={handleFacebook} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "#1877F2", cursor: "pointer" }}>
-            <FacebookIcon />
-            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>Facebook</span>
+          <button onClick={handleFacebook} aria-label="Facebook" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "50%", background: "#1877F2", color: "#fff" }}>
+              <span style={{ display: "flex", transform: "scale(0.82)" }}><FacebookIcon /></span>
+            </span>
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--text-secondary)" }}>Facebook</span>
           </button>
-          <button onClick={handleCopy} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
-            {copied ? <Check className="h-[18px] w-[18px]" /> : <Copy className="h-[18px] w-[18px]" />}
-            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>कॉपी</span>
+          <button onClick={handleCopy} aria-label="Copy" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "50%", background: theme === "dark" ? "var(--surface-high)" : "#ece7dd", color: copied ? "#25D366" : "var(--text-primary)", border: "1px solid var(--divider)" }}>
+              {copied ? <Check className="h-[17px] w-[17px]" /> : <Copy className="h-[17px] w-[17px]" />}
+            </span>
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--text-secondary)" }}>{copied ? "Copied" : "Copy"}</span>
           </button>
-          <button onClick={handlePrint} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}>
-            <Printer className="h-[18px] w-[18px]" />
-            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9, color: "var(--text-muted)" }}>प्रिंट</span>
+          <button onClick={handlePrint} aria-label="Print" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "50%", background: theme === "dark" ? "var(--surface-high)" : "#ece7dd", color: "var(--text-primary)", border: "1px solid var(--divider)" }}>
+              <Printer className="h-[17px] w-[17px]" />
+            </span>
+            <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "var(--text-secondary)" }}>Print</span>
           </button>
         </div>
       </div>

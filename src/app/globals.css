@@ -207,6 +207,36 @@ body {
 .cat-rajniti { background: rgba(50,80,130,0.15) !important; border: 1px solid #3d6494 !important; color: #7aaad4 !important; }
 .cat-default { background: rgba(180,34,34,0.1) !important; border: 1px solid #5a403e !important; color: #e2beba !important; }
 
+/* Light mode: the pale pill text is unreadable on the light translucent
+   backgrounds. Use a darker, more vivid shade of each tag's own color. */
+[data-theme="light"] .cat-jansangharsh, .theme-light .cat-jansangharsh { color: #8f1212 !important; }
+[data-theme="light"] .cat-rashtriya, .theme-light .cat-rashtriya { color: #14572f !important; }
+[data-theme="light"] .cat-rajya, .theme-light .cat-rajya { color: #1f3f66 !important; }
+[data-theme="light"] .cat-blog, .theme-light .cat-blog { color: #5a1f86 !important; }
+[data-theme="light"] .cat-vichar, .theme-light .cat-vichar { color: #8a6308 !important; }
+[data-theme="light"] .cat-atithi, .theme-light .cat-atithi { color: #7d5800 !important; }
+[data-theme="light"] .cat-mazdoor, .theme-light .cat-mazdoor { color: #8a3508 !important; }
+[data-theme="light"] .cat-shiksha, .theme-light .cat-shiksha { color: #0a505e !important; }
+[data-theme="light"] .cat-mahila, .theme-light .cat-mahila { color: #84105f !important; }
+[data-theme="light"] .cat-andolan, .theme-light .cat-andolan { color: #8f1212 !important; }
+[data-theme="light"] .cat-rajniti, .theme-light .cat-rajniti { color: #1f3f66 !important; }
+[data-theme="light"] .cat-default, .theme-light .cat-default { color: #7a2420 !important; }
+
+/* Dark mode: use a more saturated, vivid shade of each tag's color so the
+   label pops on the dark translucent backgrounds instead of looking pale. */
+[data-theme="dark"] .cat-jansangharsh, .theme-dark .cat-jansangharsh { color: #ff6f5c !important; }
+[data-theme="dark"] .cat-rashtriya, .theme-dark .cat-rashtriya { color: #3fd98a !important; }
+[data-theme="dark"] .cat-rajya, .theme-dark .cat-rajya { color: #6bb2ff !important; }
+[data-theme="dark"] .cat-blog, .theme-dark .cat-blog { color: #bb6dff !important; }
+[data-theme="dark"] .cat-vichar, .theme-dark .cat-vichar { color: #ffc620 !important; }
+[data-theme="dark"] .cat-atithi, .theme-dark .cat-atithi { color: #ffbe1f !important; }
+[data-theme="dark"] .cat-mazdoor, .theme-dark .cat-mazdoor { color: #ff8f3c !important; }
+[data-theme="dark"] .cat-shiksha, .theme-dark .cat-shiksha { color: #36cde8 !important; }
+[data-theme="dark"] .cat-mahila, .theme-dark .cat-mahila { color: #ff5ccb !important; }
+[data-theme="dark"] .cat-andolan, .theme-dark .cat-andolan { color: #ff6f5c !important; }
+[data-theme="dark"] .cat-rajniti, .theme-dark .cat-rajniti { color: #6bb2ff !important; }
+[data-theme="dark"] .cat-default, .theme-dark .cat-default { color: #ff6f5c !important; }
+
 /* ═══════════════════════════════════════════════════════════════
    CARD SYSTEM
    ═══════════════════════════════════════════════════════════════ */
@@ -466,6 +496,13 @@ body {
   font-size: 16px;
 }
 
+/* Published article body: normalize legacy 20px body text down to 16px.
+   Scoped to the reading view (:not(.ProseMirror)) so the editor's
+   font-size tool keeps showing exactly what the author set. */
+.article-body:not(.ProseMirror) [style*="font-size: 20px"] {
+  font-size: 16px !important;
+}
+
 .article-body p {
   margin-bottom: 20px;
   word-break: normal;
@@ -485,6 +522,13 @@ body {
   font-size: 18px;
   line-height: 1.65;
   color: var(--cream);
+}
+
+/* Blockquote text is italic by default, but the Italic toggle lets the
+   user de-italicize specific text on intent. */
+.article-body blockquote em,
+.article-body blockquote i {
+  font-style: normal;
 }
 
 .article-body a {
@@ -613,6 +657,10 @@ body {
   margin-left: 0;
   margin-right: 0;
   color: var(--muted);
+}
+.ProseMirror blockquote em,
+.ProseMirror blockquote i {
+  font-style: normal;
 }
 .ProseMirror ul, .ProseMirror ol { padding-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
 .ProseMirror ul { list-style-type: disc; }
@@ -1093,8 +1141,32 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .hero-side-panel { display: block !important; }
 }
 
+/* Tablet & below: hero adapts to a fixed, generous portrait-friendly height */
 @media (max-width: 1023px) {
-  .hero-section { height: auto !important; }
+  .hero-section { height: 460px !important; }
+}
+
+@media (max-width: 768px) {
+  .hero-section { height: 440px !important; }
+  /* Pull the hero overlay copy closer to the edges on phones (matches mobile reference) */
+  .hero-section .hero-overlay {
+    bottom: 20px !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .hero-section { height: 400px !important; }
+}
+
+/* Priorities grid — 2-up on desktop/tablet, single column on phones.
+   Replaces a former inline override so the responsive rules can take effect. */
+.cards-grid-2up { grid-template-columns: repeat(2, 1fr); }
+
+@media (max-width: 768px) {
+  .cards-grid-2up { grid-template-columns: 1fr !important; }
 }
 
 /* Horizontal explainer scroll */
@@ -1158,9 +1230,40 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Inner inverted (dark) callout boxes keep their light text in dark mode */
 .theme-dark .article-paper .article-invert,
 [data-theme="dark"] .article-paper .article-invert {
-  --foreground: #E5E2E1;
-  --muted: #B0A8A8;
-  --line: #2C2C2C;
+  --foreground: #FFFFFF;
+  --text-primary: #FFFFFF;
+  --muted: #C9C4C4;
+  --line: #3a3a3a;
+  --surface-soft: #333333;
+}
+
+/* Abstract callout: lighter box + forced readable white text in dark mode
+   (forces over any inline text colors saved in the excerpt HTML) */
+.theme-dark .article-paper .article-abstract,
+[data-theme="dark"] .article-paper .article-abstract {
+  background: #333333 !important;
+}
+.theme-dark .article-paper .article-abstract,
+.theme-dark .article-paper .article-abstract *,
+[data-theme="dark"] .article-paper .article-abstract,
+[data-theme="dark"] .article-paper .article-abstract * {
+  color: #FFFFFF !important;
+}
+
+/* Edit form inside the cream article paper: restore readable dark-theme
+   surfaces + light text (avoids the paper's dark-ink vars making it dark-on-dark) */
+.theme-dark .article-paper .article-edit-shell,
+[data-theme="dark"] .article-paper .article-edit-shell {
+  --foreground: #0F0F0F;
+  --headline: #14110f;
+  --text-primary: #0F0F0F;
+  --muted: #0F0F0F;
+  --line: #e5ded9;
+  --surface: #ffffff;
+  --surface-soft: #f8f3ea;
+  --surface-mid: #ede9e0;
+  --surface-high: #ede9e0;
+  background: #f8f3ea !important;
 }
 
 /* Light mode: same editorial aesthetic, lighter offset appropriate for theme */
@@ -1368,4 +1471,312 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .author-hero__trust { align-items: center; }
   .author-stats { grid-template-columns: 1fr; }
   .author-hero__name { font-size: 28px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHARED RESPONSIVE SYSTEM
+   One coherent set of breakpoints reused across Homepage, Article
+   and Author pages. Desktop appearance is intentionally unchanged;
+   these rules only tune phone/tablet density and ultrawide width.
+   Breakpoints: ≤768 phones · 769–1023 tablet · 1024+ desktop
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Footer: progressive density down to phones ── */
+.site-footer__brand { font-size: 42px; line-height: 1.1; }
+
+@media (max-width: 1023px) {
+  .site-footer { padding: 40px 20px 22px !important; }
+}
+
+@media (max-width: 768px) {
+  .site-footer { padding: 36px 16px 20px !important; }
+  .site-footer .footer-grid { gap: 28px !important; margin-bottom: 28px !important; }
+  .site-footer__brand { font-size: 34px; }
+}
+
+@media (max-width: 480px) {
+  .site-footer { padding: 32px 16px 20px !important; }
+  .site-footer__brand { font-size: 30px; }
+}
+
+/* ── Ultrawide: keep editorial content from stretching too wide ──
+   The page shell stays at max-width:1600px (declared inline) but on very
+   large monitors we add comfortable side breathing room without altering
+   the approved desktop look at common widths. */
+@media (min-width: 1800px) {
+  .news-shell > .mx-auto {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
+/* ── Phone typography & spacing density (shared) ── */
+@media (max-width: 768px) {
+  /* Section header rhythm tightens on phones */
+  .section-header { gap: 12px; margin-bottom: 22px; }
+
+  /* Card headlines read slightly larger relative to dense phone layout */
+  .cards-grid-responsive .card-headline { font-size: 19px; }
+}
+
+/* ── Article page: phone reading comfort ── */
+@media (max-width: 768px) {
+  .article-body { font-size: 16px; }
+  .article-body h1 { font-size: 26px; }
+  .article-body h2 { font-size: 22px; margin: 28px 0 12px; }
+  .article-body h3 { font-size: 18px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOMEPAGE — MOBILE PARITY (≤768px)
+   Reproduces the approved mobile reference. Desktop is untouched:
+   every rule below is scoped to the phone breakpoint and to homepage
+   hooks (home-*) so larger viewports keep the existing layout.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* ── Page shell: tighter side gutters to match the reference ── */
+  .news-shell > .mx-auto {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* ── Utility top bar: keep it standard for tablet, mobile hides it entirely ── */
+
+  /* ── Header: brand row sizes increased for mobile/tablet ── */
+  .home-header {
+    padding: 12px 16px !important;
+    justify-content: space-between !important;
+  }
+  .home-header__brand {
+    min-width: 0 !important;
+    gap: 12px !important;
+  }
+  .home-header__logo {
+    width: 52px !important;
+    height: 52px !important;
+    padding: 3px !important;
+  }
+  .home-header__titles {
+    min-width: 0 !important;
+    text-align: left !important;
+  }
+  .home-header__title {
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+  }
+  .home-header__subtitle {
+    font-size: 11px !important;
+    letter-spacing: 0.08em !important;
+    text-align: left !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  /* ── Nav row: keep the menu + search/date/theme controls compact ── */
+  .home-nav__inner,
+  .home-nav__left,
+  .home-nav__actions {
+    min-width: 0 !important;
+  }
+
+  /* ── Breaking ticker stays as a thin strip ── */
+  .home-breaking { height: 30px !important; }
+
+  /* ── HERO ─────────────────────────────────────────────────────
+     Full-bleed image, headline + excerpt + CTA stacked lower-left. */
+  .hero-section {
+    height: 78vw !important;
+    min-height: 360px !important;
+    max-height: 460px !important;
+    margin-top: 12px !important;
+    margin-bottom: 12px !important;
+    border-radius: 12px !important;
+  }
+  .hero-section .hero-overlay {
+    bottom: 18px !important;
+    left: 16px !important;
+    right: 16px !important;
+    max-width: none !important;
+  }
+  .hero-overlay__title {
+    font-size: 24px !important;
+    line-height: 1.25 !important;
+    margin: 6px 0 8px !important;
+    -webkit-line-clamp: 3 !important;
+  }
+  .hero-overlay__excerpt {
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+    margin-bottom: 12px !important;
+    -webkit-line-clamp: 2 !important;
+  }
+  .hero-overlay__meta {
+    font-size: 11px !important;
+    gap: 6px !important;
+    margin-bottom: 14px !important;
+  }
+  .hero-overlay .btn-primary {
+    padding: 8px 18px !important;
+    font-size: 12px !important;
+  }
+
+  /* ── MAIN GRID: pure single column, comfortable rhythm ── */
+  .home-main {
+    min-width: 0 !important;
+    gap: 28px !important;
+  }
+  .home-main__primary { gap: 0 !important; }
+  .home-main__primary > * + * { margin-top: 28px !important; }
+
+  /* Section cards: lighten chrome so content reads edge-to-edge */
+  .home-main__primary,
+  .home-aside,
+  .home-latest,
+  .home-vichar,
+  .home-topread,
+  .home-resources,
+  .home-newsletter,
+  .home-calendar,
+  .home-blogs,
+  .home-addnews {
+    min-width: 0 !important;
+    padding: 16px !important;
+  }
+
+  /* Priorities: single large image-forward card per the reference */
+  .home-priorities { padding: 0 !important; }
+  .home-priorities .section-header { margin-bottom: 14px !important; }
+  .cards-grid-responsive.cards-grid-2up {
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+  }
+  .home-priorities .article-card,
+  .home-latest button,
+  .home-vichar button,
+  .home-topread button,
+  .home-resources [class*="rounded-md"],
+  .home-calendar [class*="rounded-md"],
+  .home-blogs a {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .home-priorities .article-card *,
+  .home-latest button *,
+  .home-vichar button *,
+  .home-topread button *,
+  .home-resources *,
+  .home-calendar *,
+  .home-blogs a * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .home-priorities .article-card .card-image-container { aspect-ratio: 16/10 !important; }
+  .home-priorities .article-card .card-headline { font-size: 20px !important; }
+
+  /* Section titles: consistent, slightly smaller serif headings */
+  .home-latest > div h3,
+  .home-vichar h3,
+  .home-topread h3,
+  .home-resources h3,
+  .home-newsletter h3,
+  .home-calendar h3,
+  .home-blogs > div h3 {
+    font-size: 20px !important;
+  }
+
+  /* Latest + blogs feeds: single column, image-first cards */
+  .home-latest .grid,
+  .home-blogs .grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .home-latest img.h-40,
+  .home-blogs img.h-40 { height: 200px !important; }
+
+  /* Sidebar flows inline below the main column */
+  .home-aside { gap: 28px !important; }
+
+  /* ── GROUND REPORT (cream): single column, image-forward ── */
+  .home-ground {
+    padding: 36px 16px !important;
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+  }
+  .home-ground .ground-report-grid { gap: 18px !important; }
+
+  /* ── EXPLAINER (समझें 3 मिनट): keep horizontal scroll, tighter ── */
+  .home-explainer-section { padding: 36px 0 !important; }
+  .home-explainer-section .explainer-scroll > a {
+    width: min(240px, calc(100vw - 48px)) !important;
+  }
+
+  /* ── TRACKER ── */
+  .home-tracker-section { padding: 28px 0 !important; }
+
+  /* ── NEWSLETTER CTA block emphasis (matches reference) ── */
+  .home-newsletter h3 { font-size: 20px !important; }
+
+  /* ── FOOTER: brand, two-column links, bottom bar ── */
+  .site-footer {
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+  }
+  .site-footer .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 24px !important;
+  }
+  /* Brand block spans full width above the link columns */
+  .site-footer .footer-grid > div:first-child {
+    grid-column: 1 / -1 !important;
+  }
+  .site-footer__brand { font-size: 30px !important; margin-bottom: 10px !important; }
+}
+
+@media (max-width: 430px) {
+  .news-shell > .mx-auto {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .news-shell > .mx-auto {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .home-header {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .home-nav {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .home-nav__left {
+    flex: 0 1 auto !important;
+    padding-right: 0 !important;
+  }
+
+  .home-nav__actions {
+    gap: 6px !important;
+  }
+
+  .home-nav__actions input[type="date"] {
+    width: 96px !important;
+    min-width: 0 !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  .home-ground,
+  .site-footer {
+    margin-left: -8px !important;
+    margin-right: -8px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .home-header__title { font-size: 20px !important; }
+  .hero-overlay__title { font-size: 21px !important; }
 }
