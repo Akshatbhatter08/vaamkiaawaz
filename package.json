@@ -10,8 +10,8 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma db push",
-    "migrate:blobs": "npx tsx scripts/migrate-blobs-to-disk.ts",
-    "optimize:mysql": "npx tsx scripts/optimize-mysql.ts"
+    "migrate:blobs": "node scripts/migrate-blobs-to-disk.mjs",
+    "optimize:mysql": "node scripts/optimize-mysql.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
