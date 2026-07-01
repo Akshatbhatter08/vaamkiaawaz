@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import ArticlePage from "./ArticlePage";
 
 // Use ISR to cache the page for 30 seconds. This is critical for WhatsApp link previews,
@@ -68,6 +69,7 @@ function mapPostForClient(post: any, keepContent = false) {
     content: keepContent ? post.content : "", // Fallback empty string if content is intentionally omitted
     author: post.author,
     postImage: resolvedImage,
+    imageFocus: post.imageFocus ?? null,
     authorImage: post.authorImage ?? null,
     clickCount: post.clickCount ?? 0,
     uploaderName: post.uploaderName ?? null,
@@ -167,7 +169,7 @@ export default async function PostPage({ params }: Props) {
     );
   }
 
-  const mappedPost = mapPostForClient(post, true);
+  const mappedPost = mapPostForClient((await enrichPostsWithAuthorImages([post]))[0], true);
 
   const selectSidebarFields = {
     id: true,
@@ -176,6 +178,7 @@ export default async function PostPage({ params }: Props) {
     excerpt: true,
     author: true,
     postImage: true,
+    imageFocus: true,
     authorImage: true,
     clickCount: true,
     uploaderName: true,
@@ -223,22 +226,26 @@ export default async function PostPage({ params }: Props) {
 
   // If we don't have enough same-category posts, fill with recent popular posts
   const remainingSlots = 4 - sameCategoryPostsData.length;
-  let fillPosts: any[] = [];
+  let fillPostsData: typeof sameCategoryPostsData = [];
   if (remainingSlots > 0) {
     const excludeIds = [post.id, ...sameCategoryPostsData.map((p: any) => p.id)];
-    const fillResult = await prisma.blogPost.findMany({
+    fillPostsData = await prisma.blogPost.findMany({
       where: { id: { notIn: excludeIds } },
       select: selectSidebarFields,
       orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
       take: remainingSlots,
     });
-    fillPosts = fillResult.map(p => mapPostForClient(p, false));
   }
 
-  const sameCategoryPosts = sameCategoryPostsData.map(p => mapPostForClient(p, false));
-  const suggestedPosts = [...sameCategoryPosts, ...fillPosts];
-  const sidebarTopReads = topReadPostsData.map(p => mapPostForClient(p, false));
-  const mappedAuthorPosts = authorPostsData.map(p => mapPostForClient(p, false));
+  const enrichedSameCategory = await enrichPostsWithAuthorImages(sameCategoryPostsData);
+  const enrichedFill = await enrichPostsWithAuthorImages(fillPostsData);
+  const enrichedTopRead = await enrichPostsWithAuthorImages(topReadPostsData);
+  const enrichedAuthorPosts = await enrichPostsWithAuthorImages(authorPostsData);
+
+  const sameCategoryPosts = enrichedSameCategory.map((p) => mapPostForClient(p, false));
+  const suggestedPosts = [...sameCategoryPosts, ...enrichedFill.map((p) => mapPostForClient(p, false))];
+  const sidebarTopReads = enrichedTopRead.map((p) => mapPostForClient(p, false));
+  const mappedAuthorPosts = enrichedAuthorPosts.map((p) => mapPostForClient(p, false));
 
   return (
     <ArticlePage

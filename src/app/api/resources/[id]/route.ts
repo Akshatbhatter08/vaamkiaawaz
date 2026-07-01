@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isMediaUrl, isValidPdfRef } from "@/lib/fileStorage";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -60,13 +61,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
 
-    const dataToUpdate: any = {
+    const dataToUpdate: Record<string, unknown> = {
       title,
       type,
-      url: type === "link" ? url : null,
     };
-    if (fileData) {
-      dataToUpdate.fileData = fileData;
+
+    if (type === "link") {
+      dataToUpdate.url = url || null;
+      dataToUpdate.fileData = null;
+    } else {
+      const pdfRef = (url || fileData || "").trim();
+      if (pdfRef) {
+        if (!isValidPdfRef(pdfRef)) {
+          return NextResponse.json({ error: "Invalid PDF format" }, { status: 400 });
+        }
+        if (isMediaUrl(pdfRef)) {
+          dataToUpdate.url = pdfRef;
+          dataToUpdate.fileData = null;
+        } else {
+          dataToUpdate.fileData = pdfRef;
+          dataToUpdate.url = null;
+        }
+      }
     }
 
     const updatedResource = await prisma.resource.update({
@@ -79,7 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         id: updatedResource.id,
         title: updatedResource.title,
         type: updatedResource.type,
-        url: updatedResource.url,
+        url: updatedResource.url || updatedResource.fileData,
         createdAt: updatedResource.createdAt,
       } 
     }, { status: 200 });

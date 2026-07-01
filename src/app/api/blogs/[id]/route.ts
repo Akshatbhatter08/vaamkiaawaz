@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { isValidImageRef } from "@/lib/fileStorage";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -14,6 +16,7 @@ const mapBlog = (post: {
   content: string;
   author: string;
   postImage: string | null;
+  imageFocus?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -27,6 +30,7 @@ const mapBlog = (post: {
   content: post.content,
   author: post.author,
   postImage: post.postImage,
+  imageFocus: post.imageFocus ?? null,
   authorImage: post.authorImage,
   clickCount: post.clickCount,
   uploaderName: post.uploaderName ?? null,
@@ -42,7 +46,8 @@ export async function GET(_request: NextRequest, context: Context) {
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-    return NextResponse.json({ post: mapBlog(post) });
+    const [enriched] = await enrichPostsWithAuthorImages([post]);
+    return NextResponse.json({ post: mapBlog(enriched) });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Internal server error", details: err.message },
@@ -119,6 +124,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     content?: string;
     category?: string;
     postImage?: string | null;
+    imageFocus?: string | null;
   };
 
   const updateData: Record<string, unknown> = {};
@@ -133,7 +139,14 @@ export async function PATCH(request: NextRequest, context: Context) {
       const match = (updateData.content as string).match(/<img[^>]+src=["']([^"']+)["']/i);
       postImage = match ? match[1] : null;
     }
+    if (postImage && !isValidImageRef(postImage)) {
+      return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
+    }
     updateData.postImage = postImage;
+  }
+
+  if (body.imageFocus !== undefined) {
+    updateData.imageFocus = body.imageFocus?.trim() || null;
   }
 
   if (Object.keys(updateData).length === 0) {
@@ -148,7 +161,8 @@ export async function PATCH(request: NextRequest, context: Context) {
     data: updateData,
   });
 
-  return NextResponse.json({ post: mapBlog(updated) });
+  const [enriched] = await enrichPostsWithAuthorImages([updated]);
+  return NextResponse.json({ post: mapBlog(enriched) });
 }
 
 export async function DELETE(request: NextRequest, context: Context) {

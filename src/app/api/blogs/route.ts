@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { initialBlogSeed } from "@/lib/blog-seed";
 import { requireAuth } from "@/lib/auth";
 import { ensureBlogSchema } from "@/lib/db-setup";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
 
 const mapBlog = (post: {
   id: string;
@@ -12,6 +14,7 @@ const mapBlog = (post: {
   content?: string;
   author: string;
   postImage: string | null;
+  imageFocus?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -25,6 +28,7 @@ const mapBlog = (post: {
     content: "", // Content intentionally omitted for speed
     author: post.author,
     postImage: post.postImage,
+    imageFocus: post.imageFocus ?? null,
     authorImage: post.authorImage,
     clickCount: post.clickCount,
     uploaderName: post.uploaderName ?? null,
@@ -48,7 +52,8 @@ export async function GET() {
       });
     }
 
-    const posts = await prisma.blogPost.findMany({
+    const posts = await enrichPostsWithAuthorImages(
+      await prisma.blogPost.findMany({
       where: { isHidden: false },
       select: {
         id: true,
@@ -57,6 +62,7 @@ export async function GET() {
         excerpt: true,
         author: true,
         postImage: true,
+        imageFocus: true,
         authorImage: true,
         clickCount: true,
         uploaderName: true,
@@ -64,9 +70,11 @@ export async function GET() {
       },
       orderBy: [{ createdAt: "desc" }],
       take: 100,
-    });
+    }),
+    );
 
-    const topPosts = await prisma.blogPost.findMany({
+    const topPosts = await enrichPostsWithAuthorImages(
+      await prisma.blogPost.findMany({
       where: { isHidden: false },
       select: {
         id: true,
@@ -75,6 +83,7 @@ export async function GET() {
         excerpt: true,
         author: true,
         postImage: true,
+        imageFocus: true,
         authorImage: true,
         clickCount: true,
         uploaderName: true,
@@ -82,7 +91,8 @@ export async function GET() {
       },
       orderBy: [{ clickCount: "desc" }],
       take: 10,
-    });
+    }),
+    );
 
     return NextResponse.json(
       { posts: posts.map(mapBlog), topPosts: topPosts.map(mapBlog) },
@@ -139,6 +149,7 @@ export async function POST(request: NextRequest) {
     content?: string;
     author?: string;
     postImage?: string;
+    imageFocus?: string;
     authorImage?: string;
   };
 
@@ -152,17 +163,18 @@ export async function POST(request: NextRequest) {
     const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
     postImage = match ? match[1] : null;
   }
-  const authorImage = body.authorImage?.trim() || null;
+  const authorImage = null;
+  const imageFocus = body.imageFocus?.trim() || null;
 
   if (!title || !excerpt || !content || !author) {
     return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
   }
 
-  if (postImage && !postImage.startsWith("data:image/")) {
+  if (postImage && !isValidImageRef(postImage)) {
     return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
-  if (authorImage && !authorImage.startsWith("data:image/")) {
+  if (body.authorImage?.trim() && !isValidAuthorImageRef(body.authorImage.trim())) {
     return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
@@ -185,7 +197,9 @@ export async function POST(request: NextRequest) {
       content, 
       author, 
       postImage, 
+      imageFocus,
       authorImage,
+      authorUserId: userId,
       uploaderName: uploaderName
     },
   });
@@ -198,5 +212,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ post: mapBlog(created) }, { status: 201 });
+  const enriched = await enrichPostsWithAuthorImages([created]);
+  return NextResponse.json({ post: mapBlog(enriched[0]) }, { status: 201 });
 }

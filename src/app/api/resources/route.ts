@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isMediaUrl, isValidPdfRef } from "@/lib/fileStorage";
 
 const ensureResourceTable = async () => {
   try {
@@ -64,12 +65,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
 
+    if (type === "pdf") {
+      const pdfRef = (url || fileData || "").trim();
+      if (!pdfRef) {
+        return NextResponse.json({ error: "PDF file is required" }, { status: 400 });
+      }
+      if (!isValidPdfRef(pdfRef)) {
+        return NextResponse.json({ error: "Invalid PDF format" }, { status: 400 });
+      }
+      const storedUrl = isMediaUrl(pdfRef) ? pdfRef : null;
+      const storedFileData = !isMediaUrl(pdfRef) ? pdfRef : null;
+      const newResource = await prisma.resource.create({
+        data: {
+          title,
+          type,
+          url: storedUrl,
+          fileData: storedFileData,
+        },
+      });
+      return NextResponse.json({
+        resource: {
+          id: newResource.id,
+          title: newResource.title,
+          type: newResource.type,
+          url: newResource.url || newResource.fileData,
+          createdAt: newResource.createdAt,
+        },
+      }, { status: 201 });
+    }
+
     const newResource = await prisma.resource.create({
       data: {
         title,
         type,
         url: url || null,
-        fileData: fileData || null
+        fileData: null
       }
     });
 

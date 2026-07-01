@@ -10,6 +10,7 @@ import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
 import { ArticleRichText } from "@/utils/sanitizeHtml";
 import { getCategoryClass, formatViews, readingTime, cleanHtml, getTodayHindi, fmtDate, speakHindiText } from "@/utils/designUtils";
+import { focusToObjectPosition } from "@/lib/imageCrop";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
 import ArticleLoginModal from "@/components/ArticleLoginModal";
@@ -17,7 +18,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
-  author: string; postImage?: string | null; authorImage?: string | null;
+  author: string; postImage?: string | null; imageFocus?: string | null; authorImage?: string | null;
   clickCount?: number; uploaderName?: string | null; authorUserId?: string | null;
   createdAt: string; time: string; source: "blog";
 };
@@ -884,7 +885,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 {/* Hero image - only show if not already embedded in content */}
                 {heroImg && !post.content?.includes(heroImg) && (
                   <div className="overflow-hidden rounded-xl border border-[var(--line)]">
-                    <img src={heroImg} alt={post.title} className="article-hero-img w-full object-cover" style={{ maxHeight: 480 }} />
+                    <img src={heroImg} alt={post.title} className="article-hero-img w-full object-cover" style={{ maxHeight: 480, objectPosition: focusToObjectPosition(post.imageFocus) }} />
                   </div>
                 )}
 
@@ -1040,7 +1041,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover card-lift group flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
                   {sp.postImage && (
                     <div className="card-image-container">
-                      <img src={sp.postImage} alt="" />
+                      <img src={sp.postImage} alt="" style={{ objectPosition: focusToObjectPosition(sp.imageFocus) }} />
                     </div>
                   )}
                   <div className="flex flex-col gap-2 p-4">

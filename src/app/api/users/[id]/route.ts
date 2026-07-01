@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { isValidImageRef } from "@/lib/fileStorage";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -122,7 +123,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!nextAuthorImage) {
       return NextResponse.json({ error: "लेखक फोटो आवश्यक है।" }, { status: 400 });
     }
-    if (!nextAuthorImage.startsWith("data:image/")) {
+    if (!isValidImageRef(nextAuthorImage)) {
       return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
     const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});

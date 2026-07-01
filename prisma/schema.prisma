@@ -18,6 +18,7 @@ model BlogPost {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   postImage    String?  @db.LongText
+  imageFocus   String?  @db.VarChar(32)
   authorImage  String?  @db.LongText
   authorUserId String?
   uploaderName String?

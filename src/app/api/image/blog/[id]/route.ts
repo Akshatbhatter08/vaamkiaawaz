@@ -24,10 +24,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!dataUri.startsWith('data:image/')) {
       if (dataUri.startsWith('http')) {
         return NextResponse.redirect(dataUri);
-      } else {
-        const url = new URL(dataUri, req.url);
-        return NextResponse.redirect(url);
       }
+      const url = new URL(dataUri, req.url);
+      return NextResponse.redirect(url);
     }
 
     const matches = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);

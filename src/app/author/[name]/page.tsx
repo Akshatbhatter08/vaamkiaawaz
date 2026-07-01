@@ -31,6 +31,7 @@ type ApiBlogPost = {
   content: string;
   author: string;
   postImage: string | null;
+  imageFocus?: string | null;
   authorImage: string | null;
   clickCount: number;
   createdAt: string;
@@ -222,6 +223,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
                         title={post.title}
                         excerpt={post.excerpt}
                         imageUrl={post.postImage}
+                        imageFocus={post.imageFocus}
                         categoryName={post.category}
                         categorySlug={post.category}
                         authorName={post.author}

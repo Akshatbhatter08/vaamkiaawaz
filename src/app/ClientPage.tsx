@@ -12,6 +12,9 @@ import { ArticleRichText } from "@/utils/sanitizeHtml";
 import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
 import { SectionHeader } from "@/components/SectionHeader";
 import { ArticleCard } from "@/components/ArticleCard";
+import { ImageCropModal } from "@/components/ImageCropModal";
+import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
+import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
 import "react-quill-new/dist/quill.snow.css";
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -31,6 +34,7 @@ export type NewsPost = {
   content?: string;
   author: string;
   postImage?: string | null;
+  imageFocus?: string | null;
   authorImage?: string | null;
   time: string;
   createdAt?: string;
@@ -56,6 +60,7 @@ type ApiBlogPost = {
   content: string;
   author: string;
   postImage: string | null;
+  imageFocus?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -353,6 +358,7 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   content: post.content,
   author: post.author,
   postImage: post.postImage,
+  imageFocus: post.imageFocus ?? null,
   authorImage: post.authorImage,
   time: formatRelativeTime(post.createdAt),
   createdAt: post.createdAt,
@@ -617,8 +623,11 @@ export default function ClientPage({
     excerpt: "",
     content: "",
     postImage: "",
+    imageFocus: "",
     authorImage: "",
   });
+
+  const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("vaamkiaawaz_draft");
@@ -1432,12 +1441,13 @@ export default function ClientPage({
       setResourceMessage("फ़ाइल 3.5MB से कम होनी चाहिए।");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewResourceForm(prev => ({ ...prev, fileData: reader.result as string, type: 'pdf', url: '' }));
+    try {
+      const uploadedUrl = await uploadMediaFile(file, "resources", file.name);
+      setNewResourceForm((prev) => ({ ...prev, fileData: "", type: "pdf", url: uploadedUrl }));
       setResourceMessage("");
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      setResourceMessage("PDF अपलोड नहीं हो सका।");
+    }
   };
 
   const handleAddResource = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1673,6 +1683,7 @@ export default function ClientPage({
       category: targetCategory,
       author: formState.author.trim(),
       postImage: formState.postImage,
+      imageFocus: formState.imageFocus || null,
       authorImage: selectedAuthorProfile.image?.trim() ?? "",
       time: "अभी-अभी",
       createdAt: new Date().toISOString(),
@@ -1706,7 +1717,6 @@ export default function ClientPage({
       const submittedContent = formState.content.trim();
       const submittedAuthor = formState.author.trim();
       const submittedPostImage = formState.postImage.trim();
-      const submittedAuthorImage = selectedAuthorProfile.image?.trim() ?? "";
       const response = await fetch("/api/blogs", {
         method: "POST",
         credentials: "include",
@@ -1718,7 +1728,7 @@ export default function ClientPage({
           content: submittedContent,
           author: submittedAuthor,
           postImage: submittedPostImage || undefined,
-          authorImage: submittedAuthorImage || undefined,
+          imageFocus: formState.imageFocus.trim() || undefined,
         }),
       });
       const data = (await response.json()) as { post?: ApiBlogPost; error?: string };
@@ -1749,6 +1759,7 @@ export default function ClientPage({
         excerpt: "",
         content: "",
         postImage: "",
+        imageFocus: "",
         authorImage: availableAuthors[0]?.image ?? "",
       });
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
@@ -1792,7 +1803,7 @@ export default function ClientPage({
   const handleImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>, key: "postImage") => {
     const file = event.target.files?.[0];
     if (!file) {
-      setFormState((prev) => ({ ...prev, [key]: "" }));
+      setFormState((prev) => ({ ...prev, [key]: "", imageFocus: "" }));
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -1801,10 +1812,25 @@ export default function ClientPage({
     }
     try {
       const encoded = await readImageAsDataUrl(file);
-      setFormState((prev) => ({ ...prev, [key]: encoded }));
+      setCropModalSrc(encoded);
     } catch {
       setBlogMessage("फोटो अपलोड नहीं हो सकी।");
     }
+    event.target.value = "";
+  };
+
+  const handleCropConfirm = async (result: { dataUrl: string; imageFocus: string }) => {
+    try {
+      const url = await uploadDataUrl(result.dataUrl, "posts", "thumbnail.jpg");
+      setFormState((prev) => ({ ...prev, postImage: url, imageFocus: result.imageFocus }));
+      setCropModalSrc(null);
+    } catch {
+      setBlogMessage("थंबनेल सेव नहीं हो सका।");
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropModalSrc(null);
   };
 
   const handleUserAuthorImageInputChange = async (
@@ -1827,13 +1853,14 @@ export default function ClientPage({
       return;
     }
     try {
-      const encoded = await readImageAsDataUrl(file);
+      const compressed = await compressImageFile(file, 400, 0.85);
+      const url = await uploadMediaFile(compressed, "authors", "avatar.jpg");
       if (target === "admin") {
-        setNewAdminForm((prev) => ({ ...prev, authorImage: encoded }));
+        setNewAdminForm((prev) => ({ ...prev, authorImage: url }));
       } else if (target === "contributor") {
-        setNewContributorForm((prev) => ({ ...prev, authorImage: encoded }));
+        setNewContributorForm((prev) => ({ ...prev, authorImage: url }));
       } else {
-        setMasterAuthorForm((prev) => ({ ...prev, authorImage: encoded }));
+        setMasterAuthorForm((prev) => ({ ...prev, authorImage: url }));
       }
     } catch {
       setAdminMessage("फोटो अपलोड नहीं हो सकी।");
@@ -1959,6 +1986,7 @@ export default function ClientPage({
     title: post.title,
     excerpt: post.excerpt,
     imageUrl: getPreviewImage(post),
+    imageFocus: post.imageFocus,
     categoryName: post.category,
     categorySlug: post.category,
     authorName: post.author,
@@ -1973,12 +2001,12 @@ export default function ClientPage({
 
 
   useEffect(() => {
-    if (activeResource && activeResource.type === 'pdf' && !activeResource.fileData) {
+    if (activeResource && activeResource.type === "pdf" && !activeResource.url && !activeResource.fileData) {
       const loadCompleteResource = async () => {
         try {
           const res = await fetch(`/api/resources/${activeResource.id}`);
           const data = await res.json();
-          if (data.resource && data.resource.fileData) {
+          if (data.resource && (data.resource.url || data.resource.fileData)) {
             setActiveResource(data.resource);
           }
         } catch {}
@@ -2410,7 +2438,7 @@ export default function ClientPage({
               <img
                 src={getPreviewImage(featuredForDisplay[0])!}
                 alt={featuredForDisplay[0].title}
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", filter: "saturate(0.85) contrast(1.05)" }}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(featuredForDisplay[0].imageFocus), filter: "saturate(0.85) contrast(1.05)" }}
               />
             )}
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.25) 35%, rgba(0,0,0,0.88) 100%)" }} />
@@ -2554,7 +2582,14 @@ export default function ClientPage({
                     className="rise-on-hover rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-all"
                   >
                     {getPreviewImage(story) && (
-                      <img src={getPreviewImage(story)!} alt={story.title} className="mb-3 h-40 w-full rounded-md object-cover" />
+                      <div className="thumb-16x9 mb-3 rounded-md">
+                        <img
+                          src={getPreviewImage(story)!}
+                          alt={story.title}
+                          className="h-full w-full object-cover"
+                          style={{ objectPosition: focusToObjectPosition(story.imageFocus) }}
+                        />
+                      </div>
                     )}
                     <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">
                       {story.category}
@@ -2815,7 +2850,13 @@ export default function ClientPage({
                     <Link href={`/post/${gr[0].id}`} onClick={() => handlePostClick(gr[0].id)} style={{ textDecoration: "none", display: "block" }} className="card-lift">
                       <div style={{ border: "1px solid rgba(0,0,0,0.1)", background: "#fff" }}>
                         <div style={{ aspectRatio: "4/3", overflow: "hidden", background: "#e7e0d4" }}>
-                          {getPreviewImage(gr[0]) && <img src={getPreviewImage(gr[0])!} alt={gr[0].title} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.9)" }} />}
+                          {getPreviewImage(gr[0]) && (
+                            <img
+                              src={getPreviewImage(gr[0])!}
+                              alt={gr[0].title}
+                              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(gr[0].imageFocus), filter: "saturate(0.9)" }}
+                            />
+                          )}
                         </div>
                         <div style={{ padding: 20 }}>
                           <span className={`cat-pill ${getCategoryClass(gr[0].category)}`}>{gr[0].category}</span>
@@ -2834,7 +2875,13 @@ export default function ClientPage({
                         <Link href={`/post/${article.id}`} key={article.id} onClick={() => handlePostClick(article.id)} style={{ textDecoration: "none", display: "block", flex: 1 }} className="card-lift">
                           <div style={{ border: "1px solid rgba(0,0,0,0.1)", height: "100%", background: "#fff" }}>
                             <div style={{ aspectRatio: "16/9", overflow: "hidden", background: "#e7e0d4" }}>
-                              {getPreviewImage(article) && <img src={getPreviewImage(article)!} alt={article.title} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.9)" }} />}
+                              {getPreviewImage(article) && (
+                                <img
+                                  src={getPreviewImage(article)!}
+                                  alt={article.title}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(article.imageFocus), filter: "saturate(0.9)" }}
+                                />
+                              )}
                             </div>
                             <div style={{ padding: 14 }}>
                               <span className={`cat-pill ${getCategoryClass(article.category)}`}>{article.category}</span>
@@ -2935,7 +2982,14 @@ export default function ClientPage({
                 className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block"
               >
                 {post.postImage && (
-                  <img src={post.postImage} alt={post.title} className="mb-3 h-40 w-full rounded-md object-cover" />
+                  <div className="thumb-16x9 mb-3 rounded-md">
+                    <img
+                      src={post.postImage}
+                      alt={post.title}
+                      className="h-full w-full object-cover"
+                      style={{ objectPosition: focusToObjectPosition(post.imageFocus) }}
+                    />
+                  </div>
                 )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary)]">{post.category}</p>
                 <h4 className="line-clamp-2 mt-2 text-xl font-semibold text-[var(--headline)]">{post.title}</h4>
@@ -3033,7 +3087,12 @@ export default function ClientPage({
               </label>
               {formState.postImage && (
                 <div className="md:col-span-2 flex gap-3">
-                  <img src={formState.postImage} alt="Post preview" className="h-16 w-24 rounded-md object-cover" />
+                  <img
+                    src={formState.postImage}
+                    alt="Post preview"
+                    className="h-16 w-24 rounded-md object-cover"
+                    style={{ objectPosition: focusToObjectPosition(formState.imageFocus) }}
+                  />
                 </div>
               )}
               <div className="md:col-span-2 min-w-0 bg-[var(--surface)] text-[var(--foreground)] rounded-md border border-[var(--line)]">
@@ -3110,7 +3169,12 @@ export default function ClientPage({
               </div>
               <div className="mt-4 border-t border-[var(--line)] pt-4"></div>
               {previewPost.postImage && (
-                <img src={previewPost.postImage} alt={previewPost.title} className="mt-4 max-h-[320px] w-full rounded-lg object-cover" />
+                <img
+                  src={previewPost.postImage}
+                  alt={previewPost.title}
+                  className="mt-4 max-h-[320px] w-full rounded-lg object-cover"
+                  style={{ objectPosition: focusToObjectPosition(previewPost.imageFocus) }}
+                />
               )}
               <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
                 <ArticleRichText html={getFullArticle(previewPost)} debug={true} />
@@ -3747,8 +3811,8 @@ export default function ClientPage({
                 ओपन न्यू टैब (New Tab)
               </a>
             )}
-            {activeResource.type === 'pdf' && activeResource.fileData && (
-              <a href={activeResource.fileData} download={`${activeResource.title}.pdf`} className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+            {activeResource.type === "pdf" && (activeResource.url || activeResource.fileData) && (
+              <a href={activeResource.url || activeResource.fileData || "#"} download={`${activeResource.title}.pdf`} className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                 डाउनलोड (Download)
               </a>
             )}
@@ -3763,15 +3827,22 @@ export default function ClientPage({
         <div className="w-[95%] max-w-5xl flex-1 bg-[white] rounded-b-xl overflow-hidden relative">
           {activeResource.type === 'link' && activeResource.url ? (
             <iframe src={activeResource.url} className="w-full h-full border-none" title={activeResource.title} />
-          ) : activeResource.type === 'pdf' && activeResource.fileData ? (
-            <iframe src={activeResource.fileData} className="w-full h-full border-none" title={activeResource.title} />
-          ) : activeResource.type === 'pdf' && !activeResource.fileData ? (
+          ) : activeResource.type === "pdf" && (activeResource.url || activeResource.fileData) ? (
+            <iframe src={activeResource.url || activeResource.fileData || ""} className="w-full h-full border-none" title={activeResource.title} />
+          ) : activeResource.type === "pdf" && !activeResource.url && !activeResource.fileData ? (
             <div className="flex w-full h-full items-center justify-center text-black font-semibold">
               PDF लोड हो रहा है... कृपया प्रतीक्षा करें।
             </div>
           ) : null}
         </div>
       </div>
+    )}
+    {cropModalSrc && (
+      <ImageCropModal
+        imageSrc={cropModalSrc}
+        onConfirm={handleCropConfirm}
+        onCancel={handleCropCancel}
+      />
     )}
     </>
   );

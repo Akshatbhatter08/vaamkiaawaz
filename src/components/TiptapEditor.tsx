@@ -467,18 +467,20 @@ const MenuBar = ({ editor, toolbarClassName, hideMediaLinks }: { editor: any, to
     return null;
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        editor.chain().focus().setImage({ src: base64 }).run();
-        editor.chain().focus().setTextSelection(editor.state.selection.to).insertContent('<p></p>').run();
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { compressImageFile } = await import("@/lib/imageCrop");
+        const { uploadMediaFile } = await import("@/lib/uploadClient");
+        const compressed = await compressImageFile(file);
+        const url = await uploadMediaFile(compressed, "content", file.name.replace(/\.[^.]+$/, ".jpg"));
+        editor.chain().focus().setImage({ src: url }).run();
+        editor.chain().focus().setTextSelection(editor.state.selection.to).insertContent("<p></p>").run();
+      } catch {
+        window.alert("फोटो अपलोड नहीं हो सकी।");
+      }
     }
-    // reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }

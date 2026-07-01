@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { getCategoryClass, formatViews, hindiRelativeTime, speakHindiText } from "@/utils/designUtils";
+import { focusToObjectPosition } from "@/lib/imageCrop";
 
 interface ArticleCardProps {
   title: string;
   excerpt?: string;
   imageUrl?: string | null;
+  imageFocus?: string | null;
   categoryName: string;
   categorySlug: string;
   authorName: string;
@@ -32,6 +34,7 @@ export function ArticleCard({
   title,
   excerpt,
   imageUrl,
+  imageFocus,
   categoryName,
   categorySlug,
   authorName,
@@ -60,7 +63,7 @@ export function ArticleCard({
             <img
               src={imageUrl}
               alt={title}
-              style={{ width: "100%", height: "100%", objectFit: "cover", filter: "saturate(0.85) contrast(1.05)" }}
+              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(imageFocus), filter: "saturate(0.85) contrast(1.05)" }}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}

@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { isValidImageRef } from "@/lib/fileStorage";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
     const normalizedAuthorName = extractAuthorName(authorName);
     const normalizedAuthorImage = extractAuthorImage(authorImage);
 
-    if (normalizedAuthorImage && !normalizedAuthorImage.startsWith("data:image/")) {
+    if (normalizedAuthorImage && !isValidImageRef(normalizedAuthorImage)) {
       return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
 

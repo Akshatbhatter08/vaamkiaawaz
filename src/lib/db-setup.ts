@@ -15,7 +15,7 @@ const ensureBlogPostStorageColumns = async () => {
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'BlogPost'
-      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'authorImage', 'uploaderName', 'isHidden')
+      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'imageFocus', 'authorImage', 'uploaderName', 'isHidden')
   `);
 
   const byName = new Map(columns.map((item) => [item.COLUMN_NAME, item]));
@@ -23,6 +23,7 @@ const ensureBlogPostStorageColumns = async () => {
   const excerpt = byName.get("excerpt");
   const content = byName.get("content");
   const postImage = byName.get("postImage");
+  const imageFocus = byName.get("imageFocus");
   const authorImage = byName.get("authorImage");
   const uploaderName = byName.get("uploaderName");
   const isHidden = byName.get("isHidden");
@@ -64,6 +65,7 @@ const ensureBlogPostStorageColumns = async () => {
           \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
           \`updatedAt\` DATETIME(3) NOT NULL,
           \`postImage\` LONGTEXT NULL,
+          \`imageFocus\` VARCHAR(32) NULL,
           \`authorImage\` LONGTEXT NULL,
           \`authorUserId\` VARCHAR(191) NULL,
           \`uploaderName\` VARCHAR(191) NULL,
@@ -108,6 +110,10 @@ const ensureBlogPostStorageColumns = async () => {
     alterOps.push("ADD COLUMN `postImage` LONGTEXT NULL");
   } else if (postImage.DATA_TYPE.toLowerCase() !== "longtext") {
     alterOps.push("MODIFY `postImage` LONGTEXT NULL");
+  }
+
+  if (!imageFocus) {
+    alterOps.push("ADD COLUMN `imageFocus` VARCHAR(32) NULL");
   }
 
   if (!authorImage) {
