@@ -295,7 +295,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   useEffect(() => {
     const checkAndMoveTranslate = () => {
       const gTranslate = document.getElementById("google_translate_element");
-      const placeholder = document.getElementById("translate_placeholder");
+      const placeholder = document.getElementById("article_translate_placeholder");
       if (gTranslate && placeholder && gTranslate.innerHTML.trim() !== "") {
         placeholder.appendChild(gTranslate);
       } else {
@@ -400,7 +400,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
 
         {/* ─── Top bar ─── */}
-        <div className="article-no-print hidden min-[550px]:flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
+        <div className="article-no-print notranslate hidden min-[550px]:flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
           <span className="shrink-0 whitespace-nowrap">
             {new Date().toLocaleDateString("hi-IN", {
               day: "2-digit",
@@ -438,20 +438,6 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             <a href="mailto:vaamkiaawaz@gmail.com" className={`interactive-link hidden px-2 py-1 text-xs md:inline-flex md:text-sm ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`}>
               संपर्क: vaamkiaawaz@gmail.com
             </a>
-            <div className="relative flex items-center shrink-0 ml-1 sm:ml-2">
-              <button
-                type="button"
-                onClick={() => setShowTranslate(!showTranslate)}
-                className="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:text-[var(--primary)] hover:border-[var(--primary)]"
-                title="Translate"
-              >
-                <Languages className="h-4 w-4" />
-              </button>
-              <div 
-                id="translate_placeholder" 
-                className={`absolute right-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-[100] transition-all duration-200 ${showTranslate ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
-              ></div>
-            </div>
             <button
               onClick={handleLoginClick}
               className="inline-flex items-center gap-1 shrink-0 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -468,7 +454,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         {/* ─── Header & Nav (Sticky) ─── */}
         <div
           ref={stickyHeaderRef}
-          className={`sticky top-0 z-50 ${isScrolledHeader ? (theme === "dark" ? "bg-[var(--surface)]" : "bg-white") : "bg-transparent"}`}
+          className={`notranslate sticky top-0 z-50 ${isScrolledHeader ? (theme === "dark" ? "bg-[var(--surface)]" : "bg-white") : "bg-transparent"}`}
           style={{ "--compact-progress": 0 } as CSSProperties}
         >
           <header
@@ -678,15 +664,6 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        type="button"
-                        onClick={() => setShowTranslate(!showTranslate)}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
-                        title="Translate"
-                      >
-                        <Languages className="h-4 w-4" />
-                      </button>
-                      
-                      <button
                         onClick={() => { setIsMobileNavOpen(false); handleLoginClick(); }}
                         className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)]"
                       >
@@ -759,7 +736,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         </div>
 
         {/* ─── Breadcrumb ─── */}
-        <nav className="article-no-print flex items-center gap-1.5 py-3 text-xs text-[var(--muted)]">
+        <nav className="article-no-print notranslate flex items-center gap-1.5 py-3 text-xs text-[var(--muted)]">
           <Link href="/" className="hover:text-[var(--primary)]">होम</Link>
           <ChevronRight className="h-3 w-3" />
           <Link href={`/?tab=fresh`} className="hover:text-[var(--primary)]">ताज़ा खबरें</Link>
@@ -775,7 +752,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
             {isEditing ? (
               <div
-                className="article-edit-shell space-y-4 mb-8 bg-[var(--surface-soft)] p-6 rounded-xl border border-[var(--primary)]"
+                className="article-edit-shell notranslate space-y-4 mb-8 bg-[var(--surface-soft)] p-6 rounded-xl border border-[var(--primary)]"
                 style={theme === "dark" ? ({
                   "--surface": "#ffffff",
                   "--surface-soft": "#f8f3ea",
@@ -839,25 +816,26 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             ) : (
               <>
                 {/* Print Only Header */}
-                <div className="hidden print-only border-b-2 border-black pb-4 mb-6 text-center">
+                <div className="hidden print-only notranslate border-b-2 border-black pb-4 mb-6 text-center">
                   <div className="flex flex-col items-center justify-center gap-1">
                     <h1 className="font-serif text-4xl font-bold text-black uppercase tracking-wide">वाम की आवाज़</h1>
                     <p className="text-xs font-semibold tracking-widest text-gray-600 uppercase">जन समाचार मंच</p>
                   </div>
                 </div>
 
-                {/* Category + Title */}
-                <div>
-                  <span className={`cat-pill ${getCategoryClass(post.category)}`}>
-                    {post.category}
-                  </span>
-                  <h1 className="mt-3 font-serif text-3xl font-bold leading-tight text-[var(--headline)] sm:text-4xl lg:text-[2.6rem]">
-                    {post.title}
-                  </h1>
-                </div>
+                {/* Only title, excerpt & body are translated — nav/sidebar stay in Hindi */}
+                <div id="article-translatable-content">
+                  <div>
+                    <span className={`cat-pill ${getCategoryClass(post.category)}`}>
+                      {post.category}
+                    </span>
+                    <h1 className="mt-3 font-serif text-3xl font-bold leading-tight text-[var(--headline)] sm:text-4xl lg:text-[2.6rem]">
+                      {post.title}
+                    </h1>
+                  </div>
 
                 {/* Meta row */}
-                <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)] border-b border-[var(--line)] pb-4">
+                <div className="notranslate flex flex-wrap items-center gap-3 text-sm text-[var(--muted)] border-b border-[var(--line)] pb-4 mt-0">
                   {post.authorImage && (
                     <img src={post.authorImage} alt="" className="h-9 w-9 rounded-full border border-[var(--line)] object-cover" />
                   )}
@@ -876,6 +854,22 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   >
                     🔊 <span>सुनें</span>
                   </button>
+                  <div className="article-no-print relative inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowTranslate(!showTranslate)}
+                      className="inline-flex items-center gap-1.5"
+                      style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--foreground)", background: "transparent", border: "1px solid var(--line)", padding: "4px 12px", cursor: "pointer" }}
+                      title="Translate article"
+                    >
+                      <Languages className="h-3.5 w-3.5" />
+                      <span>अनुवाद</span>
+                    </button>
+                    <div
+                      id="article_translate_placeholder"
+                      className={`absolute left-0 top-full mt-2 bg-white border border-[var(--line)] p-1 rounded-md shadow-lg z-[100] transition-all duration-200 ${showTranslate ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'}`}
+                    />
+                  </div>
                 </div>
 
                 {/* Abstract box */}
@@ -896,16 +890,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
                 {/* Article content */}
                 <ArticleRichText html={post.content || ""} className="[&>*:last-child]:mb-0 pb-0" debug={true} />
+                </div>
 
                 {/* Uploader credit - Web view only */}
                 {displayUploaderName && (
-                  <p className="article-no-print text-sm text-[var(--muted)] italic border-t border-[var(--line)] pt-3 mt-4">
+                  <p className="article-no-print notranslate text-sm text-[var(--muted)] italic border-t border-[var(--line)] pt-3 mt-4">
                     अपलोडर: {displayUploaderName}
                   </p>
                 )}
 
                 {/* Print Only Footer */}
-                <div className="hidden print-only mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
+                <div className="hidden print-only notranslate mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
                   <h4 className="font-serif text-lg font-bold text-black mb-2">{post.title}</h4>
                   <p className="text-xs text-gray-700 mb-4 font-medium">
                     अपलोडर: <span className="font-semibold">{displayUploaderName || post.author}</span> &bull; 
@@ -922,14 +917,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
 
             {/* Ad Placeholder - Bottom of article */}
-            <div className="article-invert article-no-print my-6 flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
+            <div className="article-invert article-no-print notranslate my-6 flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
               <span className="text-sm font-semibold uppercase tracking-wide">विज्ञापन</span>
             </div>
 
           </article>
 
           {/* Sidebar */}
-          <aside className="article-no-print lg:col-span-4 space-y-6 lg:sticky lg:top-[170px] lg:h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
+          <aside className="article-no-print notranslate lg:col-span-4 space-y-6 lg:sticky lg:top-[170px] lg:h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
             {/* Share + Actions */}
             <section className="article-share-card rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="article-share-card__title mb-3">शेयर करें</h3>
@@ -980,7 +975,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             </section>
 
             {/* Ad Placeholder - Sidebar */}
-            <div className="article-no-print flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
+            <div className="article-no-print notranslate flex h-[250px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted)]">
               <span className="text-sm font-semibold uppercase tracking-wide">विज्ञापन</span>
             </div>
 
@@ -1038,7 +1033,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
         {/* Related posts (full width) */}
         {displayedSuggested.length > 0 && (
-          <section className="article-no-print pb-8 pt-2">
+          <section className="article-no-print notranslate pb-8 pt-2">
             <SectionHeader title="और पढ़ें" href="/" linkText="सभी देखें →" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {displayedSuggested.slice(0, 3).map(sp => (
@@ -1061,7 +1056,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         )}
 
         {/* Footer */}
-        <footer className="article-no-print site-footer" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+        <footer className="article-no-print notranslate site-footer" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="footer-grid" style={{ marginBottom: 40 }}>
               <div>
@@ -1139,7 +1134,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
       {/* Mobile sticky share bar */}
       <div
-        className="mobile-share-bar article-no-print"
+        className="mobile-share-bar article-no-print notranslate"
         style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--surface-mid)", borderTop: "1px solid var(--divider)", zIndex: 100, padding: "5px 14px calc(5px + env(safe-area-inset-bottom))" }}
       >
         <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-start", width: "100%" }}>
