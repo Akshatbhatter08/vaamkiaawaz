@@ -45,6 +45,11 @@ export type PlatformResource = {
   createdAt: string;
 };
 
+const getPdfSrc = (resource: PlatformResource) => {
+  if (resource.type !== "pdf") return null;
+  return resource.fileData || resource.url || null;
+};
+
 type ApiBlogPost = {
   id: string;
   category: string;
@@ -1922,12 +1927,12 @@ export default function ClientPage({
 
 
   useEffect(() => {
-    if (activeResource && activeResource.type === 'pdf' && !activeResource.fileData) {
+    if (activeResource && activeResource.type === "pdf" && !getPdfSrc(activeResource)) {
       const loadCompleteResource = async () => {
         try {
           const res = await fetch(`/api/resources/${activeResource.id}`);
           const data = await res.json();
-          if (data.resource && data.resource.fileData) {
+          if (data.resource && (data.resource.fileData || data.resource.url)) {
             setActiveResource(data.resource);
           }
         } catch {}
@@ -3432,8 +3437,8 @@ export default function ClientPage({
                 ओपन न्यू टैब (New Tab)
               </a>
             )}
-            {activeResource.type === 'pdf' && activeResource.fileData && (
-              <a href={activeResource.fileData} download={`${activeResource.title}.pdf`} className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+            {activeResource.type === "pdf" && getPdfSrc(activeResource) && (
+              <a href={getPdfSrc(activeResource)!} download={`${activeResource.title}.pdf`} className="rounded-md bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                 डाउनलोड (Download)
               </a>
             )}
@@ -3448,9 +3453,9 @@ export default function ClientPage({
         <div className="w-[95%] max-w-5xl flex-1 bg-[white] rounded-b-xl overflow-hidden relative">
           {activeResource.type === 'link' && activeResource.url ? (
             <iframe src={activeResource.url} className="w-full h-full border-none" title={activeResource.title} />
-          ) : activeResource.type === 'pdf' && activeResource.fileData ? (
-            <iframe src={activeResource.fileData} className="w-full h-full border-none" title={activeResource.title} />
-          ) : activeResource.type === 'pdf' && !activeResource.fileData ? (
+          ) : activeResource.type === "pdf" && getPdfSrc(activeResource) ? (
+            <iframe src={getPdfSrc(activeResource)!} className="w-full h-full border-none" title={activeResource.title} />
+          ) : activeResource.type === "pdf" && !getPdfSrc(activeResource) ? (
             <div className="flex w-full h-full items-center justify-center text-black font-semibold">
               PDF लोड हो रहा है... कृपया प्रतीक्षा करें।
             </div>

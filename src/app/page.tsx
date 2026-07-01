@@ -1,6 +1,7 @@
 import ClientPage, { NewsPost } from "./ClientPage";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,10 @@ export default async function Page() {
       take: 10,
     });
 
-    const mapToNewsPost = (post: any) => {
+    const enrichedPosts = await enrichPostsWithAuthorImages(posts);
+    const enrichedTopPosts = await enrichPostsWithAuthorImages(topPosts);
+
+    const mapToNewsPost = (post: (typeof enrichedPosts)[number]) => {
       const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();
       return {
         id: post.id,
@@ -89,8 +93,8 @@ export default async function Page() {
       };
     };
 
-    initialBlogs = posts.map(mapToNewsPost);
-    initialTopBlogs = topPosts.map(mapToNewsPost);
+    initialBlogs = enrichedPosts.map(mapToNewsPost);
+    initialTopBlogs = enrichedTopPosts.map(mapToNewsPost);
   } catch (error) {
     console.error("Error fetching initial blogs:", error);
   }

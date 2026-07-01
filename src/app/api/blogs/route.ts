@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { initialBlogSeed } from "@/lib/blog-seed";
 import { requireAuth } from "@/lib/auth";
 import { ensureBlogSchema } from "@/lib/db-setup";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
 
 const mapBlog = (post: {
   id: string;
@@ -84,8 +86,11 @@ export async function GET() {
       take: 10,
     });
 
+    const enrichedPosts = await enrichPostsWithAuthorImages(posts);
+    const enrichedTopPosts = await enrichPostsWithAuthorImages(topPosts);
+
     return NextResponse.json(
-      { posts: posts.map(mapBlog), topPosts: topPosts.map(mapBlog) },
+      { posts: enrichedPosts.map(mapBlog), topPosts: enrichedTopPosts.map(mapBlog) },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0, must-revalidate",
@@ -158,11 +163,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
   }
 
-  if (postImage && !postImage.startsWith("data:image/")) {
+  if (postImage && !isValidImageRef(postImage)) {
     return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
-  if (authorImage && !authorImage.startsWith("data:image/")) {
+  if (authorImage && !isValidAuthorImageRef(authorImage)) {
     return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 

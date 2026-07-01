@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import ArticlePage from "./ArticlePage";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 
 // Use ISR to cache the page for 30 seconds. This is critical for WhatsApp link previews,
 // as WhatsApp will time out and show a generic fallback if the server takes too long to respond.
@@ -19,6 +20,9 @@ function extractFirstImageFromContent(html: string): string | null {
 }
 
 function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
+  if (post.postImage?.startsWith("/api/media/")) {
+    return post.postImage;
+  }
   // 1. Post thumbnail
   if (post.postImage) {
     return `/api/image/blog/${post.id}`;
@@ -167,7 +171,8 @@ export default async function PostPage({ params }: Props) {
     );
   }
 
-  const mappedPost = mapPostForClient(post, true);
+  const [enrichedPost] = await enrichPostsWithAuthorImages([post]);
+  const mappedPost = mapPostForClient(enrichedPost, true);
 
   const selectSidebarFields = {
     id: true,
@@ -221,24 +226,29 @@ export default async function PostPage({ params }: Props) {
     authorPostsPromise
   ]);
 
+  const enrichedSameCategory = await enrichPostsWithAuthorImages(sameCategoryPostsData);
+  const enrichedTopRead = await enrichPostsWithAuthorImages(topReadPostsData);
+  const enrichedAuthorPosts = await enrichPostsWithAuthorImages(authorPostsData);
+
   // If we don't have enough same-category posts, fill with recent popular posts
-  const remainingSlots = 4 - sameCategoryPostsData.length;
+  const remainingSlots = 4 - enrichedSameCategory.length;
   let fillPosts: any[] = [];
   if (remainingSlots > 0) {
-    const excludeIds = [post.id, ...sameCategoryPostsData.map((p: any) => p.id)];
+    const excludeIds = [post.id, ...enrichedSameCategory.map((p) => p.id)];
     const fillResult = await prisma.blogPost.findMany({
       where: { id: { notIn: excludeIds } },
       select: selectSidebarFields,
       orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
       take: remainingSlots,
     });
-    fillPosts = fillResult.map(p => mapPostForClient(p, false));
+    const enrichedFill = await enrichPostsWithAuthorImages(fillResult);
+    fillPosts = enrichedFill.map((p) => mapPostForClient(p, false));
   }
 
-  const sameCategoryPosts = sameCategoryPostsData.map(p => mapPostForClient(p, false));
+  const sameCategoryPosts = enrichedSameCategory.map((p) => mapPostForClient(p, false));
   const suggestedPosts = [...sameCategoryPosts, ...fillPosts];
-  const sidebarTopReads = topReadPostsData.map(p => mapPostForClient(p, false));
-  const mappedAuthorPosts = authorPostsData.map(p => mapPostForClient(p, false));
+  const sidebarTopReads = enrichedTopRead.map((p) => mapPostForClient(p, false));
+  const mappedAuthorPosts = enrichedAuthorPosts.map((p) => mapPostForClient(p, false));
 
   return (
     <ArticlePage

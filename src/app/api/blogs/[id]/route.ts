@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { isValidImageRef } from "@/lib/fileStorage";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -42,7 +44,8 @@ export async function GET(_request: NextRequest, context: Context) {
     if (!post) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-    return NextResponse.json({ post: mapBlog(post) });
+    const [enriched] = await enrichPostsWithAuthorImages([post]);
+    return NextResponse.json({ post: mapBlog(enriched) });
   } catch (err: any) {
     return NextResponse.json(
       { error: "Internal server error", details: err.message },
@@ -132,6 +135,9 @@ export async function PATCH(request: NextRequest, context: Context) {
     if (!postImage && updateData.content) {
       const match = (updateData.content as string).match(/<img[^>]+src=["']([^"']+)["']/i);
       postImage = match ? match[1] : null;
+    }
+    if (postImage && !isValidImageRef(postImage)) {
+      return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
     updateData.postImage = postImage;
   }
