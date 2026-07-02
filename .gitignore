@@ -36,6 +36,10 @@ yarn-error.log*
 # local uploads fallback (dev)
 /uploads
 
+# migration/sync artifacts (too large for git)
+vaamkiaawaz-uploads-sync.zip
+_zipcheck/
+
 # vercel
 .vercel
 
