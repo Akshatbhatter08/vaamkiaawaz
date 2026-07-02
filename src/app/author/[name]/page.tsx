@@ -6,6 +6,7 @@ import AuthorProfileBox from "@/components/AuthorProfileBox";
 import { ArticleCard } from "@/components/ArticleCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
+import { resolvePostImage } from "@/lib/postImage";
 
 const decodeAuthorName = (value: string) => {
   try {
@@ -222,7 +223,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
                         key={post.id}
                         title={post.title}
                         excerpt={post.excerpt}
-                        imageUrl={post.postImage}
+                        imageUrl={resolvePostImage(post.postImage, post.content)}
                         imageFocus={post.imageFocus}
                         categoryName={post.category}
                         categorySlug={post.category}

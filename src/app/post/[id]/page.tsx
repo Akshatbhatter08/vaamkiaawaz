@@ -1,6 +1,8 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { resolvePostImage, extractFirstImageFromHtml } from "@/lib/postImage";
+import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 import ArticlePage from "./ArticlePage";
 
 // Use ISR to cache the page for 30 seconds. This is critical for WhatsApp link previews,
@@ -15,8 +17,7 @@ type Props = {
  * Extract the first image URL from HTML content.
  */
 function extractFirstImageFromContent(html: string): string | null {
-  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return match ? match[1] : null;
+  return extractFirstImageFromHtml(html);
 }
 
 function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
@@ -55,11 +56,7 @@ function mapPostForClient(post: any, keepContent = false) {
     ? new Date(post.createdAt).toISOString()
     : new Date().toISOString();
 
-  let resolvedImage = post.postImage;
-  if (!resolvedImage && post.content) {
-    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
-    resolvedImage = match ? match[1] : null;
-  }
+  let resolvedImage = resolvePostImage(post.postImage, post.content);
 
   return {
     id: post.id,
@@ -237,10 +234,10 @@ export default async function PostPage({ params }: Props) {
     });
   }
 
-  const enrichedSameCategory = await enrichPostsWithAuthorImages(sameCategoryPostsData);
-  const enrichedFill = await enrichPostsWithAuthorImages(fillPostsData);
-  const enrichedTopRead = await enrichPostsWithAuthorImages(topReadPostsData);
-  const enrichedAuthorPosts = await enrichPostsWithAuthorImages(authorPostsData);
+  const enrichedSameCategory = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(sameCategoryPostsData));
+  const enrichedFill = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(fillPostsData));
+  const enrichedTopRead = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(topReadPostsData));
+  const enrichedAuthorPosts = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(authorPostsData));
 
   const sameCategoryPosts = enrichedSameCategory.map((p) => mapPostForClient(p, false));
   const suggestedPosts = [...sameCategoryPosts, ...enrichedFill.map((p) => mapPostForClient(p, false))];

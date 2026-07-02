@@ -14,7 +14,9 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImageCropModal } from "@/components/ImageCropModal";
 import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
+import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
+import { formatAuthorDisplayName, parsePenNameFromPermissions, type PenNameDisplayMode } from "@/lib/penName";
 import "react-quill-new/dist/quill.snow.css";
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -100,6 +102,9 @@ type UserAccount = {
   permissions: Permissions;
   authorName: string;
   authorImage: string | null;
+  penNameEnabled: boolean;
+  penName: string;
+  penNameDisplayMode: PenNameDisplayMode;
 };
 
 const MASTER_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
@@ -137,9 +142,13 @@ const parsePermissionFlags = (permissions: Record<string, unknown> | null | unde
 const parseAuthorProfileFromPermissions = (permissions: Record<string, unknown> | null | undefined) => {
   const rawName = typeof permissions?.authorName === "string" ? permissions.authorName.trim() : "";
   const rawImage = typeof permissions?.authorImage === "string" ? permissions.authorImage.trim() : "";
+  const penSettings = parsePenNameFromPermissions(permissions);
   return {
     authorName: rawName,
     authorImage: rawImage || null,
+    penNameEnabled: penSettings.penNameEnabled,
+    penName: penSettings.penName,
+    penNameDisplayMode: penSettings.penNameDisplayMode,
   };
 };
 
@@ -160,6 +169,9 @@ const mapApiUserToAccount = (user: ApiAuthUser): UserAccount => {
     permissions: parsePermissionFlags(permissionsObject),
     authorName: authorProfile.authorName,
     authorImage: authorProfile.authorImage,
+    penNameEnabled: authorProfile.penNameEnabled,
+    penName: authorProfile.penName,
+    penNameDisplayMode: authorProfile.penNameDisplayMode,
   };
 };
 
@@ -550,6 +562,14 @@ export default function ClientPage({
   const [masterAuthorForm, setMasterAuthorForm] = useState({
     authorName: MASTER_AUTHOR_NAME,
     authorImage: "",
+    penNameEnabled: false,
+    penName: "",
+    penNameDisplayMode: "alongside" as PenNameDisplayMode,
+  });
+  const [selfPenNameForm, setSelfPenNameForm] = useState({
+    penNameEnabled: false,
+    penName: "",
+    penNameDisplayMode: "alongside" as PenNameDisplayMode,
   });
   const [availableAuthors, setAvailableAuthors] = useState<AuthorProfile[]>([]);
   const [newsletterEmail, setNewsletterEmail] = useState("");
@@ -635,7 +655,13 @@ export default function ClientPage({
       try {
         const parsed = JSON.parse(saved);
         if (parsed.content || parsed.excerpt || parsed.title) {
-          setFormState(parsed);
+          setFormState((prev) => ({
+            ...prev,
+            ...parsed,
+            postImage: typeof parsed.postImage === "string" ? parsed.postImage : "",
+            imageFocus: typeof parsed.imageFocus === "string" ? parsed.imageFocus : "",
+            authorImage: typeof parsed.authorImage === "string" ? parsed.authorImage : "",
+          }));
         }
       } catch (e) {}
     }
@@ -872,6 +898,9 @@ export default function ClientPage({
     setMasterAuthorForm({
       authorName: currentUser.authorName.trim() || MASTER_AUTHOR_NAME,
       authorImage: currentUser.authorImage?.trim() || "",
+      penNameEnabled: currentUser.penNameEnabled,
+      penName: currentUser.penName,
+      penNameDisplayMode: currentUser.penNameDisplayMode,
     });
   }, [currentUser]);
 
@@ -887,6 +916,20 @@ export default function ClientPage({
     }
     return currentUser.active;
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role === "master") {
+      return;
+    }
+    if (!canPublishBlog) {
+      return;
+    }
+    setSelfPenNameForm({
+      penNameEnabled: currentUser.penNameEnabled,
+      penName: currentUser.penName,
+      penNameDisplayMode: currentUser.penNameDisplayMode,
+    });
+  }, [currentUser, canPublishBlog]);
 
   const canManageUsers = useMemo(() => {
     if (!currentUser) {
@@ -1507,12 +1550,22 @@ export default function ClientPage({
       setAdminMessage("मास्टर एडमिन के लिए लेखक फोटो आवश्यक है।");
       return;
     }
+    if (masterAuthorForm.penNameEnabled && !masterAuthorForm.penName.trim()) {
+      setAdminMessage("पेन नेम सक्षम होने पर नाम आवश्यक है।");
+      return;
+    }
     try {
       const response = await fetch(`/api/users/${currentUser.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ authorName, authorImage }),
+        body: JSON.stringify({
+          authorName,
+          authorImage,
+          penNameEnabled: masterAuthorForm.penNameEnabled,
+          penName: masterAuthorForm.penName.trim(),
+          penNameDisplayMode: masterAuthorForm.penNameDisplayMode,
+        }),
       });
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -1520,6 +1573,39 @@ export default function ClientPage({
         return;
       }
       setAdminMessage("मास्टर एडमिन लेखक प्रोफ़ाइल अपडेट हो गई।");
+      void fetchUsers();
+      void fetchAuthors();
+    } catch {
+      setAdminMessage("नेटवर्क त्रुटि");
+    }
+  };
+
+  const handleSaveSelfPenName = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!currentUser || currentUser.role === "master" || !canPublishBlog) {
+      return;
+    }
+    if (selfPenNameForm.penNameEnabled && !selfPenNameForm.penName.trim()) {
+      setAdminMessage("पेन नेम सक्षम होने पर नाम आवश्यक है।");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/users/${currentUser.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          penNameEnabled: selfPenNameForm.penNameEnabled,
+          penName: selfPenNameForm.penName.trim(),
+          penNameDisplayMode: selfPenNameForm.penNameDisplayMode,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setAdminMessage(data.error || "पेन नेम सेटिंग अपडेट नहीं हो सकी।");
+        return;
+      }
+      setAdminMessage("पेन नेम सेटिंग सेव हो गई।");
       void fetchUsers();
       void fetchAuthors();
     } catch {
@@ -1675,6 +1761,7 @@ export default function ClientPage({
     }
     
     const targetCategory = formState.category;
+    const resolvedPostImage = resolvePostImage(formState.postImage, formState.content);
     const tempPost: NewsPost = {
       id: "preview-id",
       title: formState.title.trim(),
@@ -1682,7 +1769,7 @@ export default function ClientPage({
       content: formState.content.trim(),
       category: targetCategory,
       author: formState.author.trim(),
-      postImage: formState.postImage,
+      postImage: resolvedPostImage,
       imageFocus: formState.imageFocus || null,
       authorImage: selectedAuthorProfile.image?.trim() ?? "",
       time: "अभी-अभी",
@@ -1716,7 +1803,7 @@ export default function ClientPage({
       const submittedExcerpt = formState.excerpt.trim();
       const submittedContent = formState.content.trim();
       const submittedAuthor = formState.author.trim();
-      const submittedPostImage = formState.postImage.trim();
+      const submittedPostImage = (formState.postImage ?? "").trim();
       const response = await fetch("/api/blogs", {
         method: "POST",
         credentials: "include",
@@ -1728,7 +1815,7 @@ export default function ClientPage({
           content: submittedContent,
           author: submittedAuthor,
           postImage: submittedPostImage || undefined,
-          imageFocus: formState.imageFocus.trim() || undefined,
+          imageFocus: (formState.imageFocus ?? "").trim() || undefined,
         }),
       });
       const data = (await response.json()) as { post?: ApiBlogPost; error?: string };
@@ -1956,12 +2043,7 @@ export default function ClientPage({
     });
   };
 
-  const getPreviewImage = (post: NewsPost) => {
-    if (post.postImage) return post.postImage;
-    if (!post.content) return null;
-    const match = post.content.match(/<img[^>]+src=["']([^"']+)["']/i);
-    return match ? match[1] : null;
-  };
+  const getPreviewImage = (post: NewsPost) => resolvePostImage(post.postImage, post.content);
 
   const handlePostOpen = (post: NewsPost) => {
     if (post.source === "blog") {
@@ -2981,10 +3063,10 @@ export default function ClientPage({
                 }}
                 className="rise-on-hover cursor-pointer rounded-lg border border-[var(--line)] p-4 text-left transition-all block"
               >
-                {post.postImage && (
+                {getPreviewImage(post) && (
                   <div className="thumb-16x9 mb-3 rounded-md">
                     <img
-                      src={post.postImage}
+                      src={getPreviewImage(post)!}
                       alt={post.title}
                       className="h-full w-full object-cover"
                       style={{ objectPosition: focusToObjectPosition(post.imageFocus) }}
@@ -3085,10 +3167,10 @@ export default function ClientPage({
                   className="w-full text-xs"
                 />
               </label>
-              {formState.postImage && (
+              {(formState.postImage || resolvePostImage(null, formState.content)) && (
                 <div className="md:col-span-2 flex gap-3">
                   <img
-                    src={formState.postImage}
+                    src={resolvePostImage(formState.postImage, formState.content)!}
                     alt="Post preview"
                     className="h-16 w-24 rounded-md object-cover"
                     style={{ objectPosition: focusToObjectPosition(formState.imageFocus) }}
@@ -3168,9 +3250,9 @@ export default function ClientPage({
                 <span>0 क्लिक</span>
               </div>
               <div className="mt-4 border-t border-[var(--line)] pt-4"></div>
-              {previewPost.postImage && (
+              {getPreviewImage(previewPost) && (
                 <img
-                  src={previewPost.postImage}
+                  src={getPreviewImage(previewPost)!}
                   alt={previewPost.title}
                   className="mt-4 max-h-[320px] w-full rounded-lg object-cover"
                   style={{ objectPosition: focusToObjectPosition(previewPost.imageFocus) }}
@@ -3467,6 +3549,52 @@ export default function ClientPage({
                             className="h-16 w-16 rounded-full object-cover"
                           />
                         )}
+                        <label className="flex items-center gap-2 text-sm text-[var(--headline)]">
+                          <input
+                            type="checkbox"
+                            checked={masterAuthorForm.penNameEnabled}
+                            onChange={(event) =>
+                              setMasterAuthorForm((prev) => ({ ...prev, penNameEnabled: event.target.checked }))
+                            }
+                          />
+                          पेन नेम उपयोग करें
+                        </label>
+                        {masterAuthorForm.penNameEnabled && (
+                          <>
+                            <input
+                              value={masterAuthorForm.penName}
+                              onChange={(event) =>
+                                setMasterAuthorForm((prev) => ({ ...prev, penName: event.target.value }))
+                              }
+                              placeholder="पेन नेम"
+                              className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                            />
+                            <div className="space-y-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] p-3 text-xs text-[var(--muted)]">
+                              <label className="flex items-start gap-2">
+                                <input
+                                  type="radio"
+                                  name="master-pen-name-display"
+                                  checked={masterAuthorForm.penNameDisplayMode === "alongside"}
+                                  onChange={() =>
+                                    setMasterAuthorForm((prev) => ({ ...prev, penNameDisplayMode: "alongside" }))
+                                  }
+                                />
+                                <span>असली नाम के साथ दिखाएं (जैसे: {masterAuthorForm.authorName.trim() || "नाम"} &apos;{masterAuthorForm.penName.trim() || "पेन नेम"}&apos;)</span>
+                              </label>
+                              <label className="flex items-start gap-2">
+                                <input
+                                  type="radio"
+                                  name="master-pen-name-display"
+                                  checked={masterAuthorForm.penNameDisplayMode === "only"}
+                                  onChange={() =>
+                                    setMasterAuthorForm((prev) => ({ ...prev, penNameDisplayMode: "only" }))
+                                  }
+                                />
+                                <span>केवल पेन नेम दिखाएं</span>
+                              </label>
+                            </div>
+                          </>
+                        )}
                         <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                           प्रोफ़ाइल अपडेट करें
                         </button>
@@ -3677,6 +3805,73 @@ export default function ClientPage({
                     <p className="rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
                       आपका योगदानकर्ता एक्सेस सक्रिय है। आप ब्लॉग सेक्शन से पोस्ट प्रकाशित कर सकते हैं।
                     </p>
+                  )}
+                  {canPublishBlog && currentUser.role !== "master" && (
+                    <section className="rounded-lg border border-[var(--line)] p-4">
+                      <h4 className="text-lg font-semibold text-[var(--headline)]">लेखक पेन नेम सेटिंग</h4>
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        लेखक नाम: {currentUser.authorName || "—"}
+                      </p>
+                      <form onSubmit={handleSaveSelfPenName} className="mt-3 space-y-2">
+                        <label className="flex items-center gap-2 text-sm text-[var(--headline)]">
+                          <input
+                            type="checkbox"
+                            checked={selfPenNameForm.penNameEnabled}
+                            onChange={(event) =>
+                              setSelfPenNameForm((prev) => ({ ...prev, penNameEnabled: event.target.checked }))
+                            }
+                          />
+                          पेन नेम उपयोग करें
+                        </label>
+                        {selfPenNameForm.penNameEnabled && (
+                          <>
+                            <input
+                              value={selfPenNameForm.penName}
+                              onChange={(event) =>
+                                setSelfPenNameForm((prev) => ({ ...prev, penName: event.target.value }))
+                              }
+                              placeholder="पेन नेम"
+                              className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                            />
+                            <div className="space-y-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] p-3 text-xs text-[var(--muted)]">
+                              <label className="flex items-start gap-2">
+                                <input
+                                  type="radio"
+                                  name="self-pen-name-display"
+                                  checked={selfPenNameForm.penNameDisplayMode === "alongside"}
+                                  onChange={() =>
+                                    setSelfPenNameForm((prev) => ({ ...prev, penNameDisplayMode: "alongside" }))
+                                  }
+                                />
+                                <span>असली नाम के साथ दिखाएं (जैसे: {currentUser.authorName || "नाम"} &apos;{selfPenNameForm.penName.trim() || "पेन नेम"}&apos;)</span>
+                              </label>
+                              <label className="flex items-start gap-2">
+                                <input
+                                  type="radio"
+                                  name="self-pen-name-display"
+                                  checked={selfPenNameForm.penNameDisplayMode === "only"}
+                                  onChange={() =>
+                                    setSelfPenNameForm((prev) => ({ ...prev, penNameDisplayMode: "only" }))
+                                  }
+                                />
+                                <span>केवल पेन नेम दिखाएं</span>
+                              </label>
+                            </div>
+                            <p className="text-xs text-[var(--muted)]">
+                              प्रदर्शित नाम:{" "}
+                              {formatAuthorDisplayName(currentUser.authorName, {
+                                penNameEnabled: selfPenNameForm.penNameEnabled,
+                                penName: selfPenNameForm.penName,
+                                penNameDisplayMode: selfPenNameForm.penNameDisplayMode,
+                              })}
+                            </p>
+                          </>
+                        )}
+                        <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
+                          पेन नेम सेव करें
+                        </button>
+                      </form>
+                    </section>
                   )}
                   {adminMessage && <p className="text-sm text-[var(--primary)]">{adminMessage}</p>}
                 </div>

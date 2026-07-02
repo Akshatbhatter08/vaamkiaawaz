@@ -2,6 +2,7 @@ import ClientPage, { NewsPost } from "./ClientPage";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 
 export const dynamic = "force-dynamic";
 
@@ -73,8 +74,8 @@ export default async function Page() {
       take: 10,
     });
 
-    const enrichedPosts = await enrichPostsWithAuthorImages(posts);
-    const enrichedTopPosts = await enrichPostsWithAuthorImages(topPosts);
+    const enrichedPosts = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(posts));
+    const enrichedTopPosts = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(topPosts));
 
     const mapToNewsPost = (post: (typeof enrichedPosts)[number]) => {
       const createdAtIso = post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString();

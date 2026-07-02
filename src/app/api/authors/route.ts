@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatAuthorDisplayName, parsePenNameFromPermissions } from "@/lib/penName";
 
 export const dynamic = "force-dynamic";
 
@@ -59,13 +60,15 @@ export async function GET() {
         return;
       }
       const name = rawName;
+      const penSettings = parsePenNameFromPermissions(permissions);
+      const displayName = formatAuthorDisplayName(name, penSettings);
       const rawImage = typeof permissions.authorImage === "string" ? permissions.authorImage.trim() : "";
       const image = rawImage || null;
-      const key = normalizeAuthorName(name);
+      const key = normalizeAuthorName(displayName);
       const current = authorMap.get(key);
 
       if (!current || (!current.image && image)) {
-        authorMap.set(key, { name, image });
+        authorMap.set(key, { name: displayName, image });
       }
     });
 

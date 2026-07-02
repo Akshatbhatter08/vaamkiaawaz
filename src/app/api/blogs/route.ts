@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/auth";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
+import { extractFirstImageFromHtml } from "@/lib/postImage";
+import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 
 const mapBlog = (post: {
   id: string;
@@ -52,46 +54,50 @@ export async function GET() {
       });
     }
 
-    const posts = await enrichPostsWithAuthorImages(
-      await prisma.blogPost.findMany({
-      where: { isHidden: false },
-      select: {
-        id: true,
-        category: true,
-        title: true,
-        excerpt: true,
-        author: true,
-        postImage: true,
-        imageFocus: true,
-        authorImage: true,
-        clickCount: true,
-        uploaderName: true,
-        createdAt: true,
-      },
-      orderBy: [{ createdAt: "desc" }],
-      take: 100,
-    }),
+    const posts = await enrichPostsWithThumbnails(
+      await enrichPostsWithAuthorImages(
+        await prisma.blogPost.findMany({
+          where: { isHidden: false },
+          select: {
+            id: true,
+            category: true,
+            title: true,
+            excerpt: true,
+            author: true,
+            postImage: true,
+            imageFocus: true,
+            authorImage: true,
+            clickCount: true,
+            uploaderName: true,
+            createdAt: true,
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: 100,
+        }),
+      ),
     );
 
-    const topPosts = await enrichPostsWithAuthorImages(
-      await prisma.blogPost.findMany({
-      where: { isHidden: false },
-      select: {
-        id: true,
-        category: true,
-        title: true,
-        excerpt: true,
-        author: true,
-        postImage: true,
-        imageFocus: true,
-        authorImage: true,
-        clickCount: true,
-        uploaderName: true,
-        createdAt: true,
-      },
-      orderBy: [{ clickCount: "desc" }],
-      take: 10,
-    }),
+    const topPosts = await enrichPostsWithThumbnails(
+      await enrichPostsWithAuthorImages(
+        await prisma.blogPost.findMany({
+          where: { isHidden: false },
+          select: {
+            id: true,
+            category: true,
+            title: true,
+            excerpt: true,
+            author: true,
+            postImage: true,
+            imageFocus: true,
+            authorImage: true,
+            clickCount: true,
+            uploaderName: true,
+            createdAt: true,
+          },
+          orderBy: [{ clickCount: "desc" }],
+          take: 10,
+        }),
+      ),
     );
 
     return NextResponse.json(
@@ -158,10 +164,13 @@ export async function POST(request: NextRequest) {
   const excerpt = body.excerpt?.trim();
   const content = body.content?.trim();
   const author = body.author?.trim();
-  let postImage = body.postImage?.trim() || null;
+  const explicitPostImage = body.postImage?.trim() || null;
+  let postImage = explicitPostImage;
   if (!postImage && content) {
-    const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
-    postImage = match ? match[1] : null;
+    const extracted = extractFirstImageFromHtml(content);
+    if (extracted && isValidImageRef(extracted)) {
+      postImage = extracted;
+    }
   }
   const authorImage = null;
   const imageFocus = body.imageFocus?.trim() || null;
@@ -170,7 +179,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
   }
 
-  if (postImage && !isValidImageRef(postImage)) {
+  if (explicitPostImage && !isValidImageRef(explicitPostImage)) {
     return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
@@ -210,6 +219,30 @@ export async function POST(request: NextRequest) {
       { error: "पूरा लेख सेव नहीं हो सका। डेटाबेस स्कीमा अपडेट करें और फिर से प्रकाशित करें।" },
       { status: 500 },
     );
+  }
+
+  // Trigger Make.com Webhook for Automation
+  try {
+    const webhookUrl = process.env.MAKE_WEBHOOK_URL;
+    if (webhookUrl) {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vaamkiaawaz.com';
+      const postUrl = `${siteUrl}/post/${created.id}`;
+      
+      // Sending webhook without awaiting so it doesn't block the response
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: created.title,
+          excerpt: created.excerpt,
+          url: postUrl,
+          author: created.author,
+          category: created.category,
+        })
+      }).catch(err => console.error("Make.com Webhook failed:", err));
+    }
+  } catch (error) {
+    console.error("Make.com Webhook error:", error);
   }
 
   const enriched = await enrichPostsWithAuthorImages([created]);

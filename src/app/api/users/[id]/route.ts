@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { isValidImageRef } from "@/lib/fileStorage";
+import { parsePenNameFromPermissions, type PenNameDisplayMode } from "@/lib/penName";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -90,11 +91,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     active?: boolean;
     authorName?: unknown;
     authorImage?: unknown;
+    penNameEnabled?: unknown;
+    penName?: unknown;
+    penNameDisplayMode?: unknown;
   };
 
   const data: Prisma.UserUpdateInput = {};
 
-  const isSelfMasterAdminUpdate = target.role === "MASTER_ADMIN" && requester.id === target.id;
+  const isSelfUpdate = requester.id === target.id;
+  const isSelfMasterAdminUpdate = target.role === "MASTER_ADMIN" && isSelfUpdate;
+  const targetPermissions = extractPermissionsObject(target.permissions);
+  const canSelfUpdatePenName =
+    isSelfUpdate &&
+    (target.role === "MASTER_ADMIN" ||
+      target.role === "CONTRIBUTOR" ||
+      (target.role === "ADMIN" && targetPermissions.publishBlog === true));
+
   if (target.role === "MASTER_ADMIN" && !isSelfMasterAdminUpdate) {
     return NextResponse.json({ error: "Master admin cannot be modified." }, { status: 403 });
   }
@@ -110,6 +122,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
     });
   }
+
+  const hasPenNameUpdate =
+    body.penNameEnabled !== undefined ||
+    body.penName !== undefined ||
+    body.penNameDisplayMode !== undefined;
 
   if (body.authorName !== undefined || body.authorImage !== undefined) {
     if (!isSelfMasterAdminUpdate) {
@@ -131,6 +148,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...basePermissions,
       authorName: nextAuthorName,
       authorImage: nextAuthorImage,
+    });
+  }
+
+  if (hasPenNameUpdate) {
+    if (!canSelfUpdatePenName) {
+      return NextResponse.json({ error: "You do not have permission to update pen name settings." }, { status: 403 });
+    }
+    const currentPen = parsePenNameFromPermissions(targetPermissions);
+    const nextPenNameEnabled = body.penNameEnabled !== undefined ? body.penNameEnabled === true : currentPen.penNameEnabled;
+    const nextPenName = body.penName !== undefined
+      ? (typeof body.penName === "string" ? body.penName.trim() : "")
+      : currentPen.penName;
+    const nextPenNameDisplayMode: PenNameDisplayMode =
+      body.penNameDisplayMode === "only" || body.penNameDisplayMode === "alongside"
+        ? body.penNameDisplayMode
+        : currentPen.penNameDisplayMode;
+
+    if (nextPenNameEnabled && !nextPenName) {
+      return NextResponse.json({ error: "पेन नेम सक्षम होने पर नाम आवश्यक है।" }, { status: 400 });
+    }
+
+    const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});
+    data.permissions = JSON.stringify({
+      ...basePermissions,
+      penNameEnabled: nextPenNameEnabled,
+      penName: nextPenName,
+      penNameDisplayMode: nextPenNameDisplayMode,
     });
   }
 

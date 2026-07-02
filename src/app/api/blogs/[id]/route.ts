@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { postAuthorMatchesUser } from "@/lib/penName";
 import { isValidImageRef } from "@/lib/fileStorage";
+import { extractFirstImageFromHtml } from "@/lib/postImage";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -81,7 +83,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   const { id } = await context.params;
   const existing = await prisma.blogPost.findUnique({
     where: { id },
-    select: { id: true, author: true, authorUserId: true, uploaderName: true },
+    select: { id: true, author: true, authorUserId: true, uploaderName: true, content: true },
   });
 
   if (!existing) {
@@ -104,7 +106,8 @@ export async function PATCH(request: NextRequest, context: Context) {
   const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
   const isMaster = user.role === "MASTER_ADMIN";
   const isPostAuthor =
-    userAuthorName.length > 0 && userAuthorName === postAuthorName;
+    postAuthorMatchesUser(parsedPermissions, existing.author) ||
+    existing.authorUserId === userId;
   const isUploader =
     userAuthorName.length > 0 && userAuthorName === postUploaderName;
 
@@ -134,12 +137,19 @@ export async function PATCH(request: NextRequest, context: Context) {
   if (body.category?.trim()) updateData.category = body.category.trim();
   
   if (body.postImage !== undefined) {
-    let postImage = body.postImage?.trim() || null;
-    if (!postImage && updateData.content) {
-      const match = (updateData.content as string).match(/<img[^>]+src=["']([^"']+)["']/i);
-      postImage = match ? match[1] : null;
+    const explicitPostImage = body.postImage?.trim() || null;
+    let postImage = explicitPostImage;
+    if (!postImage) {
+      const contentSource =
+        typeof updateData.content === "string"
+          ? updateData.content
+          : existing.content;
+      const extracted = extractFirstImageFromHtml(contentSource);
+      if (extracted && isValidImageRef(extracted)) {
+        postImage = extracted;
+      }
     }
-    if (postImage && !isValidImageRef(postImage)) {
+    if (explicitPostImage && !isValidImageRef(explicitPostImage)) {
       return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
     updateData.postImage = postImage;

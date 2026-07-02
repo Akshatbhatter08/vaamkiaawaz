@@ -11,9 +11,11 @@ import "react-quill-new/dist/quill.snow.css";
 import { ArticleRichText } from "@/utils/sanitizeHtml";
 import { getCategoryClass, formatViews, readingTime, cleanHtml, getTodayHindi, fmtDate, speakHindiText } from "@/utils/designUtils";
 import { focusToObjectPosition } from "@/lib/imageCrop";
+import { resolvePostImage } from "@/lib/postImage";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
 import ArticleLoginModal from "@/components/ArticleLoginModal";
+import { postAuthorMatchesUser } from "@/lib/penName";
 import { SectionHeader } from "@/components/SectionHeader";
 
 type Post = {
@@ -88,7 +90,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [sessionEmail, setSessionEmail] = useState("");
   const [userRole, setUserRole] = useState("");
   const [userAuthorName, setUserAuthorName] = useState("");
-  
+  const [userPermissions, setUserPermissions] = useState<Record<string, unknown> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: post.title, excerpt: post.excerpt, content: post.content });
   const [saving, setSaving] = useState(false);
@@ -286,6 +288,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           }
           if (perm && typeof perm === "object" && perm.authorName) {
             setUserAuthorName(perm.authorName.trim().toLowerCase());
+            setUserPermissions(perm as Record<string, unknown>);
           }
         }
       }).catch(() => {});
@@ -319,7 +322,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   };
 
   const isMaster = userRole === "MASTER_ADMIN";
-  const isAuthor = userAuthorName && userAuthorName === post.author.trim().toLowerCase();
+  const isAuthor = userPermissions ? postAuthorMatchesUser(userPermissions, post.author) : false;
   const isUploader = userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase();
   const canEdit = isMaster || isAuthor || isUploader;
   const canDelete = isMaster || isUploader;
@@ -1039,9 +1042,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {displayedSuggested.slice(0, 3).map(sp => (
                 <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover card-lift group flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
-                  {sp.postImage && (
+                  {resolvePostImage(sp.postImage, sp.content) && (
                     <div className="card-image-container">
-                      <img src={sp.postImage} alt="" style={{ objectPosition: focusToObjectPosition(sp.imageFocus) }} />
+                      <img src={resolvePostImage(sp.postImage, sp.content)!} alt="" style={{ objectPosition: focusToObjectPosition(sp.imageFocus) }} />
                     </div>
                   )}
                   <div className="flex flex-col gap-2 p-4">

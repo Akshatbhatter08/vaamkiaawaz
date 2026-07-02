@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { formatAuthorDisplayName, parsePenNameFromPermissions } from "./penName";
 
 const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
@@ -34,10 +35,12 @@ export async function buildAuthorImageMap(): Promise<Map<string, string>> {
     const rawName = storedName || (canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "");
     if (!rawName) continue;
 
+    const penSettings = parsePenNameFromPermissions(permissions);
+    const displayName = formatAuthorDisplayName(rawName, penSettings);
     const rawImage = typeof permissions.authorImage === "string" ? permissions.authorImage.trim() : "";
     if (!rawImage) continue;
 
-    const key = normalizeAuthorName(rawName);
+    const key = normalizeAuthorName(displayName);
     if (!map.has(key)) {
       map.set(key, rawImage);
     }
