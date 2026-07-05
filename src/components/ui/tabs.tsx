@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export const Tabs = ({
   contentClassName,
   onTabChange,
   hideContent = false,
+  activeValue,
 }: {
   tabs: Tab[];
   containerClassName?: string;
@@ -26,17 +27,31 @@ export const Tabs = ({
   contentClassName?: string;
   onTabChange?: (value: string) => void;
   hideContent?: boolean;
+  /** When null, no tab is highlighted. When omitted, first tab is active. */
+  activeValue?: string | null;
 }) => {
-  const [active, setActive] = useState<Tab>(propTabs[0]);
+  const resolveActive = () => {
+    if (activeValue === null) return null;
+    if (activeValue) {
+      return propTabs.find((tab) => tab.value === activeValue) ?? propTabs[0];
+    }
+    return propTabs[0];
+  };
+
+  const [active, setActive] = useState<Tab | null>(resolveActive());
   const [tabs, setTabs] = useState<Tab[]>(propTabs);
+
+  useEffect(() => {
+    setActive(resolveActive());
+  }, [activeValue, propTabs]);
 
   const moveSelectedTabToTop = (idx: number) => {
     const newTabs = [...propTabs];
     const selectedTab = newTabs.splice(idx, 1);
     newTabs.unshift(selectedTab[0]);
     setTabs(newTabs);
-    setActive(newTabs[0]);
-    onTabChange?.(newTabs[0].value);
+    setActive(selectedTab[0]);
+    onTabChange?.(selectedTab[0].value);
   };
 
   const [hovering, setHovering] = useState(false);
@@ -62,7 +77,7 @@ export const Tabs = ({
               transformStyle: "preserve-3d",
             }}
           >
-            {active.value === tab.value && (
+            {active?.value === tab.value && (
               <motion.div
                 layoutId="clickedbutton"
                 transition={{ type: "spring", bounce: 0.3, duration: 0.6 }}
@@ -79,7 +94,7 @@ export const Tabs = ({
           </button>
         ))}
       </div>
-      {!hideContent && (
+      {!hideContent && active && (
         <FadeInDiv
           tabs={tabs}
           active={active}

@@ -117,6 +117,7 @@ export default async function Page() {
   }
 
   let initialResources = [];
+  let initialFeaturedVicharIds: string[] = [];
   try {
     const resources = await prisma.resource.findMany({
       orderBy: { createdAt: "desc" },
@@ -130,12 +131,21 @@ export default async function Page() {
     console.error("Error fetching initial resources:", error);
   }
 
+  try {
+    const { readSiteConfig } = await import("@/lib/siteConfig");
+    const config = await readSiteConfig();
+    initialFeaturedVicharIds = config.featuredVicharPostIds;
+  } catch (error) {
+    console.error("Error fetching site config:", error);
+  }
+
   return (
     <ClientPage
       initialBlogs={initialBlogs}
       initialTopBlogs={initialTopBlogs}
       initialEvents={initialEvents}
       initialResources={initialResources}
+      initialFeaturedVicharIds={initialFeaturedVicharIds}
     />
   );
 }

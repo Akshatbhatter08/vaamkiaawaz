@@ -182,8 +182,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (target.role !== "CONTRIBUTOR") {
       return NextResponse.json({ error: "Active status can only be changed for contributors." }, { status: 400 });
     }
-    if (!canManageUsers) {
-      return NextResponse.json({ error: "You do not have permission to manage contributors." }, { status: 403 });
+    if (requester.role !== "MASTER_ADMIN") {
+      return NextResponse.json({ error: "Only master admin can change contributor status." }, { status: 403 });
     }
     data.active = body.active === true;
   }

@@ -114,7 +114,16 @@ export function ArticleCard({
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: "10px" }}>
             <div style={{ fontFamily: "Inter, sans-serif", fontSize: "11px", color: "var(--gold)" }}>
-              {authorName}
+              <span
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.location.href = `/author/${encodeURIComponent(authorName)}`;
+                }}
+                style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
+              >
+                {authorName}
+              </span>
               {readTime ? <span style={{ opacity: 0.6 }}> · {readTime} मिनट</span> : null}
               {views !== undefined ? <span style={{ opacity: 0.6 }}> · {formatViews(views)} पाठक</span> : null}
               {time ? <span style={{ opacity: 0.6 }}> · {time}</span> : null}

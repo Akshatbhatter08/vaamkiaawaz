@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { isValidImageRef } from "@/lib/fileStorage";
+import { generateContributorCode } from "@/lib/contributorCode";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -110,15 +111,20 @@ export async function POST(request: NextRequest) {
             ...sanitizedPermissions,
             ...(normalizedAuthorName ? { authorName: normalizedAuthorName } : {}),
             ...(shouldSetAuthorProfile ? { authorImage: normalizedAuthorImage } : {}),
+            ...((sanitizedPermissions?.publishBlog || shouldSetAuthorProfile)
+              ? { contributorCode: generateContributorCode() }
+              : {}),
           }
         : role === "CONTRIBUTOR"
           ? {
               authorName: normalizedAuthorName,
               authorImage: normalizedAuthorImage,
+              contributorCode: generateContributorCode(),
             }
           : {
               authorName: normalizedAuthorName || MASTER_ADMIN_AUTHOR_NAME,
               ...(normalizedAuthorImage ? { authorImage: normalizedAuthorImage } : {}),
+              contributorCode: "VKA-MASTER",
             };
 
     const passwordHash = await hashPassword(password);

@@ -8,24 +8,52 @@ datasource db {
 }
 
 model BlogPost {
-  id           String   @id @default(cuid())
+  id           String            @id @default(cuid())
   category     String
-  title        String   @db.Text
-  excerpt      String   @db.Text
-  content      String   @db.LongText
+  title        String            @db.Text
+  excerpt      String            @db.Text
+  content      String            @db.LongText
   author       String
-  clickCount   Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  postImage    String?  @db.LongText
-  imageFocus   String?  @db.VarChar(32)
-  authorImage  String?  @db.LongText
+  clickCount   Int               @default(0)
+  likeCount    Int               @default(0)
+  dislikeCount Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  postImage    String?           @db.LongText
+  imageFocus   String?           @db.VarChar(32)
+  authorImage  String?           @db.LongText
   authorUserId String?
   uploaderName String?
-  isHidden     Boolean  @default(false)
-  User         User?    @relation(fields: [authorUserId], references: [id])
+  isHidden     Boolean           @default(false)
+  User         User?             @relation(fields: [authorUserId], references: [id])
+  comments     ArticleComment[]
+  reactions    ArticleReaction[]
 
   @@index([authorUserId], map: "BlogPost_authorUserId_fkey")
+}
+
+model ArticleComment {
+  id         String   @id @default(cuid())
+  blogPostId String
+  name       String
+  email      String
+  comment    String   @db.Text
+  createdAt  DateTime @default(now())
+  BlogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@index([blogPostId])
+}
+
+model ArticleReaction {
+  id         String   @id @default(cuid())
+  blogPostId String
+  visitorId  String
+  reaction   String
+  createdAt  DateTime @default(now())
+  BlogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@unique([blogPostId, visitorId])
+  @@index([blogPostId])
 }
 
 model User {

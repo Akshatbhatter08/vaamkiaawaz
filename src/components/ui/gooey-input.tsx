@@ -11,6 +11,7 @@ import {
 } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { HindiKeyboard } from "@/components/HindiKeyboard";
 
 function GooeyFilter({
   filterId,
@@ -95,6 +96,8 @@ export interface GooeyInputProps {
   onValueChange?: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
   disabled?: boolean;
+  /** Show virtual Hindi keyboard on desktop when expanded */
+  enableHindiKeyboard?: boolean;
 }
 
 export function GooeyInput({
@@ -111,6 +114,7 @@ export function GooeyInput({
   onValueChange,
   onOpenChange,
   disabled = false,
+  enableHindiKeyboard = false,
 }: GooeyInputProps) {
   const reactId = useId();
   const safeId = reactId.replace(/:/g, "");
@@ -121,6 +125,7 @@ export function GooeyInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const prevExpandedRef = useRef(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showHindiKeyboard, setShowHindiKeyboard] = useState(false);
   const [uncontrolledValue, setUncontrolledValue] = useState(defaultValue);
 
   const isControlled = valueProp !== undefined;
@@ -147,11 +152,15 @@ export function GooeyInput({
   useEffect(() => {
     if (isExpanded) {
       inputRef.current?.focus();
+      if (enableHindiKeyboard && typeof window !== "undefined" && !("ontouchstart" in window)) {
+        setShowHindiKeyboard(true);
+      }
     } else if (prevExpandedRef.current) {
       setSearchText("");
+      setShowHindiKeyboard(false);
     }
     prevExpandedRef.current = isExpanded;
-  }, [isExpanded, setSearchText]);
+  }, [isExpanded, setSearchText, enableHindiKeyboard]);
 
   const buttonVariants = useMemo(
     () => ({
@@ -223,6 +232,8 @@ export function GooeyInput({
               type="search"
               enterKeyHint="search"
               autoComplete="off"
+              lang="hi"
+              inputMode="text"
               value={searchText}
               onChange={handleChange}
               onBlur={handleBlur}
@@ -238,6 +249,14 @@ export function GooeyInput({
             />
           </button>
         </motion.div>
+
+        {showHindiKeyboard && isExpanded && (
+          <HindiKeyboard
+            onKeyPress={(char) => setSearchText(searchText + char)}
+            onBackspace={() => setSearchText(searchText.slice(0, -1))}
+            onClose={() => setShowHindiKeyboard(false)}
+          />
+        )}
 
         <motion.div
           className={cn(

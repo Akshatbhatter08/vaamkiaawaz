@@ -73,11 +73,15 @@ export async function PATCH(request: NextRequest, context: Context) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, permissions: true, id: true },
+    select: { role: true, permissions: true, id: true, active: true },
   });
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  if (user.role === "CONTRIBUTOR" && !user.active) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { id } = await context.params;
@@ -108,8 +112,13 @@ export async function PATCH(request: NextRequest, context: Context) {
   const isPostAuthor =
     postAuthorMatchesUser(parsedPermissions, existing.author) ||
     existing.authorUserId === userId;
+  const userContributorCode =
+    typeof parsedPermissions.contributorCode === "string"
+      ? parsedPermissions.contributorCode.trim().toLowerCase()
+      : "";
   const isUploader =
-    userAuthorName.length > 0 && userAuthorName === postUploaderName;
+    (userAuthorName.length > 0 && userAuthorName === postUploaderName) ||
+    (userContributorCode.length > 0 && userContributorCode === postUploaderName);
 
   if (!isMaster && !isPostAuthor && !isUploader) {
     return NextResponse.json(

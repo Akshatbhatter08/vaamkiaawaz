@@ -1311,6 +1311,78 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ARTICLE ENGAGEMENT (comments & reactions)
+   ═══════════════════════════════════════════════════════════════ */
+.article-engagement-input {
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.article-engagement-input:focus {
+  border-color: var(--primary);
+}
+.article-engagement-input::placeholder {
+  color: var(--muted);
+}
+.article-reaction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+.article-reaction-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.article-reaction-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.article-reaction-btn--active-like {
+  border-color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+.article-reaction-btn--active-dislike {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+.article-comments-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.article-comments-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.article-comments-scroll::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 9999px;
+}
+.theme-dark .article-reaction-btn--active-like,
+[data-theme="dark"] .article-reaction-btn--active-like {
+  background: rgba(22, 163, 74, 0.18);
+}
+.theme-dark .article-reaction-btn--active-dislike,
+[data-theme="dark"] .article-reaction-btn--active-dislike {
+  background: rgba(220, 38, 38, 0.18);
+}
+
+/* ═══════════════════════════════════════════════════════════════
    AUTHOR EDITORIAL HERO
    ═══════════════════════════════════════════════════════════════ */
 .author-hero {
@@ -1516,6 +1588,139 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .article-body h3 { font-size: 18px; }
 }
 
+/* ── Site header: balanced 3-column grid on desktop ── */
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  border-bottom: 1px solid var(--divider);
+  padding: 10px 24px;
+}
+
+.home-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.home-header__titles {
+  min-width: 0;
+  text-align: center;
+}
+
+.home-header__title {
+  text-align: center;
+}
+
+.home-header__subtitle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  font-family: "Noto Sans Devanagari", sans-serif;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.03em;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.home-header__subtitle span {
+  display: block;
+  color: var(--gold);
+}
+
+/* Tablet & small screens with topbar: center utility bar (450–1023px) */
+@media (min-width: 450px) and (max-width: 1023px) {
+  .site-topbar,
+  .home-topbar {
+    justify-content: center !important;
+    gap: 12px !important;
+  }
+}
+
+/* Tablet: center header brand + gold subtitle (769–1023px) */
+@media (min-width: 769px) and (max-width: 1023px) {
+  .home-header {
+    justify-content: center !important;
+  }
+
+  .home-header__brand {
+    justify-content: center !important;
+  }
+
+  .home-header__titles,
+  .home-header__title,
+  .home-header__subtitle {
+    text-align: center !important;
+  }
+
+  .home-header__subtitle,
+  .home-header__subtitle span {
+    color: var(--gold) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+  }
+
+  .home-header__slot--left {
+    justify-self: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .home-header__slot--right {
+    justify-self: end;
+    display: flex;
+    align-items: center;
+  }
+
+  .home-header__brand {
+    justify-self: center;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: min(640px, 100%);
+    min-width: 0;
+  }
+
+  .home-header__titles {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .home-header__title {
+    text-align: center;
+  }
+
+  .home-header__subtitle {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 4px;
+    font-family: "Noto Sans Devanagari", sans-serif;
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.03em;
+    line-height: 1.45;
+    text-align: center;
+  }
+
+  .home-header__subtitle span {
+    display: block;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    HOMEPAGE — MOBILE PARITY (≤768px)
    Reproduces the approved mobile reference. Desktop is untouched:
@@ -1531,14 +1736,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
   /* ── Utility top bar: keep it standard for tablet, mobile hides it entirely ── */
 
-  /* ── Header: brand row sizes increased for mobile/tablet ── */
+  /* ── Header: brand row — centered on phones, subtitle hidden ── */
   .home-header {
     padding: 12px 16px !important;
-    justify-content: space-between !important;
+    justify-content: center !important;
   }
   .home-header__brand {
+    display: flex !important;
     min-width: 0 !important;
     gap: 12px !important;
+    justify-content: center !important;
   }
   .home-header__logo {
     width: 52px !important;
@@ -1547,18 +1754,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   .home-header__titles {
     min-width: 0 !important;
-    text-align: left !important;
+    text-align: center !important;
   }
   .home-header__title {
     font-size: 24px !important;
     line-height: 1.15 !important;
     overflow-wrap: anywhere !important;
+    text-align: center !important;
   }
   .home-header__subtitle {
-    font-size: 11px !important;
-    letter-spacing: 0.08em !important;
-    text-align: left !important;
-    overflow-wrap: anywhere !important;
+    display: none !important;
   }
 
   /* ── Nav row: keep the menu + search/date/theme controls compact ── */

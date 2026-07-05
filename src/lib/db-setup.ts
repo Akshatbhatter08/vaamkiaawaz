@@ -15,7 +15,7 @@ const ensureBlogPostStorageColumns = async () => {
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'BlogPost'
-      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'imageFocus', 'authorImage', 'uploaderName', 'isHidden')
+      AND COLUMN_NAME IN ('title', 'excerpt', 'content', 'postImage', 'imageFocus', 'authorImage', 'uploaderName', 'isHidden', 'likeCount', 'dislikeCount')
   `);
 
   const byName = new Map(columns.map((item) => [item.COLUMN_NAME, item]));
@@ -27,6 +27,8 @@ const ensureBlogPostStorageColumns = async () => {
   const authorImage = byName.get("authorImage");
   const uploaderName = byName.get("uploaderName");
   const isHidden = byName.get("isHidden");
+  const likeCount = byName.get("likeCount");
+  const dislikeCount = byName.get("dislikeCount");
 
   if (!title || !excerpt || !content) {
     const tableExists = await prisma.$queryRawUnsafe<{ COUNT: number }[]>(`
@@ -130,6 +132,14 @@ const ensureBlogPostStorageColumns = async () => {
     alterOps.push("ADD COLUMN `isHidden` BOOLEAN NOT NULL DEFAULT FALSE");
   }
 
+  if (!likeCount) {
+    alterOps.push("ADD COLUMN `likeCount` INTEGER NOT NULL DEFAULT 0");
+  }
+
+  if (!dislikeCount) {
+    alterOps.push("ADD COLUMN `dislikeCount` INTEGER NOT NULL DEFAULT 0");
+  }
+
   if (alterOps.length > 0) {
     await prisma.$executeRawUnsafe(`ALTER TABLE \`BlogPost\` ${alterOps.join(", ")}`);
   }
@@ -142,6 +152,34 @@ const ensureBlogPostStorageColumns = async () => {
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       UNIQUE INDEX \`Category_name_key\`(\`name\`),
       PRIMARY KEY (\`id\`)
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`ArticleComment\` (
+      \`id\` VARCHAR(191) NOT NULL,
+      \`blogPostId\` VARCHAR(191) NOT NULL,
+      \`name\` VARCHAR(191) NOT NULL,
+      \`email\` VARCHAR(191) NOT NULL,
+      \`comment\` TEXT NOT NULL,
+      \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      INDEX \`ArticleComment_blogPostId_idx\`(\`blogPostId\`),
+      PRIMARY KEY (\`id\`),
+      CONSTRAINT \`ArticleComment_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`ArticleReaction\` (
+      \`id\` VARCHAR(191) NOT NULL,
+      \`blogPostId\` VARCHAR(191) NOT NULL,
+      \`visitorId\` VARCHAR(191) NOT NULL,
+      \`reaction\` VARCHAR(191) NOT NULL,
+      \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      INDEX \`ArticleReaction_blogPostId_idx\`(\`blogPostId\`),
+      UNIQUE INDEX \`ArticleReaction_blogPostId_visitorId_key\`(\`blogPostId\`, \`visitorId\`),
+      PRIMARY KEY (\`id\`),
+      CONSTRAINT \`ArticleReaction_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
 };

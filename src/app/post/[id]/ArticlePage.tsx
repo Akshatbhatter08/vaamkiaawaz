@@ -17,6 +17,11 @@ import AuthorProfileBox from "@/components/AuthorProfileBox";
 import ArticleLoginModal from "@/components/ArticleLoginModal";
 import { postAuthorMatchesUser } from "@/lib/penName";
 import { SectionHeader } from "@/components/SectionHeader";
+import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
+import { GoToTopButton } from "@/components/GoToTopButton";
+import ArticleEngagement from "@/components/ArticleEngagement";
+import { ImageCropModal } from "@/components/ImageCropModal";
+import { uploadDataUrl } from "@/lib/uploadClient";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
@@ -33,6 +38,7 @@ const THEME_KEY = "vaamki-aawaz-theme";
 const navTabs = [
   { title: "होम", value: "home" },
   { title: "ताज़ा खबरें", value: "latest" },
+  { title: "आलेख", value: "add-news" },
   { title: "ब्लॉग", value: "blogs" },
   { title: "संसाधन", value: "resources" },
   { title: "न्यूज़लेटर", value: "newsletter" },
@@ -92,7 +98,22 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [userAuthorName, setUserAuthorName] = useState("");
   const [userPermissions, setUserPermissions] = useState<Record<string, unknown> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ title: post.title, excerpt: post.excerpt, content: post.content });
+  const [editForm, setEditForm] = useState({
+    title: post.title,
+    excerpt: post.excerpt,
+    content: post.content,
+    postImage: post.postImage || "",
+    imageFocus: post.imageFocus || "",
+  });
+  const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
+  const [resourceFilter, setResourceFilter] = useState<"all" | "link" | "pdf">("all");
+  const [todayKaryakramOpen, setTodayKaryakramOpen] = useState(false);
+  const [historicEventModalOpen, setHistoricEventModalOpen] = useState(false);
+  const [historicEventData, setHistoricEventData] = useState<{
+    title: string; date: string; year: number | null; description: string; wikiUrl?: string | null;
+  } | null>(null);
+  const [historicEventLoading, setHistoricEventLoading] = useState(false);
+  const translateRef = useRef<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [showTranslate, setShowTranslate] = useState(false);
   
@@ -201,7 +222,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     };
   }, [allFetchedPosts, displayedSuggested, hasMore, isLoadingMore, post.category, post.id]);
 
-  const displayUploaderName = post.uploaderName === 'मास्टर एडमिन' ? 'केशव कुमार भट्टड़' : post.uploaderName === 'अज्ञात' ? post.author : post.uploaderName;
+  const displayUploaderName = formatUploaderDisplay(post.uploaderName, post.author);
+
+  const todayEventsList = useMemo(() => events.filter((ev) => ev.date === todayStr), [events, todayStr]);
+
+  const filteredResources = useMemo(() => {
+    if (resourceFilter === "all") return resources;
+    return resources.filter((res) => res.type === resourceFilter);
+  }, [resources, resourceFilter]);
 
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -216,6 +244,10 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const handleNavTabChange = (value: string) => {
     if (value === "categories") {
       setIsCategoryMenuOpen((prev) => !prev);
+      return;
+    }
+    if (value === "parichay") {
+      router.push("/?tab=parichay");
       return;
     }
     if (value === "home") {
@@ -323,7 +355,13 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
   const isMaster = userRole === "MASTER_ADMIN";
   const isAuthor = userPermissions ? postAuthorMatchesUser(userPermissions, post.author) : false;
-  const isUploader = userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase();
+  const userContributorCode =
+    userPermissions && typeof userPermissions.contributorCode === "string"
+      ? userPermissions.contributorCode.trim().toLowerCase()
+      : "";
+  const isUploader =
+    (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase()) ||
+    (userContributorCode && post.uploaderName && userContributorCode === post.uploaderName.trim().toLowerCase());
   const canEdit = isMaster || isAuthor || isUploader;
   const canDelete = isMaster || isUploader;
   
@@ -397,6 +435,49 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     setSaving(false);
   };
 
+  const handleThumbnailInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("कृपया वैध image file चुनें।");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setCropModalSrc(reader.result);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const handleCropConfirm = async (result: { dataUrl: string; imageFocus: string }) => {
+    try {
+      const url = await uploadDataUrl(result.dataUrl, "posts", "thumbnail.jpg");
+      setEditForm((prev) => ({ ...prev, postImage: url, imageFocus: result.imageFocus }));
+      setCropModalSrc(null);
+    } catch {
+      alert("थंबनेल सेव नहीं हो सका।");
+    }
+  };
+
+  const openHistoricEventModal = async () => {
+    setHistoricEventModalOpen(true);
+    setHistoricEventLoading(true);
+    try {
+      const res = await fetch("/api/historic-event");
+      setHistoricEventData(await res.json());
+    } catch {
+      setHistoricEventData({
+        title: "आज का इतिहास",
+        date: new Date().toLocaleDateString("hi-IN"),
+        year: null,
+        description: "ऐतिहासिक घटना लोड नहीं हो सकी।",
+      });
+    } finally {
+      setHistoricEventLoading(false);
+    }
+  };
+
   const heroImg = post.postImage || null;
 
   return (
@@ -404,32 +485,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
 
         {/* ─── Top bar ─── */}
-        <div className="article-no-print notranslate hidden min-[550px]:flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
-          <span className="shrink-0 whitespace-nowrap">
-            {new Date().toLocaleDateString("hi-IN", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-              weekday: "long",
-            })}
-          </span>
+        <div className="site-topbar article-no-print notranslate hidden min-[550px]:flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 text-xs text-[var(--muted)] sm:text-sm">
+          <span className="shrink-0 whitespace-nowrap">{formatBilingualDate()}</span>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => changeFontSize(-1)}
-              title="फ़ॉन्ट छोटा करें"
-              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
-            >
-              अ−
-            </button>
-            <button
-              type="button"
-              onClick={() => changeFontSize(1)}
-              title="फ़ॉन्ट बड़ा करें"
-              style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15, color: "var(--gold)", background: "transparent", border: "1px solid var(--divider)", padding: "1px 7px", cursor: "pointer" }}
-            >
-              अ+
-            </button>
+            <div className="flex items-center gap-0.5 rounded border border-[var(--divider)] px-1">
+              <button type="button" onClick={() => changeFontSize(-1)} className="border-none bg-transparent px-1.5 py-0.5 text-[var(--gold)]" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13 }}>अ−</button>
+              <button type="button" onClick={() => changeFontSize(1)} className="border-none bg-transparent px-1.5 py-0.5 text-[var(--gold)]" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 15 }}>अ+</button>
+              <span className="text-[var(--divider)]">|</span>
+              <button type="button" onClick={() => changeFontSize(-1)} className="border-none bg-transparent px-1.5 py-0.5 text-[var(--gold)]" style={{ fontFamily: "Inter, sans-serif", fontSize: 12 }}>A−</button>
+              <button type="button" onClick={() => changeFontSize(1)} className="border-none bg-transparent px-1.5 py-0.5 text-[var(--gold)]" style={{ fontFamily: "Inter, sans-serif", fontSize: 14 }}>A+</button>
+            </div>
             <a className={`interactive-link inline-flex items-center justify-center h-8 w-8 ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-black hover:text-[var(--primary)]"}`} href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer">
               <FacebookIcon />
             </a>
@@ -461,21 +526,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           className={`notranslate sticky top-0 z-50 ${isScrolledHeader ? (theme === "dark" ? "bg-[var(--surface)]" : "bg-white") : "bg-transparent"}`}
           style={{ "--compact-progress": 0 } as CSSProperties}
         >
-          <header
-            id="top"
-            className="headline-fade home-header"
-            style={{
-              background: "var(--ink)",
-              padding: "10px 24px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-              borderBottom: "1px solid var(--divider)",
-            }}
-          >
-            <Link href="/" className="home-header__brand" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
-            <img
+          <header id="top" className="headline-fade home-header">
+            <div className="home-header__slot home-header__slot--left hidden lg:flex">
+              <button type="button" onClick={() => setTodayKaryakramOpen(true)} className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]">
+                आज के कार्यक्रम
+              </button>
+              <button type="button" onClick={() => void openHistoricEventModal()} className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]">
+                आज का इतिहास
+              </button>
+            </div>
+            <Link href="/" className="home-header__brand" style={{ textDecoration: "none" }}>
+              <img
                 src="/vaamki-logo.png"
                 alt="वाम की आवाज़ लोगो"
                 onError={(event) => {
@@ -488,13 +549,15 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <div className="home-header__title" style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 30, fontWeight: 700, color: "var(--headline)", lineHeight: 1.1 }}>
                   वाम की आवाज़ (Vaam Ki Aawaz)
                 </div>
-                <div className="home-header__subtitle" style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: "var(--gold)", letterSpacing: "0.09em", textAlign: "center" }}>
-                  विकल्प की डिजिटल दुनिया
+                <div className="home-header__subtitle">
+                  {SITE_TAGLINE_LINES.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
                 </div>
               </div>
             </Link>
-            <div className="hidden lg:block" style={{ position: "absolute", right: 24 }}>
-              <a href="https://www.youtube.com/@VaamKiAawaz" className="btn-primary">
+            <div className="home-header__slot home-header__slot--right hidden lg:flex">
+              <a href={LIVE_COVERAGE_URL} target="_blank" rel="noreferrer" className="btn-primary">
                 लाइव कवरेज
               </a>
             </div>
@@ -523,6 +586,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     tabs={navTabs}
                     onTabChange={handleNavTabChange}
                     hideContent
+                    activeValue={null}
                     containerClassName="gap-1"
                     activeTabClassName="bg-[var(--surface-soft)] border border-[var(--line)]"
                     tabClassName="rise-on-hover whitespace-nowrap border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
@@ -560,7 +624,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <GooeyInput
                     value={searchTerm}
                     onValueChange={setSearchTerm}
-                    placeholder="खबरें खोजें..."
+                    placeholder="खोज"
+                    enableHindiKeyboard
                     className="w-auto shrink"
                     collapsedWidth={140}
                     expandedWidth={220}
@@ -801,6 +866,18 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">थंबनेल (Thumbnail)</label>
+                  <input type="file" accept="image/*" onChange={(e) => void handleThumbnailInputChange(e)} className="w-full text-xs" />
+                  {editForm.postImage && (
+                    <img
+                      src={resolvePostImage(editForm.postImage, editForm.content) || editForm.postImage}
+                      alt="Thumbnail preview"
+                      className="mt-2 h-24 w-36 rounded-md object-cover"
+                      style={{ objectPosition: focusToObjectPosition(editForm.imageFocus) }}
+                    />
+                  )}
+                </div>
                 <div className="flex gap-3 justify-end mt-6">
                   <button 
                     onClick={() => setIsEditing(false)} 
@@ -903,6 +980,10 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   </p>
                 )}
 
+                {!isEditing && (
+                  <ArticleEngagement postId={post.id} isMasterAdmin={isMaster} />
+                )}
+
                 {/* Print Only Footer */}
                 <div className="hidden print-only notranslate mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
                   <h4 className="font-serif text-lg font-bold text-black mb-2">{post.title}</h4>
@@ -985,10 +1066,30 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
             {/* Resources */}
             {resources.length > 0 && (
-              <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+              <section className="rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 p-5 shadow-sm">
                 <h3 className="font-serif text-xl font-bold text-[var(--headline)]">संसाधन</h3>
-                <div className="mt-3 space-y-2 text-sm">
-                  {resources.map(r => (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    { key: "all", label: "सभी" },
+                    { key: "link", label: "लिंक" },
+                    { key: "pdf", label: "लाइब्रेरी" },
+                  ].map((filter) => (
+                    <button
+                      key={filter.key}
+                      type="button"
+                      onClick={() => setResourceFilter(filter.key as "all" | "link" | "pdf")}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                        resourceFilter === filter.key
+                          ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                          : "border-[var(--line)] text-[var(--foreground)]"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 max-h-[280px] space-y-2 overflow-y-auto text-sm pr-1">
+                  {filteredResources.map(r => (
                     <div key={r.id} className="rise-on-hover rounded-md border border-[var(--line)] p-3">
                       <p className="font-semibold text-[var(--headline)]">{r.title} {r.type === "pdf" ? "(PDF)" : "(Link)"}</p>
                     </div>
@@ -1051,7 +1152,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     <span className={`cat-pill self-start ${getCategoryClass(sp.category)}`}>{sp.category}</span>
                     <h4 className="line-clamp-2 font-serif text-lg font-semibold leading-snug text-[var(--headline)] group-hover:text-[var(--primary)]">{sp.title}</h4>
                     <div className="line-clamp-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(sp.excerpt) }} />
-                    <p className="mt-1 text-xs text-[var(--muted)]">{sp.author} • {sp.time}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      <Link href={`/author/${encodeURIComponent(sp.author)}`} className="hover:text-[var(--primary)] hover:underline">{sp.author}</Link> • {sp.time}
+                    </p>
                   </div>
                 </Link>
               ))}
@@ -1064,9 +1167,12 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="footer-grid" style={{ marginBottom: 40 }}>
               <div>
-                <div className={`site-footer__brand ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 42, fontWeight: 700, marginBottom: 12 }}>वाम की आवाज़</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <img src="/vaamki-logo.png" alt="वाम की आवाज़ लोगो" onError={(e) => { e.currentTarget.src = "/vercel.svg"; }} style={{ width: 52, height: 52, objectFit: "contain", border: "1px solid var(--divider)", background: "var(--surface-mid)", padding: 3 }} />
+                  <div className={`site-footer__brand ${theme === "dark" ? "text-[var(--muted)] hover:text-white" : "text-gray-700 hover:text-[var(--primary)]"}`} style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 34, fontWeight: 700 }}>वाम की आवाज़</div>
+                </div>
                 <p style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, lineHeight: 1.75, color: "var(--text-secondary)", marginBottom: 16 }}>
-                  जन संघर्षों की कहानियाँ, संदर्भ और आवाज़। हम पत्रकार नहीं, पहरेदार हैं—न्याय और समता के।
+                  {SITE_TAGLINE}
                 </p>
                 <div style={{ display: "flex", gap: 12 }}>
                   <a href="https://www.facebook.com/VaamKiAawaz" target="_blank" rel="noreferrer" className={theme === "dark" ? "text-[var(--text-secondary)] hover:text-white" : "text-black hover:text-[var(--primary)]"} aria-label="Facebook">
@@ -1089,7 +1195,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 {[
                   { label: "होम", value: "home" },
                   { label: "ताज़ा खबरें", value: "latest" },
-                  { label: "ब्लॉग", value: "blogs" },
+                  { label: "आलेख", value: "add-news" },
                   { label: "संसाधन", value: "resources" },
                   { label: "न्यूज़लेटर", value: "newsletter" },
                 ].map((link) => (
@@ -1120,11 +1226,11 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
               <div>
                 <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--gold)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>आर्काइव</div>
-                {["2026 के लेख", "विशेष रिपोर्ट", "पॉडकास्ट"].map((link) => (
-                  <div key={link} style={{ marginBottom: 8 }}>
-                    <span style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)" }}>{link}</span>
-                  </div>
-                ))}
+                <div style={{ marginBottom: 8 }}>
+                  <Link href="/?tab=abhiyan-archive" style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
+                    अभियान कैलेंडर आर्काइव
+                  </Link>
+                </div>
               </div>
             </div>
 
@@ -1253,6 +1359,51 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         onLoginSuccess={(email) => setSessionEmail(email)}
         onLogout={() => setSessionEmail("")}
       />
+
+      {cropModalSrc && (
+        <ImageCropModal
+          imageSrc={cropModalSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropModalSrc(null)}
+        />
+      )}
+
+      {historicEventModalOpen && (
+        <div className="fixed inset-0 z-[122] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+            <button type="button" onClick={() => setHistoricEventModalOpen(false)} className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">Close</button>
+            <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">आज का इतिहास</h3>
+            {historicEventLoading ? <p className="mt-4 text-sm text-[var(--muted)]">लोड हो रहा है...</p> : historicEventData ? (
+              <div className="mt-4 space-y-3 text-sm leading-7 text-[var(--foreground)]">
+                <p className="text-[var(--muted)]">{historicEventData.date}{historicEventData.year ? ` • ${historicEventData.year}` : ""}</p>
+                <p>{historicEventData.description}</p>
+                {historicEventData.wikiUrl && <a href={historicEventData.wikiUrl} target="_blank" rel="noreferrer" className="inline-flex text-[var(--primary)] font-semibold hover:underline">और पढ़ें →</a>}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {todayKaryakramOpen && (
+        <div className="fixed inset-0 z-[122] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 md:p-7">
+            <button type="button" onClick={() => setTodayKaryakramOpen(false)} className="absolute right-4 top-4 rounded-full border border-[var(--line)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">Close</button>
+            <h3 className="pr-14 font-serif text-2xl font-bold text-[var(--headline)]">आज के कार्यक्रम</h3>
+            <div className="mt-4 space-y-3">
+              {todayEventsList.length === 0 ? (
+                <p className="text-sm text-[var(--muted)]">आज के लिए कोई कार्यक्रम उपलब्ध नहीं है।</p>
+              ) : todayEventsList.map((ev) => (
+                <div key={ev.id} onClick={() => { setActiveEvent(ev); setTodayKaryakramOpen(false); }} className="cursor-pointer rise-on-hover rounded-md border border-l-4 border-[var(--line)] border-l-[var(--primary)] bg-[var(--surface)] p-3">
+                  <p className="font-semibold text-[var(--headline)]">{ev.title}</p>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">{ev.date ? `${formatDateWithDay(ev.date)} • ${ev.time}` : "तय होना बाकी"}{ev.location ? ` | ${ev.location}` : ""}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <GoToTopButton />
     </div>
   );
 }
