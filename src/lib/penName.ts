@@ -28,22 +28,37 @@ export function formatAuthorDisplayName(authorName: string, settings: PenNameSet
   if (settings.penNameDisplayMode === "only") {
     return pen;
   }
+  if (!base) {
+    return pen;
+  }
   return `${base} '${pen}'`;
+}
+
+export function resolveAuthorListName(
+  permissions: Record<string, unknown>,
+  masterFallbackName = "",
+): string {
+  const authorName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
+  const base = authorName || masterFallbackName.trim();
+  return formatAuthorDisplayName(base, parsePenNameFromPermissions(permissions));
 }
 
 export function postAuthorMatchesUser(
   permissions: Record<string, unknown>,
   postAuthor: string,
+  masterFallbackName = "",
 ): boolean {
-  const authorName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
-  if (!authorName) {
+  const displayName = resolveAuthorListName(permissions, masterFallbackName);
+  if (!displayName) {
     return false;
   }
-  const penSettings = parsePenNameFromPermissions(permissions);
-  const displayName = formatAuthorDisplayName(authorName, penSettings);
+  const authorName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
+  const base = authorName || masterFallbackName.trim();
+  const pen = parsePenNameFromPermissions(permissions).penName.trim();
   const normalizedPost = postAuthor.trim().toLowerCase();
   return (
-    normalizedPost === authorName.toLowerCase() ||
-    normalizedPost === displayName.toLowerCase()
+    normalizedPost === displayName.toLowerCase() ||
+    (base.length > 0 && normalizedPost === base.toLowerCase()) ||
+    (pen.length > 0 && normalizedPost === pen.toLowerCase())
   );
 }

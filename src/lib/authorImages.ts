@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { formatAuthorDisplayName, parsePenNameFromPermissions } from "./penName";
+import { resolveAuthorListName } from "./penName";
 
 const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
@@ -7,7 +7,7 @@ const normalizeAuthorName = (name: string) => name.trim().toLowerCase();
 
 export async function buildAuthorImageMap(): Promise<Map<string, string>> {
   const users = await prisma.user.findMany({
-    select: { role: true, permissions: true },
+    select: { role: true, active: true, permissions: true },
   });
 
   const map = new Map<string, string>();
@@ -25,18 +25,18 @@ export async function buildAuthorImageMap(): Promise<Map<string, string>> {
 
     const canUseMasterAdminAsAuthor = user.role === "MASTER_ADMIN";
     const canUseAdminAsAuthor = user.role === "ADMIN" && permissions.publishBlog === true;
-    const canUseContributorAsAuthor = user.role === "CONTRIBUTOR";
+    const canUseContributorAsAuthor = user.role === "CONTRIBUTOR" && user.active;
 
     if (!canUseMasterAdminAsAuthor && !canUseAdminAsAuthor && !canUseContributorAsAuthor) {
       continue;
     }
 
-    const storedName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
-    const rawName = storedName || (canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "");
-    if (!rawName) continue;
+    const displayName = resolveAuthorListName(
+      permissions,
+      canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "",
+    );
+    if (!displayName) continue;
 
-    const penSettings = parsePenNameFromPermissions(permissions);
-    const displayName = formatAuthorDisplayName(rawName, penSettings);
     const rawImage = typeof permissions.authorImage === "string" ? permissions.authorImage.trim() : "";
     if (!rawImage) continue;
 

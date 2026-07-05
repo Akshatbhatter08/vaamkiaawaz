@@ -16,7 +16,7 @@ import { ImageCropModal } from "@/components/ImageCropModal";
 import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
-import { formatAuthorDisplayName, parsePenNameFromPermissions, type PenNameDisplayMode } from "@/lib/penName";
+import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
 import "react-quill-new/dist/quill.snow.css";
@@ -816,25 +816,6 @@ export default function ClientPage({
   }, []);
 
   useEffect(() => {
-    if (!formState.author && availableAuthors.length > 0) {
-      setFormState((prev) => ({
-        ...prev,
-        author: availableAuthors[0].name,
-        authorImage: availableAuthors[0].image ?? "",
-      }));
-      return;
-    }
-    if (formState.author) {
-      const matchedAuthor = availableAuthors.find(
-        (author) => normalizeAuthorName(author.name) === normalizeAuthorName(formState.author),
-      );
-      if (matchedAuthor && formState.authorImage !== (matchedAuthor.image ?? "")) {
-        setFormState((prev) => ({ ...prev, authorImage: matchedAuthor.image ?? "" }));
-      }
-    }
-  }, [availableAuthors, formState.author, formState.authorImage]);
-
-  useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -964,6 +945,58 @@ export default function ClientPage({
     }
     return currentUser.active;
   }, [currentUser]);
+
+  const currentUserAuthorListName = useMemo(() => {
+    if (!currentUser || !canPublishBlog) {
+      return "";
+    }
+    return resolveAuthorListName(
+      {
+        authorName: currentUser.authorName,
+        penNameEnabled: currentUser.penNameEnabled,
+        penName: currentUser.penName,
+        penNameDisplayMode: currentUser.penNameDisplayMode,
+      },
+      currentUser.role === "master" ? MASTER_AUTHOR_NAME : "",
+    );
+  }, [currentUser, canPublishBlog]);
+
+  useEffect(() => {
+    if (availableAuthors.length === 0) {
+      return;
+    }
+
+    const ownAuthor = currentUserAuthorListName
+      ? availableAuthors.find(
+          (author) => normalizeAuthorName(author.name) === normalizeAuthorName(currentUserAuthorListName),
+        )
+      : undefined;
+
+    if (!formState.author) {
+      const selected = ownAuthor ?? availableAuthors[0];
+      setFormState((prev) => ({
+        ...prev,
+        author: selected.name,
+        authorImage: selected.image ?? "",
+      }));
+      return;
+    }
+
+    const matchedAuthor = availableAuthors.find(
+      (author) => normalizeAuthorName(author.name) === normalizeAuthorName(formState.author),
+    );
+    if (!matchedAuthor && ownAuthor) {
+      setFormState((prev) => ({
+        ...prev,
+        author: ownAuthor.name,
+        authorImage: ownAuthor.image ?? "",
+      }));
+      return;
+    }
+    if (matchedAuthor && formState.authorImage !== (matchedAuthor.image ?? "")) {
+      setFormState((prev) => ({ ...prev, authorImage: matchedAuthor.image ?? "" }));
+    }
+  }, [availableAuthors, formState.author, formState.authorImage, currentUserAuthorListName]);
 
   useEffect(() => {
     if (!currentUser || currentUser.role === "master") {

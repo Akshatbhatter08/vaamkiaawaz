@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { formatAuthorDisplayName, parsePenNameFromPermissions } from "@/lib/penName";
+import { resolveAuthorListName } from "@/lib/penName";
 
 export const dynamic = "force-dynamic";
 
@@ -48,20 +48,19 @@ export async function GET() {
       } catch { permissions = {}; }
       const canUseMasterAdminAsAuthor = user.role === "MASTER_ADMIN";
       const canUseAdminAsAuthor = user.role === "ADMIN" && permissions.publishBlog === true;
-      const canUseContributorAsAuthor = user.role === "CONTRIBUTOR";
+      const canUseContributorAsAuthor = user.role === "CONTRIBUTOR" && user.active;
 
       if (!canUseMasterAdminAsAuthor && !canUseAdminAsAuthor && !canUseContributorAsAuthor) {
         return;
       }
 
-      const storedName = typeof permissions.authorName === "string" ? permissions.authorName.trim() : "";
-      const rawName = storedName || (canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "");
-      if (!rawName) {
+      const displayName = resolveAuthorListName(
+        permissions,
+        canUseMasterAdminAsAuthor ? MASTER_ADMIN_AUTHOR_NAME : "",
+      );
+      if (!displayName) {
         return;
       }
-      const name = rawName;
-      const penSettings = parsePenNameFromPermissions(permissions);
-      const displayName = formatAuthorDisplayName(name, penSettings);
       const rawImage = typeof permissions.authorImage === "string" ? permissions.authorImage.trim() : "";
       const image = rawImage || null;
       const key = normalizeAuthorName(displayName);
