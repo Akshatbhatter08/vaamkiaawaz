@@ -1126,6 +1126,34 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Hero side panel ("और खबरें") — desktop only */
 .hero-side-panel { display: none; }
 
+/* Hero image shade — vignette + gradients for text legibility */
+.hero-section__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.94) 0%,
+      rgba(0, 0, 0, 0.78) 32%,
+      rgba(0, 0, 0, 0.42) 58%,
+      rgba(0, 0, 0, 0.14) 78%,
+      rgba(0, 0, 0, 0.06) 100%
+    ),
+    linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.85) 0%,
+      rgba(0, 0, 0, 0.5) 42%,
+      transparent 72%
+    ),
+    radial-gradient(
+      ellipse 115% 95% at 50% 45%,
+      transparent 22%,
+      rgba(0, 0, 0, 0.45) 100%
+    );
+}
+
 @media (min-width: 1024px) {
   .hero-side-panel { display: block !important; }
 }

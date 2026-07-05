@@ -2721,7 +2721,7 @@ export default function ClientPage({
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(featuredForDisplay[0].imageFocus), filter: "saturate(0.85) contrast(1.05)" }}
               />
             )}
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.25) 35%, rgba(0,0,0,0.88) 100%)" }} />
+            <div className="hero-section__shade" />
 
             <div
               style={{
