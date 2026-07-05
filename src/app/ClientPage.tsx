@@ -3307,7 +3307,7 @@ export default function ClientPage({
                   ))}
               </select>
               <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
-                पोस्ट फोटो
+                थंबनेल फोटो
                 <input
                   type="file"
                   accept="image/*"
@@ -3668,28 +3668,6 @@ export default function ClientPage({
                                 <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </section>
-
-                      <section className="rounded-lg border border-[var(--line)] p-4">
-                        <h4 className="text-lg font-semibold text-[var(--headline)]">प्रमुख विचार चयन</h4>
-                        <p className="mt-1 text-xs text-[var(--muted)]">होमपेज पर दिखने वाले लेख चुनें (केवल शीर्षक दिखेगा)</p>
-                        <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-                          {blogs.slice(0, 50).map((post) => (
-                            <label key={post.id} className="flex items-start gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={featuredVicharIds.includes(post.id)}
-                                onChange={(e) => {
-                                  const next = e.target.checked
-                                    ? [...featuredVicharIds, post.id]
-                                    : featuredVicharIds.filter((id) => id !== post.id);
-                                  void saveFeaturedVichar(next);
-                                }}
-                              />
-                              <span className="line-clamp-2">{post.title}</span>
-                            </label>
                           ))}
                         </div>
                       </section>

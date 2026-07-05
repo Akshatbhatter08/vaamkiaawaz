@@ -102,29 +102,15 @@ export async function PATCH(request: NextRequest, context: Context) {
     parsedPermissions = user.permissions;
   }
 
-  const userAuthorName =
-    typeof parsedPermissions.authorName === "string"
-      ? parsedPermissions.authorName.trim().toLowerCase()
-      : "";
-  const postAuthorName = existing.author.trim().toLowerCase();
-  const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
   const isMaster = user.role === "MASTER_ADMIN";
   const isPostAuthor =
     postAuthorMatchesUser(parsedPermissions, existing.author) ||
     existing.authorUserId === userId;
-  const userContributorCode =
-    typeof parsedPermissions.contributorCode === "string"
-      ? parsedPermissions.contributorCode.trim().toLowerCase()
-      : "";
-  const isUploader =
-    (userAuthorName.length > 0 && userAuthorName === postUploaderName) ||
-    (userContributorCode.length > 0 && userContributorCode === postUploaderName);
-
-  if (!isMaster && !isPostAuthor && !isUploader) {
+  if (!isMaster && !isPostAuthor) {
     return NextResponse.json(
       {
         error:
-          "इस लेख को केवल मास्टर एडमिन, इसके लेखक या अपलोडकर्ता ही संपादित कर सकते हैं।",
+          "इस लेख को केवल मास्टर एडमिन या इसके लेखक ही संपादित कर सकते हैं।",
       },
       { status: 403 }
     );

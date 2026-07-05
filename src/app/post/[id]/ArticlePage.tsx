@@ -95,6 +95,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sessionEmail, setSessionEmail] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [sessionUserId, setSessionUserId] = useState("");
   const [userAuthorName, setUserAuthorName] = useState("");
   const [userPermissions, setUserPermissions] = useState<Record<string, unknown> | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -314,12 +315,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
         if (d.user) {
           setSessionEmail(d.user.email);
           setUserRole(d.user.role);
+          if (typeof d.user.id === "string") {
+            setSessionUserId(d.user.id);
+          }
           let perm = d.user.permissions;
           if (typeof perm === "string") {
             try { perm = JSON.parse(perm); } catch (e) {}
           }
-          if (perm && typeof perm === "object" && perm.authorName) {
-            setUserAuthorName(perm.authorName.trim().toLowerCase());
+          if (perm && typeof perm === "object") {
+            const authorName =
+              typeof perm.authorName === "string" ? perm.authorName.trim().toLowerCase() : "";
+            setUserAuthorName(authorName);
             setUserPermissions(perm as Record<string, unknown>);
           }
         }
@@ -354,7 +360,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   };
 
   const isMaster = userRole === "MASTER_ADMIN";
-  const isAuthor = userPermissions ? postAuthorMatchesUser(userPermissions, post.author) : false;
+  const isAuthor =
+    (userPermissions ? postAuthorMatchesUser(userPermissions, post.author) : false) ||
+    (sessionUserId.length > 0 && post.authorUserId === sessionUserId);
   const userContributorCode =
     userPermissions && typeof userPermissions.contributorCode === "string"
       ? userPermissions.contributorCode.trim().toLowerCase()
@@ -362,7 +370,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const isUploader =
     (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase()) ||
     (userContributorCode && post.uploaderName && userContributorCode === post.uploaderName.trim().toLowerCase());
-  const canEdit = isMaster || isAuthor || isUploader;
+  const canEdit = isMaster || isAuthor;
   const canDelete = isMaster || isUploader;
   
   const roleText = userRole === "MASTER_ADMIN" 
