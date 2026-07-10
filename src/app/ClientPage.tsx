@@ -775,6 +775,7 @@ export default function ClientPage({
             const withoutCurrent = prev.filter((item) => item.email.toLowerCase() !== currentUser.email.toLowerCase());
             return [currentUser, ...withoutCurrent];
           });
+          void fetchAuthors();
         }
       })
       .catch(() => {});
@@ -1242,6 +1243,7 @@ export default function ClientPage({
       setLoginMessage(`स्वागत है ${loggedInUser.email}`);
       setLoginForm({ email: "", password: "" });
       void fetchUsers();
+      void fetchAuthors();
     } catch (err) {
       setLoginMessage("लॉगिन विफल।");
     }

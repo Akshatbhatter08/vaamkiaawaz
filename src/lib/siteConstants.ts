@@ -30,7 +30,6 @@ export function formatUploaderDisplay(
   author?: string,
 ): string {
   if (!uploaderName) return author || "—";
-  if (uploaderName === "मास्टर एडमिन" || uploaderName === "केशव कुमार भट्टड़") return "VKA-MASTER";
   if (uploaderName === "अज्ञात") return author || "—";
   return uploaderName;
 }

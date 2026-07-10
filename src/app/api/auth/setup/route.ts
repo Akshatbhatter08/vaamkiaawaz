@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { generateContributorCode } from "@/lib/contributorCode";
 
 const MASTER_ADMIN_AUTHOR_NAME = "केशव कुमार भट्टड़ ";
 
@@ -26,9 +27,10 @@ export async function POST(request: Request) {
         email,
         passwordHash,
         role: "MASTER_ADMIN",
-        permissions: {
+        permissions: JSON.stringify({
           authorName: MASTER_ADMIN_AUTHOR_NAME,
-        },
+          contributorCode: generateContributorCode(),
+        }),
       }
     });
 

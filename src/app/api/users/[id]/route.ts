@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { isValidImageRef } from "@/lib/fileStorage";
 import { parsePenNameFromPermissions, type PenNameDisplayMode } from "@/lib/penName";
+import { generateContributorCode, getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -25,20 +26,13 @@ const sanitizePermissions = (input: unknown) =>
   );
 
 const extractAuthorProfile = (input: unknown) => {
-  const source = (input as Record<string, unknown> | null | undefined) ?? {};
+  const source = parseUserPermissions(input);
   const authorName = typeof source.authorName === "string" ? source.authorName.trim() : "";
   const authorImage = typeof source.authorImage === "string" ? source.authorImage.trim() : "";
   return {
     authorName,
     authorImage,
   };
-};
-
-const extractPermissionsObject = (input: unknown): Record<string, unknown> => {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return {};
-  }
-  return input as Record<string, unknown>;
 };
 
 const getRequester = async (request: NextRequest) => {
@@ -61,7 +55,7 @@ const getRequester = async (request: NextRequest) => {
     return { errorResponse: NextResponse.json({ error: "User not found." }, { status: 404 }) };
   }
 
-  const requesterPermissions = (requester.permissions ?? {}) as Partial<Record<"manageUsers", boolean>>;
+  const requesterPermissions = parseUserPermissions(requester.permissions);
   return {
     requester,
     canManageUsers: requester.role === "MASTER_ADMIN" || (requester.role === "ADMIN" && requesterPermissions.manageUsers === true),
@@ -100,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const isSelfUpdate = requester.id === target.id;
   const isSelfMasterAdminUpdate = target.role === "MASTER_ADMIN" && isSelfUpdate;
-  const targetPermissions = extractPermissionsObject(target.permissions);
+  const targetPermissions = parseUserPermissions(target.permissions);
   const canSelfUpdatePenName =
     isSelfUpdate &&
     (target.role === "MASTER_ADMIN" ||
@@ -115,12 +109,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (requester.role !== "MASTER_ADMIN" || target.role !== "ADMIN") {
       return NextResponse.json({ error: "Only master admin can update admin permissions." }, { status: 403 });
     }
-    const authorProfile = extractAuthorProfile(target.permissions);
-    data.permissions = JSON.stringify({
+    const nextPermissions: Record<string, unknown> = {
+      ...targetPermissions,
       ...sanitizePermissions(body.permissions),
-      ...(authorProfile.authorName ? { authorName: authorProfile.authorName } : {}),
-      ...(authorProfile.authorImage ? { authorImage: authorProfile.authorImage } : {}),
-    });
+    };
+    if (
+      nextPermissions.publishBlog === true &&
+      !getContributorCodeFromPermissions(nextPermissions)
+    ) {
+      nextPermissions.contributorCode = generateContributorCode();
+    }
+    data.permissions = JSON.stringify(nextPermissions);
   }
 
   const hasPenNameUpdate =
@@ -143,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!isValidImageRef(nextAuthorImage)) {
       return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
     }
-    const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});
+    const basePermissions = parseUserPermissions(data.permissions ?? target.permissions ?? {});
     data.permissions = JSON.stringify({
       ...basePermissions,
       authorName: nextAuthorName,
@@ -169,7 +168,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "पेन नेम सक्षम होने पर नाम आवश्यक है।" }, { status: 400 });
     }
 
-    const basePermissions = extractPermissionsObject(data.permissions ?? target.permissions ?? {});
+    const basePermissions = parseUserPermissions(data.permissions ?? target.permissions ?? {});
     data.permissions = JSON.stringify({
       ...basePermissions,
       penNameEnabled: nextPenNameEnabled,

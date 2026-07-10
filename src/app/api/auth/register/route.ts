@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           : {
               authorName: normalizedAuthorName || MASTER_ADMIN_AUTHOR_NAME,
               ...(normalizedAuthorImage ? { authorImage: normalizedAuthorImage } : {}),
-              contributorCode: "VKA-MASTER",
+              contributorCode: generateContributorCode(),
             };
 
     const passwordHash = await hashPassword(password);

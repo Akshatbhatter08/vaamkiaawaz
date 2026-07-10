@@ -7,7 +7,7 @@ import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
 import { extractFirstImageFromHtml } from "@/lib/postImage";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
-import { generateContributorCode } from "@/lib/contributorCode";
+import { generateContributorCode, getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
 
 const mapBlog = (post: {
   id: string;
@@ -139,13 +139,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const permissions = (user.permissions ?? {}) as Partial<Record<"publishBlog", boolean>> & {
-    contributorCode?: string;
-    authorName?: string;
-  };
+  const parsedPermissions = parseUserPermissions(user.permissions);
   const canPublish =
     user.role === "MASTER_ADMIN" ||
-    (user.role === "ADMIN" && permissions.publishBlog === true) ||
+    (user.role === "ADMIN" && parsedPermissions.publishBlog === true) ||
     (user.role === "CONTRIBUTOR" && user.active);
 
   if (!canPublish) {
@@ -191,20 +188,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "लेखक फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
   }
 
-  let parsedPermissions: Record<string, unknown> = {};
-  if (typeof user.permissions === "string") {
-    try { parsedPermissions = JSON.parse(user.permissions); } catch (e) {}
-  } else if (user.permissions && typeof user.permissions === "object") {
-    parsedPermissions = user.permissions as Record<string, unknown>;
-  }
-
-  let contributorCode =
-    typeof parsedPermissions.contributorCode === "string"
-      ? parsedPermissions.contributorCode.trim()
-      : "";
+  let contributorCode = getContributorCodeFromPermissions(parsedPermissions);
   if (!contributorCode) {
-    contributorCode =
-      user.role === "MASTER_ADMIN" ? "VKA-MASTER" : generateContributorCode();
+    contributorCode = generateContributorCode();
     await prisma.user.update({
       where: { id: userId },
       data: {

@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
+import { getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
 import { resolvePostImage, extractFirstImageFromHtml } from "@/lib/postImage";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 import ArticlePage from "./ArticlePage";
@@ -51,7 +52,7 @@ function formatRelativeTime(isoDate: string) {
   });
 }
 
-function mapPostForClient(post: any, keepContent = false) {
+function mapPostForClient(post: any, keepContent = false, resolvedUploaderName?: string | null) {
   const createdAtIso = post.createdAt
     ? new Date(post.createdAt).toISOString()
     : new Date().toISOString();
@@ -69,12 +70,34 @@ function mapPostForClient(post: any, keepContent = false) {
     imageFocus: post.imageFocus ?? null,
     authorImage: post.authorImage ?? null,
     clickCount: post.clickCount ?? 0,
-    uploaderName: post.uploaderName ?? null,
+    uploaderName: resolvedUploaderName ?? post.uploaderName ?? null,
     authorUserId: post.authorUserId ?? null,
     createdAt: createdAtIso,
     time: formatRelativeTime(createdAtIso),
     source: "blog" as const,
   };
+}
+
+async function resolveUploaderNameForPost(post: {
+  uploaderName: string | null;
+  authorUserId: string | null;
+}) {
+  if (!post.authorUserId) {
+    return post.uploaderName;
+  }
+
+  const uploader = await prisma.user.findUnique({
+    where: { id: post.authorUserId },
+    select: { role: true, permissions: true },
+  });
+
+  if (!uploader) {
+    return post.uploaderName;
+  }
+
+  const permissions = parseUserPermissions(uploader.permissions);
+  const contributorCode = getContributorCodeFromPermissions(permissions);
+  return contributorCode || post.uploaderName;
 }
 
 /**
@@ -166,7 +189,11 @@ export default async function PostPage({ params }: Props) {
     );
   }
 
-  const mappedPost = mapPostForClient((await enrichPostsWithAuthorImages([post]))[0], true);
+  const mappedPost = mapPostForClient(
+    (await enrichPostsWithAuthorImages([post]))[0],
+    true,
+    await resolveUploaderNameForPost(post),
+  );
 
   const selectSidebarFields = {
     id: true,
