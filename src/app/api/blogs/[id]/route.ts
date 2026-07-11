@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { postAuthorMatchesUser } from "@/lib/penName";
 import { isValidImageRef } from "@/lib/fileStorage";
 import { extractFirstImageFromHtml } from "@/lib/postImage";
+import { getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -45,7 +47,7 @@ export async function GET(_request: NextRequest, context: Context) {
   const { id } = await context.params;
   try {
     const post = await prisma.blogPost.findUnique({ where: { id } });
-    if (!post) {
+    if (!post || post.isHidden) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
     const [enriched] = await enrichPostsWithAuthorImages([post]);
@@ -191,28 +193,26 @@ export async function DELETE(request: NextRequest, context: Context) {
   const { id } = await context.params;
   const existing = await prisma.blogPost.findUnique({
     where: { id },
-    select: { id: true, uploaderName: true },
+    select: { id: true, uploaderName: true, authorUserId: true, isHidden: true },
   });
 
-  if (!existing) {
+  if (!existing || existing.isHidden) {
     return NextResponse.json({ error: "Post not found" }, { status: 404 });
   }
 
-  let parsedPermissions: any = {};
-  if (typeof user.permissions === "string") {
-    try { parsedPermissions = JSON.parse(user.permissions); } catch (e) {}
-  } else if (user.permissions && typeof user.permissions === "object") {
-    parsedPermissions = user.permissions;
-  }
-
+  const parsedPermissions = parseUserPermissions(user.permissions);
+  const userContributorCode = getContributorCodeFromPermissions(parsedPermissions).toLowerCase();
+  const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
   const userAuthorName =
     typeof parsedPermissions.authorName === "string"
       ? parsedPermissions.authorName.trim().toLowerCase()
       : "";
-  const postUploaderName = existing.uploaderName?.trim().toLowerCase() || "";
 
   const isMaster = user.role === "MASTER_ADMIN";
-  const isUploader = userAuthorName.length > 0 && userAuthorName === postUploaderName;
+  const isUploader =
+    existing.authorUserId === userId ||
+    (userContributorCode.length > 0 && userContributorCode === postUploaderName) ||
+    (userAuthorName.length > 0 && userAuthorName === postUploaderName);
 
   if (!isMaster && !isUploader) {
     return NextResponse.json(
@@ -222,5 +222,7 @@ export async function DELETE(request: NextRequest, context: Context) {
   }
 
   await prisma.blogPost.update({ where: { id }, data: { isHidden: true } });
+  revalidatePath("/");
+  revalidatePath(`/post/${id}`);
   return NextResponse.json({ success: true });
 }

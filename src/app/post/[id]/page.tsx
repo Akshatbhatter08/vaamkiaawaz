@@ -116,11 +116,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       content: true,
       postImage: true,
       author: true,
+      isHidden: true,
     },
   });
 
   // Fallback metadata if the post doesn't exist
-  if (!post) {
+  if (!post || post.isHidden) {
     return {
       title: "वाम की आवाज़ | जन समाचार मंच",
       description:
@@ -175,7 +176,7 @@ export default async function PostPage({ params }: Props) {
   // Fetch the main post
   const post = await prisma.blogPost.findUnique({ where: { id } });
 
-  if (!post) {
+  if (!post || post.isHidden) {
     return (
       <div className="flex h-screen w-full items-center justify-center p-4">
         <div className="text-center">
@@ -211,13 +212,14 @@ export default async function PostPage({ params }: Props) {
 
   // Fire all independent database queries concurrently
   const sameCategoryPostsPromise = prisma.blogPost.findMany({
-    where: { category: post.category, id: { not: post.id } },
+    where: { category: post.category, id: { not: post.id }, isHidden: false },
     select: selectSidebarFields,
     orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
     take: 3,
   });
 
   const topReadPostsPromise = prisma.blogPost.findMany({
+    where: { isHidden: false },
     select: selectSidebarFields,
     orderBy: { clickCount: "desc" },
     take: 5,
@@ -233,7 +235,7 @@ export default async function PostPage({ params }: Props) {
   }).catch(() => []);
 
   const authorPostsPromise = prisma.blogPost.findMany({
-    where: { author: post.author, id: { not: post.id } },
+    where: { author: post.author, id: { not: post.id }, isHidden: false },
     select: selectSidebarFields,
     orderBy: { createdAt: "desc" },
     take: 4,
@@ -254,7 +256,7 @@ export default async function PostPage({ params }: Props) {
   if (remainingSlots > 0) {
     const excludeIds = [post.id, ...sameCategoryPostsData.map((p: any) => p.id)];
     fillPostsData = await prisma.blogPost.findMany({
-      where: { id: { notIn: excludeIds } },
+      where: { id: { notIn: excludeIds }, isHidden: false },
       select: selectSidebarFields,
       orderBy: [{ clickCount: "desc" }, { createdAt: "desc" }],
       take: remainingSlots,

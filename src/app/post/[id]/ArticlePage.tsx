@@ -368,8 +368,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       ? userPermissions.contributorCode.trim().toLowerCase()
       : "";
   const isUploader =
-    (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase()) ||
-    (userContributorCode && post.uploaderName && userContributorCode === post.uploaderName.trim().toLowerCase());
+    (sessionUserId.length > 0 && post.authorUserId === sessionUserId) ||
+    (userContributorCode && post.uploaderName && userContributorCode === post.uploaderName.trim().toLowerCase()) ||
+    (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase());
   const canEdit = isMaster || isAuthor;
   const canDelete = isMaster || isUploader;
   
@@ -415,9 +416,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     setDeleting(true);
     try {
       const res = await fetch(`/api/blogs/${post.id}`, { method: "DELETE", credentials: "include" });
-      if (res.ok) router.push("/");
-      else alert("हटाने में त्रुटि हुई");
-    } catch { alert("नेटवर्क त्रुटि"); }
+      if (res.ok) {
+        router.push("/");
+        router.refresh();
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(data.error || "हटाने में त्रुटि हुई");
+    } catch {
+      alert("नेटवर्क त्रुटि");
+    }
     setDeleting(false);
     setConfirmDelete(false);
   };
