@@ -1132,6 +1132,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   color: #ffffff !important;
 }
 
+/* Devanagari matras/shirorekha need extra top room under -webkit-line-clamp */
+.hero-overlay__title {
+  line-height: 1.4 !important;
+  padding-top: 0.2em !important;
+  letter-spacing: 0 !important;
+}
+
 /* Hero image shade — vignette + gradients for text legibility */
 .hero-section__shade {
   position: absolute;
@@ -1828,8 +1835,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   .hero-overlay__title {
     font-size: 24px !important;
-    line-height: 1.25 !important;
+    line-height: 1.45 !important;
     margin: 6px 0 8px !important;
+    padding-top: 0.22em !important;
     -webkit-line-clamp: 3 !important;
   }
   .hero-overlay__excerpt {
