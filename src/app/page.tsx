@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import ClientPage, { NewsPost } from "./ClientPage";
+import HomePageSkeleton from "@/components/skeletons/HomePageSkeleton";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
@@ -31,7 +33,15 @@ function formatRelativeTime(isoDate: string) {
   });
 }
 
-export default async function Page() {
+export default function Page() {
+  return (
+    <Suspense fallback={<HomePageSkeleton />}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+async function HomePageContent() {
   let initialBlogs: NewsPost[] = [];
   let initialTopBlogs: NewsPost[] = [];
   try {

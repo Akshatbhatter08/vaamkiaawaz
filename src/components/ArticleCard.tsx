@@ -1,8 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
+import { useRouter } from "next/navigation";
 import { getCategoryClass, formatViews, hindiRelativeTime, speakHindiText } from "@/utils/designUtils";
 import { focusToObjectPosition } from "@/lib/imageCrop";
+import { startNavigationProgress } from "@/components/NavigationProgress";
 
 interface ArticleCardProps {
   title: string;
@@ -30,6 +32,25 @@ const stripHtml = (html?: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+function CardPendingHint() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "var(--ink)",
+        opacity: pending ? 0.35 : 0,
+        transition: "opacity 160ms ease",
+        transitionDelay: pending ? "80ms" : "0ms",
+        pointerEvents: "none",
+        zIndex: 2,
+      }}
+    />
+  );
+}
+
 export function ArticleCard({
   title,
   excerpt,
@@ -47,6 +68,7 @@ export function ArticleCard({
   size = "normal",
   onCardClick,
 }: ArticleCardProps) {
+  const router = useRouter();
   const time = timeLabel ?? (publishedAt ? hindiRelativeTime(publishedAt) : "");
   const cleanExcerpt = stripHtml(excerpt);
 
@@ -57,6 +79,7 @@ export function ArticleCard({
       style={{ textDecoration: "none", display: "flex", flexDirection: "column", height: "100%", position: "relative" }}
       className="card-lift article-card"
     >
+      <CardPendingHint />
       <div style={{ background: "var(--surface-mid)", border: "1px solid var(--divider)", display: "flex", flexDirection: "column", flexGrow: 1 }}>
         <div className="card-image-container" style={{ aspectRatio: "16/9", flexShrink: 0 }}>
           {imageUrl ? (
@@ -118,7 +141,8 @@ export function ArticleCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  window.location.href = `/author/${encodeURIComponent(authorName)}`;
+                  startNavigationProgress();
+                  router.push(`/author/${encodeURIComponent(authorName)}`);
                 }}
                 style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
               >

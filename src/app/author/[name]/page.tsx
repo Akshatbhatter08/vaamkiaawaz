@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, use } from "react";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
+import AuthorPageSkeleton from "@/components/skeletons/AuthorPageSkeleton";
 import { ArticleCard } from "@/components/ArticleCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
@@ -147,6 +148,10 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
             ← होम पर वापस जाएँ
           </Link>
 
+          {loading ? (
+            <AuthorPageSkeleton />
+          ) : (
+            <>
           {/* Profile section */}
           <div className="mt-4">
             <AuthorProfileBox authorName={authorName} authorImage={authorImage} authorPosts={posts} />
@@ -211,9 +216,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
             {/* Article grid */}
             <div>
               <SectionHeader title="इस लेखक के लेख" />
-              {loading ? (
-                <div className="border border-[var(--line)] p-5 text-sm" style={{ color: "var(--text-muted)" }}>लेख लोड हो रहे हैं...</div>
-              ) : sortedPosts.length === 0 ? (
+              {sortedPosts.length === 0 ? (
                 <div className="border border-[var(--line)] p-5 text-sm" style={{ color: "var(--text-muted)" }}>इस लेखक के लिए अभी कोई लेख उपलब्ध नहीं है।</div>
               ) : (
                 <>
@@ -328,6 +331,8 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
               )}
             </aside>
           </div>
+            </>
+          )}
         </div>
       </main>
 

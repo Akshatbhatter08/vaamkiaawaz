@@ -1126,6 +1126,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* Hero side panel ("और खबरें") — desktop only */
 .hero-side-panel { display: none; }
 
+/* Hero abstract must stay light over the dark overlay (overrides editor inline colors) */
+.hero-overlay__excerpt,
+.hero-overlay__excerpt * {
+  color: #ffffff !important;
+}
+
 /* Hero image shade — vignette + gradients for text legibility */
 .hero-section__shade {
   position: absolute;

@@ -13,6 +13,8 @@ import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils"
 import { SectionHeader } from "@/components/SectionHeader";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImageCropModal } from "@/components/ImageCropModal";
+import { startNavigationProgress } from "@/components/NavigationProgress";
+import { LinkPendingDim } from "@/components/LinkPendingDim";
 import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
@@ -2213,6 +2215,7 @@ export default function ClientPage({
   const getPreviewImage = (post: NewsPost) => resolvePostImage(post.postImage, post.content);
 
   const handlePostOpen = (post: NewsPost) => {
+    startNavigationProgress();
     if (post.source === "blog") {
       setBlogs((prev) =>
         prev.map((item) => (item.id === post.id ? { ...item, clickCount: (item.clickCount ?? 0) + 1 } : item)),
@@ -2772,7 +2775,7 @@ export default function ClientPage({
               </Link>
               <div
                 className="excerpt-html hero-overlay__excerpt"
-                style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 16, lineHeight: 1.7, color: "var(--cream-dim)", marginBottom: 16, WebkitLineClamp: 2 }}
+                style={{ fontFamily: "'Noto Sans Devanagari', sans-serif", fontSize: 16, lineHeight: 1.7, color: "#ffffff", marginBottom: 16, WebkitLineClamp: 2 }}
                 dangerouslySetInnerHTML={{ __html: cleanHtml(featuredForDisplay[0].excerpt) }}
               />
               <div className="hero-overlay__meta" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--gold)", marginBottom: 20 }}>
@@ -2857,12 +2860,14 @@ export default function ClientPage({
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {visibleFeedPosts.map((story) => (
-                  <button
-                    type="button"
+                  <Link
                     key={story.id}
-                    onClick={() => handlePostOpen(story)}
-                    className="rise-on-hover rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-all"
+                    href={`/post/${story.id}`}
+                    onClick={() => handlePostClick(story.id)}
+                    className="rise-on-hover relative rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-all"
+                    style={{ textDecoration: "none", color: "inherit", display: "block" }}
                   >
+                    <LinkPendingDim />
                     {getPreviewImage(story) && (
                       <div className="thumb-16x9 mb-3 rounded-md">
                         <img
@@ -2884,7 +2889,7 @@ export default function ClientPage({
                           <img src={story.authorImage} alt="" className="h-5 w-5 rounded-full border border-[var(--line)] object-cover" />
                         )}
                         <span 
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); startNavigationProgress(); router.push(`/author/${encodeURIComponent(story.author)}`); }}
                         className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline"
                       >
                         {story.author}
@@ -2893,7 +2898,7 @@ export default function ClientPage({
                       <span>• {getPostTimeLabel(story)} • {getPostClicks(story)} क्लिक</span>
                     </div>
                     <span className="mt-3 inline-flex text-xs font-semibold text-[var(--primary)]">पूरा लेख पढ़ें →</span>
-                  </button>
+                  </Link>
                 ))}
               </div>
               {visibleFeedPosts.length < feedPosts.length && (
@@ -2913,14 +2918,16 @@ export default function ClientPage({
                   <p className="text-sm text-[var(--muted)]">कोई प्रमुख विचार चयनित नहीं है।</p>
                 ) : (
                   pramukhVicharPosts.map((post) => (
-                    <button
-                      type="button"
+                    <Link
                       key={post.id}
-                      onClick={() => handlePostOpen(post)}
-                      className="rise-on-hover interactive-link rounded-md border border-[var(--line)] px-4 py-3 text-left text-base font-medium text-[var(--foreground)]"
+                      href={`/post/${post.id}`}
+                      onClick={() => handlePostClick(post.id)}
+                      className="rise-on-hover interactive-link relative rounded-md border border-[var(--line)] px-4 py-3 text-left text-base font-medium text-[var(--foreground)]"
+                      style={{ textDecoration: "none", display: "block" }}
                     >
+                      <LinkPendingDim />
                       {post.title}
-                    </button>
+                    </Link>
                   ))
                 )}
               </div>
@@ -2932,18 +2939,20 @@ export default function ClientPage({
               <h3 className="mb-3 font-serif text-xl font-bold text-[var(--headline)]">सबसे ज्यादा पढ़ी गईं</h3>
               <div className="space-y-3">
                 {topReadPosts.map((story, index) => (
-                  <button
-                    type="button"
+                  <Link
                     key={story.id}
-                    onClick={() => handlePostOpen(story)}
-                    className="rise-on-hover flex w-full text-left gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-3"
+                    href={`/post/${story.id}`}
+                    onClick={() => handlePostClick(story.id)}
+                    className="rise-on-hover relative flex w-full text-left gap-3 rounded-md border border-[var(--line)] bg-[var(--surface)] p-3"
+                    style={{ textDecoration: "none", color: "inherit" }}
                   >
+                    <LinkPendingDim />
                     <span className="text-xl font-bold text-[var(--primary)]">{index + 1}</span>
                     <div className="flex flex-col gap-1 min-w-0">
                       <span className="text-sm font-semibold leading-5 text-[var(--foreground)] line-clamp-2">{story.title}</span>
                       <span className="text-xs text-[var(--muted)]">{story.source === "blog" ? (story.clickCount ?? 0) : (postClicks[story.id] ?? 0)} क्लिक</span>
                     </div>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -3195,7 +3204,7 @@ export default function ClientPage({
                               <h3 style={{ fontFamily: "'Noto Serif Devanagari', serif", fontSize: 17, fontWeight: 600, lineHeight: 1.4, color: "var(--text-cream)", marginTop: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{article.title}</h3>
                               <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "var(--crimson-dark)", marginTop: 8 }}>
                                 <span
-                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/author/${encodeURIComponent(article.author)}`); }}
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); startNavigationProgress(); router.push(`/author/${encodeURIComponent(article.author)}`); }}
                                   style={{ cursor: "pointer", textDecoration: "underline" }}
                                 >
                                   {article.author}

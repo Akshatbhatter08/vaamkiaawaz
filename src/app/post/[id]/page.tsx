@@ -190,12 +190,6 @@ export default async function PostPage({ params }: Props) {
     );
   }
 
-  const mappedPost = mapPostForClient(
-    (await enrichPostsWithAuthorImages([post]))[0],
-    true,
-    await resolveUploaderNameForPost(post),
-  );
-
   const selectSidebarFields = {
     id: true,
     category: true,
@@ -210,7 +204,10 @@ export default async function PostPage({ params }: Props) {
     createdAt: true,
   };
 
-  // Fire all independent database queries concurrently
+  // Run main-post enrichment and all independent sidebar queries in parallel
+  const enrichMainPromise = enrichPostsWithAuthorImages([post]);
+  const uploaderPromise = resolveUploaderNameForPost(post);
+
   const sameCategoryPostsPromise = prisma.blogPost.findMany({
     where: { category: post.category, id: { not: post.id }, isHidden: false },
     select: selectSidebarFields,
@@ -241,14 +238,25 @@ export default async function PostPage({ params }: Props) {
     take: 4,
   });
 
-  // Wait for all concurrent queries
-  const [sameCategoryPostsData, topReadPostsData, events, resources, authorPostsData] = await Promise.all([
+  const [
+    enrichedMain,
+    resolvedUploaderName,
+    sameCategoryPostsData,
+    topReadPostsData,
+    events,
+    resources,
+    authorPostsData,
+  ] = await Promise.all([
+    enrichMainPromise,
+    uploaderPromise,
     sameCategoryPostsPromise,
     topReadPostsPromise,
     eventsPromise,
     resourcesPromise,
-    authorPostsPromise
+    authorPostsPromise,
   ]);
+
+  const mappedPost = mapPostForClient(enrichedMain[0], true, resolvedUploaderName);
 
   // If we don't have enough same-category posts, fill with recent popular posts
   const remainingSlots = 4 - sameCategoryPostsData.length;
@@ -263,10 +271,12 @@ export default async function PostPage({ params }: Props) {
     });
   }
 
-  const enrichedSameCategory = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(sameCategoryPostsData));
-  const enrichedFill = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(fillPostsData));
-  const enrichedTopRead = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(topReadPostsData));
-  const enrichedAuthorPosts = await enrichPostsWithThumbnails(await enrichPostsWithAuthorImages(authorPostsData));
+  const [enrichedSameCategory, enrichedFill, enrichedTopRead, enrichedAuthorPosts] = await Promise.all([
+    enrichPostsWithAuthorImages(sameCategoryPostsData).then((p) => enrichPostsWithThumbnails(p)),
+    enrichPostsWithAuthorImages(fillPostsData).then((p) => enrichPostsWithThumbnails(p)),
+    enrichPostsWithAuthorImages(topReadPostsData).then((p) => enrichPostsWithThumbnails(p)),
+    enrichPostsWithAuthorImages(authorPostsData).then((p) => enrichPostsWithThumbnails(p)),
+  ]);
 
   const sameCategoryPosts = enrichedSameCategory.map((p) => mapPostForClient(p, false));
   const suggestedPosts = [...sameCategoryPosts, ...enrichedFill.map((p) => mapPostForClient(p, false))];
