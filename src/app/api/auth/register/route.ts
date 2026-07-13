@@ -1,9 +1,11 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { verifyOtpProof } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { isValidImageRef } from "@/lib/fileStorage";
 import { generateContributorCode } from "@/lib/contributorCode";
+import { validatePasswordStrength } from "@/lib/tiptapSanitize";
+import { canManageUsers, requireUser } from "@/lib/requireUser";
 
 const permissionKeys = ["manageHomepage", "publishBlog", "manageCategories", "manageNewsletter", "manageUsers"] as const;
 type PermissionKey = (typeof permissionKeys)[number];
@@ -35,30 +37,18 @@ const extractAuthorImage = (input: unknown) => {
   return value;
 };
 
+const looksLikeEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
+
 export async function POST(request: NextRequest) {
   try {
-    const authPayload = await requireAuth(request);
-    if (authPayload instanceof NextResponse) return authPayload;
+    const user = await requireUser(request);
+    if (user instanceof NextResponse) return user;
 
-    const requesterId = authPayload.id as string | undefined;
-    if (!requesterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const requester = await prisma.user.findUnique({
-      where: { id: requesterId },
-      select: { role: true, permissions: true },
-    });
-
-    if (!requester) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
-    }
-
-    if (requester.role !== "MASTER_ADMIN" && requester.role !== "ADMIN") {
+    if (!canManageUsers(user)) {
       return NextResponse.json({ error: "Only admins can add new users." }, { status: 403 });
     }
 
-    const { email, password, role, permissions, authorName, authorImage } = await request.json();
+    const { email, password, role, permissions, authorName, authorImage, otpProof } = await request.json();
 
     if (!email || !password || !role) {
       return NextResponse.json({ error: "Email, password, and role are required." }, { status: 400 });
@@ -68,19 +58,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid role." }, { status: 400 });
     }
 
-    const requesterPermissions = (requester.permissions ?? {}) as Partial<Record<"manageUsers", boolean>>;
-    const requesterCanManageUsers =
-      requester.role === "MASTER_ADMIN" || (requester.role === "ADMIN" && requesterPermissions.manageUsers === true);
+    const passwordError = validatePasswordStrength(String(password));
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
+    }
 
-    if (role === "MASTER_ADMIN" && requester.role !== "MASTER_ADMIN") {
+    if (role === "MASTER_ADMIN" && user.role !== "MASTER_ADMIN") {
       return NextResponse.json({ error: "Only MASTER_ADMIN can create another master admin." }, { status: 403 });
     }
 
-    if ((role === "ADMIN" || role === "CONTRIBUTOR") && !requesterCanManageUsers) {
+    if ((role === "ADMIN" || role === "CONTRIBUTOR") && !canManageUsers(user)) {
       return NextResponse.json({ error: "You do not have permission to add this user role." }, { status: 403 });
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
+
+    // S-22: email registrations require OTP proof; MASTER_ADMIN username fallbacks may skip.
+    if (looksLikeEmail(normalizedEmail)) {
+      const proof = typeof otpProof === "string" ? otpProof : "";
+      const ok = await verifyOtpProof(proof, { email: normalizedEmail, purpose: "register" });
+      if (!ok) {
+        return NextResponse.json({ error: "Email OTP verification required." }, { status: 403 });
+      }
+    } else if (user.role !== "MASTER_ADMIN") {
+      return NextResponse.json({ error: "Valid email or OTP proof required." }, { status: 400 });
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return NextResponse.json({ error: "Email already exists." }, { status: 409 });
@@ -128,7 +131,7 @@ export async function POST(request: NextRequest) {
             };
 
     const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         email: normalizedEmail,
         passwordHash,
@@ -140,11 +143,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: "User created successfully!",
-        user: { id: user.id, email: user.email, role: user.role, active: user.active, permissions: user.permissions },
+        user: { id: created.id, email: created.email, role: created.role, active: created.active, permissions: created.permissions },
       },
       { status: 201 },
     );
-  } catch {
+  } catch (error) {
+    console.error("POST /api/auth/register error:", error);
     return NextResponse.json({ error: "An error occurred during registration." }, { status: 500 });
   }
 }

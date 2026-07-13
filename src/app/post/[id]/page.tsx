@@ -82,8 +82,15 @@ async function resolveUploaderNameForPost(post: {
   uploaderName: string | null;
   authorUserId: string | null;
 }) {
+  const stamped = post.uploaderName?.trim() || null;
+  // Prefer the immutable stamp on the post when it is a real uploader code/name.
+  // Do not invent an uploader from the credited author.
+  if (stamped && stamped !== "अज्ञात") {
+    return stamped;
+  }
+
   if (!post.authorUserId) {
-    return post.uploaderName;
+    return stamped;
   }
 
   const uploader = await prisma.user.findUnique({
@@ -92,12 +99,12 @@ async function resolveUploaderNameForPost(post: {
   });
 
   if (!uploader) {
-    return post.uploaderName;
+    return stamped;
   }
 
   const permissions = parseUserPermissions(uploader.permissions);
   const contributorCode = getContributorCodeFromPermissions(permissions);
-  return contributorCode || post.uploaderName;
+  return contributorCode || stamped;
 }
 
 /**

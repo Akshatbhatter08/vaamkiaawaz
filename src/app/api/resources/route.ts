@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireUser, isMasterAdmin } from "@/lib/requireUser";
 import { prisma } from "@/lib/prisma";
 import { isMediaUrl, isValidPdfRef } from "@/lib/fileStorage";
 
@@ -22,7 +22,7 @@ const ensureResourceTable = async () => {
   }
 };
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     await ensureResourceTable();
     const resources = await prisma.resource.findMany({
@@ -33,24 +33,29 @@ export async function GET(request: NextRequest) {
         type: true,
         url: true,
         createdAt: true,
-      }
+        fileData: true,
+      },
     });
-    return NextResponse.json({ resources });
-  } catch (error: any) {
+    const mapped = resources.map((r) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      url: r.url || (r.fileData ? `/api/resources/${r.id}/file` : null),
+      createdAt: r.createdAt,
+    }));
+    return NextResponse.json({ resources: mapped });
+  } catch (error) {
     console.error("GET /api/resources error:", error);
-    return NextResponse.json({ 
-      error: "Failed to fetch resources",
-      details: error.message || String(error)
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch resources" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const authPayload = await requireAuth(request);
-    if (authPayload instanceof NextResponse) return authPayload;
-    
-    if (authPayload.role !== "MASTER_ADMIN") {
+    const user = await requireUser(request);
+    if (user instanceof NextResponse) return user;
+
+    if (!isMasterAdmin(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -83,15 +88,18 @@ export async function POST(request: NextRequest) {
           fileData: storedFileData,
         },
       });
-      return NextResponse.json({
-        resource: {
-          id: newResource.id,
-          title: newResource.title,
-          type: newResource.type,
-          url: newResource.url || newResource.fileData,
-          createdAt: newResource.createdAt,
+      return NextResponse.json(
+        {
+          resource: {
+            id: newResource.id,
+            title: newResource.title,
+            type: newResource.type,
+            url: newResource.url || `/api/resources/${newResource.id}/file`,
+            createdAt: newResource.createdAt,
+          },
         },
-      }, { status: 201 });
+        { status: 201 },
+      );
     }
 
     const newResource = await prisma.resource.create({
@@ -99,19 +107,22 @@ export async function POST(request: NextRequest) {
         title,
         type,
         url: url || null,
-        fileData: null
-      }
+        fileData: null,
+      },
     });
 
-    return NextResponse.json({ 
-      resource: {
-        id: newResource.id,
-        title: newResource.title,
-        type: newResource.type,
-        url: newResource.url,
-        createdAt: newResource.createdAt,
-      } 
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        resource: {
+          id: newResource.id,
+          title: newResource.title,
+          type: newResource.type,
+          url: newResource.url,
+          createdAt: newResource.createdAt,
+        },
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("POST /api/resources error:", error);
     return NextResponse.json({ error: "Failed to create resource" }, { status: 500 });

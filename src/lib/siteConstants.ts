@@ -27,9 +27,11 @@ export const formatBilingualDate = () => {
 
 export function formatUploaderDisplay(
   uploaderName: string | null | undefined,
-  author?: string,
+  _author?: string,
 ): string {
-  if (!uploaderName) return author || "—";
-  if (uploaderName === "अज्ञात") return author || "—";
+  // Never fall back to the credited author — author ≠ uploader.
+  // Empty string lets callers hide the uploader line when unknown.
+  if (!uploaderName) return "";
+  if (uploaderName === "अज्ञात") return "";
   return uploaderName;
 }

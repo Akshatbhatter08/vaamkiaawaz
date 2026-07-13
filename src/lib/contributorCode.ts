@@ -1,3 +1,5 @@
+import { randomInt } from "crypto";
+
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function parseUserPermissions(input: unknown): Record<string, unknown> {
@@ -28,7 +30,7 @@ export function getContributorCodeFromPermissions(
 export function generateContributorCode(): string {
   let suffix = "";
   for (let i = 0; i < 6; i++) {
-    suffix += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    suffix += CODE_CHARS[randomInt(0, CODE_CHARS.length)];
   }
   return `VKA-${suffix}`;
 }

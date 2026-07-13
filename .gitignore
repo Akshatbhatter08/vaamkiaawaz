@@ -46,3 +46,5 @@ _zipcheck/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+docs/*.pdf

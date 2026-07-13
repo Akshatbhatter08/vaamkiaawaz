@@ -8,13 +8,21 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage() {
   const session = await getSession();
 
-  // Redirect if not logged in or not MASTER_ADMIN
-  if (!session || session.role !== "MASTER_ADMIN") {
+  if (!session?.id || typeof session.id !== "string") {
     redirect("/");
   }
 
-  // Fetch all posts with necessary statistics
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { role: true, active: true },
+  });
+
+  if (!user || !user.active || user.role !== "MASTER_ADMIN") {
+    redirect("/");
+  }
+
   const posts = await prisma.blogPost.findMany({
+    where: { isHidden: false },
     select: {
       id: true,
       title: true,

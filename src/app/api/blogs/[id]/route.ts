@@ -4,9 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { postAuthorMatchesUser } from "@/lib/penName";
-import { isValidImageRef } from "@/lib/fileStorage";
+import { isValidMediaImageUrl } from "@/lib/fileStorage";
 import { extractFirstImageFromHtml } from "@/lib/postImage";
 import { getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
+import {
+  MAX_BLOG_CONTENT_LENGTH,
+  MAX_BLOG_EXCERPT_LENGTH,
+  MAX_BLOG_TITLE_LENGTH,
+  sanitizeExcerptHtml,
+  sanitizeTipTapHtml,
+} from "@/lib/tiptapSanitize";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -52,9 +59,10 @@ export async function GET(_request: NextRequest, context: Context) {
     }
     const [enriched] = await enrichPostsWithAuthorImages([post]);
     return NextResponse.json({ post: mapBlog(enriched) });
-  } catch (err: any) {
+  } catch (err) {
+    console.error("GET /api/blogs/[id] error:", err);
     return NextResponse.json(
-      { error: "Internal server error", details: err.message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -128,9 +136,27 @@ export async function PATCH(request: NextRequest, context: Context) {
   };
 
   const updateData: Record<string, unknown> = {};
-  if (body.title?.trim()) updateData.title = body.title.trim();
-  if (body.excerpt?.trim()) updateData.excerpt = body.excerpt.trim();
-  if (body.content?.trim()) updateData.content = body.content.trim();
+  if (body.title?.trim()) {
+    const title = body.title.trim();
+    if (title.length > MAX_BLOG_TITLE_LENGTH) {
+      return NextResponse.json({ error: "शीर्षक बहुत लंबा है।" }, { status: 400 });
+    }
+    updateData.title = title;
+  }
+  if (body.excerpt?.trim()) {
+    const excerpt = body.excerpt.trim();
+    if (excerpt.length > MAX_BLOG_EXCERPT_LENGTH) {
+      return NextResponse.json({ error: "सारांश बहुत लंबा है।" }, { status: 400 });
+    }
+    updateData.excerpt = sanitizeExcerptHtml(excerpt);
+  }
+  if (body.content?.trim()) {
+    const content = body.content.trim();
+    if (content.length > MAX_BLOG_CONTENT_LENGTH) {
+      return NextResponse.json({ error: "लेख बहुत लंबा है।" }, { status: 400 });
+    }
+    updateData.content = sanitizeTipTapHtml(content);
+  }
   if (body.category?.trim()) updateData.category = body.category.trim();
   
   if (body.postImage !== undefined) {
@@ -142,12 +168,12 @@ export async function PATCH(request: NextRequest, context: Context) {
           ? updateData.content
           : existing.content;
       const extracted = extractFirstImageFromHtml(contentSource);
-      if (extracted && isValidImageRef(extracted)) {
+      if (extracted && isValidMediaImageUrl(extracted)) {
         postImage = extracted;
       }
     }
-    if (explicitPostImage && !isValidImageRef(explicitPostImage)) {
-      return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
+    if (explicitPostImage && !isValidMediaImageUrl(explicitPostImage)) {
+      return NextResponse.json({ error: "पोस्ट फोटो के लिए मीडिया URL आवश्यक है (data: URI नहीं)।" }, { status: 400 });
     }
     updateData.postImage = postImage;
   }

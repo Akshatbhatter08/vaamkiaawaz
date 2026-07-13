@@ -99,9 +99,12 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
   useEffect(() => {
     const loadPosts = async () => {
       try {
-        const response = await fetch("/api/blogs", { cache: "no-store" });
+        const response = await fetch(
+          `/api/authors/posts?name=${encodeURIComponent(authorName)}`,
+          { cache: "no-store" },
+        );
         if (!response.ok) {
-          throw new Error("Failed to fetch blogs");
+          throw new Error("Failed to fetch author posts");
         }
         const data = (await response.json()) as { posts?: ApiBlogPost[] };
         const filtered = (data.posts ?? [])

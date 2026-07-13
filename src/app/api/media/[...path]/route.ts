@@ -34,12 +34,17 @@ export async function GET(_request: NextRequest, context: Context) {
     const ext = path.extname(fullPath).replace(".", "").toLowerCase();
     const resolvedMime = EXT_TO_MIME[ext] || "application/octet-stream";
     const buffer = await fs.readFile(fullPath);
+    const isPdf = resolvedMime === "application/pdf";
 
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": resolvedMime,
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Length": String(buffer.length),
+        "X-Content-Type-Options": "nosniff",
+        ...(isPdf
+          ? { "Content-Disposition": `attachment; filename="${path.basename(fullPath)}"` }
+          : { "Content-Disposition": "inline" }),
       },
     });
   } catch (error) {

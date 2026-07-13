@@ -83,6 +83,8 @@ model Otp {
   id        String   @id
   email     String
   code      String
+  purpose   String   @default("register")
+  attempts  Int      @default(0)
   expiresAt DateTime
   verified  Boolean  @default(false)
 
@@ -96,6 +98,17 @@ model Resource {
   url       String?
   fileData  String?  @db.LongText
   createdAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  phone       String?
+  consentedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([email])
 }
 
 enum Role {

@@ -1,61 +1,53 @@
 import React, { useState, useEffect } from 'react';
+import { sanitizeTipTapHtml } from '@/lib/tiptapSanitize';
 
-// Feature flag to quickly toggle sanitization during debugging
+// Feature flag to quickly toggle XSS sanitization during debugging
 export const SANITIZATION_ENABLED = true;
 
 /**
- * Intelligent whitespace normalizer.
- * Replaces problematic invisible characters and converts Non-Breaking Spaces
- * to Standard Spaces. Because we use `white-space: pre-wrap` in CSS, 
- * Standard Spaces will retain their exact width and sequential spacing 
- * (preserving intentional indents), but will safely wrap at the end of lines!
+ * Normalizes invisible / non-breaking whitespace in text nodes only.
+ * This is NOT XSS protection — use sanitizeTipTapHtml / ArticleRichText for that.
  */
 const normalizeText = (text: string): string => {
   return text
-    .replace(/\u00A0/g, ' ')  // Convert Non-Breaking Space to Standard Space
-    .replace(/\u200B/g, '')   // Strip Zero Width Space
-    .replace(/\u00AD/g, '')   // Strip Soft Hyphen
-    .replace(/\uFEFF/g, '');  // Strip BOM
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u200B/g, '')
+    .replace(/\u00AD/g, '')
+    .replace(/\uFEFF/g, '');
 };
 
-/**
- * Recursive DOM traversal to sanitize ONLY text nodes.
- * This guarantees that <span>, <p>, style attributes, and colors
- * are completely preserved.
- */
-const sanitizeNode = (node: Node, debug: boolean = false) => {
+const normalizeWhitespaceNode = (node: Node, debug: boolean = false) => {
   if (node.nodeType === Node.TEXT_NODE) {
     if (node.nodeValue) {
       const original = node.nodeValue;
       const normalized = normalizeText(original);
-      
+
       if (debug && original !== normalized) {
         const nbspCount = (original.match(/\u00A0/g) || []).length;
         if (nbspCount > 0) {
-          console.log(`[Sanitizer] Fixed ${nbspCount} non-breaking spaces in text node.`);
+          console.log(`[WhitespaceNormalizer] Fixed ${nbspCount} non-breaking spaces in text node.`);
         }
       }
-      
+
       node.nodeValue = normalized;
     }
   } else {
-    node.childNodes.forEach(child => sanitizeNode(child, debug));
+    node.childNodes.forEach(child => normalizeWhitespaceNode(child, debug));
   }
 };
 
 /**
- * DOMParser-based HTML Sanitizer.
- * Works ONLY in the browser.
+ * Client-only whitespace normalizer (preserves tags). Not an XSS sanitizer.
+ * @deprecated Prefer normalizeHtmlWhitespaceClient name; kept as alias for older imports.
  */
-export const sanitizeHtmlClient = (html: string, debug: boolean = false): string => {
-  if (typeof window === 'undefined' || !html || !SANITIZATION_ENABLED) return html;
-  
+export const normalizeHtmlWhitespaceClient = (html: string, debug: boolean = false): string => {
+  if (typeof window === 'undefined' || !html) return html;
+
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    sanitizeNode(doc.body, debug);
-    
-    // Trim trailing empty paragraphs and line breaks (common Quill artifact)
+    normalizeWhitespaceNode(doc.body, debug);
+
     const children = Array.from(doc.body.childNodes);
     for (let i = children.length - 1; i >= 0; i--) {
       const child = children[i];
@@ -66,7 +58,7 @@ export const sanitizeHtmlClient = (html: string, debug: boolean = false): string
         if (textContent === '' && !hasMedia) {
           el.remove();
         } else {
-          break; // Stop trimming once we hit actual content
+          break;
         }
       } else if (child.nodeType === Node.TEXT_NODE) {
         if (!child.nodeValue?.trim()) {
@@ -76,25 +68,35 @@ export const sanitizeHtmlClient = (html: string, debug: boolean = false): string
         }
       }
     }
-    
+
     return doc.body.innerHTML;
   } catch (e) {
-    console.error('[Sanitizer] Parsing error:', e);
+    console.error('[WhitespaceNormalizer] Parsing error:', e);
     return html;
   }
 };
 
+/** @deprecated Misleading name — use normalizeHtmlWhitespaceClient. */
+export const sanitizeHtmlClient = normalizeHtmlWhitespaceClient;
+
 /**
- * React Hook for safe isomorphic sanitization.
- * Prevents hydration mismatches by returning the raw HTML during SSR,
- * and swapping to the DOM-sanitized HTML post-hydration.
+ * XSS-safe TipTap HTML for article rendering (server allowlist + whitespace normalize).
  */
+export const sanitizeArticleHtml = (rawHtml: string, debug: boolean = false): string => {
+  if (!rawHtml || !SANITIZATION_ENABLED) return rawHtml || '';
+  const cleaned = sanitizeTipTapHtml(rawHtml);
+  if (typeof window === 'undefined') return cleaned;
+  return normalizeHtmlWhitespaceClient(cleaned, debug);
+};
+
 export const useSanitizedHtml = (rawHtml: string, debug: boolean = false) => {
-  const [html, setHtml] = useState(rawHtml);
+  const [html, setHtml] = useState(() =>
+    SANITIZATION_ENABLED ? sanitizeTipTapHtml(rawHtml || '') : rawHtml,
+  );
 
   useEffect(() => {
     if (rawHtml && SANITIZATION_ENABLED) {
-      setHtml(sanitizeHtmlClient(rawHtml, debug));
+      setHtml(sanitizeArticleHtml(rawHtml, debug));
     } else {
       setHtml(rawHtml);
     }
@@ -103,17 +105,14 @@ export const useSanitizedHtml = (rawHtml: string, debug: boolean = false) => {
   return html;
 };
 
-/**
- * Convenient wrapper component for rendering sanitized HTML.
- */
 export const SanitizedHtml = ({ html, className, style, debug = false }: { html: string, className?: string, style?: React.CSSProperties, debug?: boolean }) => {
   const sanitized = useSanitizedHtml(html, debug);
   return (
-    <div 
-      className={className} 
-      style={style} 
+    <div
+      className={className}
+      style={style}
       suppressHydrationWarning
-      dangerouslySetInnerHTML={{ __html: sanitized }} 
+      dangerouslySetInnerHTML={{ __html: sanitized }}
     />
   );
 };

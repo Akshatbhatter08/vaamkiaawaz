@@ -1,31 +1,13 @@
 import { NextResponse, NextRequest } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireUser, canManageUsers } from "@/lib/requireUser";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const authPayload = await requireAuth(request);
-    if (authPayload instanceof NextResponse) return authPayload;
-    const requesterId = authPayload.id as string | undefined;
-    if (!requesterId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const user = await requireUser(request);
+    if (user instanceof NextResponse) return user;
 
-    const requester = await prisma.user.findUnique({
-      where: { id: requesterId },
-      select: { role: true, permissions: true },
-    });
-
-    if (!requester) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const requesterPermissions = (requester.permissions ?? {}) as Partial<Record<"manageUsers", boolean>>;
-    const canAccessUsers =
-      requester.role === "MASTER_ADMIN" ||
-      (requester.role === "ADMIN" && requesterPermissions.manageUsers === true);
-
-    if (!canAccessUsers) {
+    if (!canManageUsers(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -41,7 +23,8 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({ users });
-  } catch {
+  } catch (error) {
+    console.error("GET /api/users error:", error);
     return NextResponse.json({ error: "An error occurred." }, { status: 500 });
   }
 }

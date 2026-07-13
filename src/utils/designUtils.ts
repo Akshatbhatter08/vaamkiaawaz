@@ -107,15 +107,18 @@ export function readingTime(html: string): number {
 }
 
 /**
- * Clean HTML: strip zero-width chars and normalize spaces
+ * Normalize HTML whitespace (not XSS protection — content is sanitized on write).
  */
-export function cleanHtml(html: string | undefined | null): string {
+export function normalizeHtmlWhitespace(html: string | undefined | null): string {
   if (!html) return '';
   return html
     .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/\u00A0/g, ' ');
 }
+
+/** @deprecated Misleading name — use normalizeHtmlWhitespace. */
+export const cleanHtml = normalizeHtmlWhitespace;
 
 /**
  * Format date for display

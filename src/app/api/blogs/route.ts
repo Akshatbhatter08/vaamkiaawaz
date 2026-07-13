@@ -1,13 +1,20 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { initialBlogSeed } from "@/lib/blog-seed";
 import { requireAuth } from "@/lib/auth";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
-import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
+import { isValidAuthorImageRef, isValidImageRef, isValidMediaImageUrl } from "@/lib/fileStorage";
 import { extractFirstImageFromHtml } from "@/lib/postImage";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 import { generateContributorCode, getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
+import {
+  MAX_BLOG_CONTENT_LENGTH,
+  MAX_BLOG_EXCERPT_LENGTH,
+  MAX_BLOG_TITLE_LENGTH,
+  sanitizeExcerptHtml,
+  sanitizeTipTapHtml,
+} from "@/lib/tiptapSanitize";
+import { seedInitialBlogsIfEmpty } from "@/lib/blogSeedGuard";
 
 const mapBlog = (post: {
   id: string;
@@ -42,18 +49,7 @@ const mapBlog = (post: {
 export async function GET() {
   try {
     await ensureBlogSchema();
-    const count = await prisma.blogPost.count().catch(() => 0);
-    if (count === 0) {
-      await prisma.blogPost.createMany({
-        data: initialBlogSeed.map((post) => ({
-          category: post.category,
-          title: post.title,
-          excerpt: post.excerpt,
-          content: post.content,
-          author: post.author,
-        })),
-      });
-    }
+    await seedInitialBlogsIfEmpty();
 
     const posts = await enrichPostsWithThumbnails(
       await enrichPostsWithAuthorImages(
@@ -110,9 +106,9 @@ export async function GET() {
         },
       },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("GET /api/blogs error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -162,26 +158,41 @@ export async function POST(request: NextRequest) {
 
   const category = body.category?.trim() || "ब्लॉग";
   const title = body.title?.trim();
-  const excerpt = body.excerpt?.trim();
-  const content = body.content?.trim();
+  const rawExcerpt = body.excerpt?.trim();
+  const rawContent = body.content?.trim();
   const author = body.author?.trim();
   const explicitPostImage = body.postImage?.trim() || null;
+
+  if (!title || !rawExcerpt || !rawContent || !author) {
+    return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
+  }
+
+  if (title.length > MAX_BLOG_TITLE_LENGTH) {
+    return NextResponse.json({ error: "शीर्षक बहुत लंबा है।" }, { status: 400 });
+  }
+  if (rawExcerpt.length > MAX_BLOG_EXCERPT_LENGTH) {
+    return NextResponse.json({ error: "सारांश बहुत लंबा है।" }, { status: 400 });
+  }
+  if (rawContent.length > MAX_BLOG_CONTENT_LENGTH) {
+    return NextResponse.json({ error: "लेख बहुत लंबा है।" }, { status: 400 });
+  }
+
+  const excerpt = sanitizeExcerptHtml(rawExcerpt);
+  const content = sanitizeTipTapHtml(rawContent);
   let postImage = explicitPostImage;
   if (!postImage && content) {
     const extracted = extractFirstImageFromHtml(content);
-    if (extracted && isValidImageRef(extracted)) {
+    if (extracted && isValidMediaImageUrl(extracted)) {
+      postImage = extracted;
+    } else if (extracted && isValidImageRef(extracted) && !extracted.startsWith("data:")) {
       postImage = extracted;
     }
   }
   const authorImage = null;
   const imageFocus = body.imageFocus?.trim() || null;
 
-  if (!title || !excerpt || !content || !author) {
-    return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
-  }
-
-  if (explicitPostImage && !isValidImageRef(explicitPostImage)) {
-    return NextResponse.json({ error: "पोस्ट फोटो का फ़ॉर्मेट अमान्य है।" }, { status: 400 });
+  if (explicitPostImage && !isValidMediaImageUrl(explicitPostImage)) {
+    return NextResponse.json({ error: "पोस्ट फोटो के लिए मीडिया URL आवश्यक है (data: URI नहीं)।" }, { status: 400 });
   }
 
   if (body.authorImage?.trim() && !isValidAuthorImageRef(body.authorImage.trim())) {

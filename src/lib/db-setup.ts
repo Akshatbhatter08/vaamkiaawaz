@@ -184,6 +184,11 @@ const ensureBlogPostStorageColumns = async () => {
   `);
 };
 
+/**
+ * Ensures BlogPost / engagement tables exist.
+ * Runs once per process (singleton). Prefer `npx prisma db push` at deploy (see .env.example).
+ * Kept for Hostinger first-boot compatibility — not intended as ongoing DDL on every request.
+ */
 export const ensureBlogSchema = async () => {
   if (!ensureBlogSchemaPromise) {
     ensureBlogSchemaPromise = ensureBlogPostStorageColumns().catch((error) => {

@@ -15,6 +15,7 @@ import { ArticleCard } from "@/components/ArticleCard";
 import { ImageCropModal } from "@/components/ImageCropModal";
 import { startNavigationProgress } from "@/components/NavigationProgress";
 import { LinkPendingDim } from "@/components/LinkPendingDim";
+import { ensureHomepageTranslateState, rememberSiteGoogTrans, setTranslateScope } from "@/lib/translateScope";
 import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
@@ -685,12 +686,17 @@ export default function ClientPage({
 
 
   useEffect(() => {
+    // Run after paint so we can detect a leftover GT banner from soft navigations
+    const timer = window.setTimeout(() => {
+      ensureHomepageTranslateState();
+    }, 0);
     const placeholder = document.getElementById("translate_placeholder");
     const translateEl = document.getElementById("google_translate_element");
     if (placeholder && translateEl) {
       placeholder.appendChild(translateEl);
     }
     return () => {
+      window.clearTimeout(timer);
       const container = document.getElementById("google_translate_container");
       if (container && translateEl) {
         container.appendChild(translateEl);
@@ -700,6 +706,16 @@ export default function ClientPage({
 
   useEffect(() => {
     if (!showTranslate) return;
+    setTranslateScope("site");
+    const onChange = () => {
+      setTranslateScope("site");
+      window.setTimeout(() => rememberSiteGoogTrans(), 100);
+    };
+    // Capture language picks made from the topbar widget
+    const timer = window.setTimeout(() => {
+      const combo = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+      combo?.addEventListener("change", onChange);
+    }, 0);
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target || !translateRef.current) return;
@@ -710,6 +726,9 @@ export default function ClientPage({
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown);
     return () => {
+      window.clearTimeout(timer);
+      const combo = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+      combo?.removeEventListener("change", onChange);
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
     };
@@ -1257,7 +1276,7 @@ export default function ClientPage({
     setLoginMessage("सफलतापूर्वक लॉगआउट किया गया।");
   };
 
-  const executeAddAdmin = async () => {
+  const executeAddAdmin = async (otpProof?: string) => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -1270,6 +1289,7 @@ export default function ClientPage({
           permissions: newAdminForm.permissions,
           authorName: newAdminForm.authorName.trim(),
           authorImage: newAdminForm.permissions.publishBlog ? newAdminForm.authorImage.trim() : undefined,
+          otpProof,
         })
       });
       const data = await res.json();
@@ -1342,7 +1362,7 @@ export default function ClientPage({
       const res = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newAdminForm.email.trim() }),
+        body: JSON.stringify({ email: newAdminForm.email.trim(), purpose: "register" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
@@ -1405,7 +1425,7 @@ export default function ClientPage({
     }
   };
 
-  const executeAddContributor = async () => {
+  const executeAddContributor = async (otpProof?: string) => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -1417,6 +1437,7 @@ export default function ClientPage({
           role: "CONTRIBUTOR",
           authorName: newContributorForm.authorName.trim(),
           authorImage: newContributorForm.authorImage.trim(),
+          otpProof,
         })
       });
       const data = await res.json();
@@ -1484,7 +1505,7 @@ export default function ClientPage({
       const res = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newContributorForm.email.trim() }),
+        body: JSON.stringify({ email: newContributorForm.email.trim(), purpose: "register" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
@@ -1810,7 +1831,20 @@ export default function ClientPage({
     }
   };
 
-  const executeNewsletterSubscription = () => {
+  const executeNewsletterSubscription = async (otpProof: string) => {
+    const res = await fetch("/api/newsletter/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: newsletterEmail.trim(),
+        name: newsletterName.trim(),
+        phone: newsletterPhone.trim(),
+        otpProof,
+        consent: true,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "सदस्यता विफल");
     setNewsletterMessage("धन्यवाद! आप सफलतापूर्वक न्यूज़लेटर से जुड़ गए हैं।");
     setNewsletterEmail("");
     setNewsletterName("");
@@ -1828,7 +1862,7 @@ export default function ClientPage({
       const res = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newsletterEmail.trim() }),
+        body: JSON.stringify({ email: newsletterEmail.trim(), purpose: "newsletter" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "OTP भेजने में विफल");
@@ -1843,20 +1877,22 @@ export default function ClientPage({
   const handleVerifyOtp = async () => {
     setOtpModalState((prev) => ({ ...prev, isLoading: true, error: "" }));
     try {
+      const purpose = otpModalState.context === "newsletter" ? "newsletter" : "register";
       const res = await fetch("/api/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: otpModalState.email, code: otpCode }),
+        body: JSON.stringify({ email: otpModalState.email, code: otpCode, purpose }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "अमान्य OTP");
+      const otpProof = typeof data.otpProof === "string" ? data.otpProof : "";
       
       if (otpModalState.context === "newsletter") {
-        executeNewsletterSubscription();
+        await executeNewsletterSubscription(otpProof);
       } else if (otpModalState.context === "admin") {
-        await executeAddAdmin();
+        await executeAddAdmin(otpProof);
       } else if (otpModalState.context === "contributor") {
-        await executeAddContributor();
+        await executeAddContributor(otpProof);
       }
       
       setOtpModalState({ isOpen: false, email: "", context: "newsletter" });
@@ -2333,7 +2369,10 @@ export default function ClientPage({
             <div className="relative flex items-center shrink-0 ml-1 sm:ml-2" ref={translateRef}>
               <button
                 type="button"
-                onClick={() => setShowTranslate(!showTranslate)}
+                onClick={() => {
+                  setTranslateScope("site");
+                  setShowTranslate(!showTranslate);
+                }}
                 className="inline-flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:text-[var(--primary)] hover:border-[var(--primary)]"
                 title="Translate"
               >
@@ -2597,7 +2636,10 @@ export default function ClientPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowTranslate(!showTranslate)}
+                        onClick={() => {
+                          setTranslateScope("site");
+                          setShowTranslate(!showTranslate);
+                        }}
                         className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
                         title="Translate"
                       >
@@ -2842,7 +2884,7 @@ export default function ClientPage({
         <main className="home-main grid grid-cols-1 gap-6 lg:grid-cols-12">
           <section className="home-main__primary space-y-6 lg:col-span-8">
             <section className="home-priorities" style={{ background: "var(--surface)", padding: "8px 0 16px" }}>
-              <SectionHeader title="आज की प्राथमिकताएँ" href="/" linkText="सभी देखें →" />
+              <SectionHeader title="आज की प्राथमिकताएँ" href="#" linkText="सभी देखें →" />
               <div className="cards-grid-responsive cards-grid-2up">
                 {filteredNews.slice(1, 5).map((story) => (
                   <ArticleCard key={story.id} {...articleCardProps(story)} />

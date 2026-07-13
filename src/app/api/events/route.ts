@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireUser, isMasterAdmin } from "@/lib/requireUser";
 
 const ensureEventsSchema = async () => {
   const tableCheck = await prisma.$queryRawUnsafe<any[]>(`
@@ -45,12 +45,11 @@ export async function GET() {
       `SELECT * FROM \`AbhiyanEvent\` ORDER BY \`createdAt\` DESC`
     );
     return NextResponse.json({ events }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("GET /api/events error:", error);
     return NextResponse.json({ 
       events: [], 
       error: "डेटाबेस त्रुटि।",
-      details: error.message || String(error)
     }, { status: 500 });
   }
 }
@@ -59,13 +58,14 @@ export async function POST(request: NextRequest) {
   try {
     await ensureEventsSchema();
   } catch (error) {
+    console.error("POST /api/events schema error:", error);
     return NextResponse.json({ error: "डेटाबेस त्रुटि।" }, { status: 500 });
   }
 
-  const authPayload = await requireAuth(request);
-  if (authPayload instanceof NextResponse) return authPayload;
-  
-  if (authPayload.role !== 'MASTER_ADMIN') {
+  const user = await requireUser(request);
+  if (user instanceof NextResponse) return user;
+
+  if (!isMasterAdmin(user)) {
     return NextResponse.json({ error: "केवल मास्टर एडमिन यह कर सकता है।" }, { status: 403 });
   }
 

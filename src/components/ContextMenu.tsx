@@ -205,7 +205,7 @@ export default function ContextMenu() {
       const targetEl = rightClickedElRef.current || document.activeElement;
       
       if (targetEl) {
-        targetEl.focus(); // Ensure it's focused
+        (targetEl as HTMLElement).focus(); // Ensure it's focused
         
         if (targetEl.tagName === 'INPUT' || targetEl.tagName === 'TEXTAREA') {
           const input = targetEl as HTMLInputElement | HTMLTextAreaElement;
