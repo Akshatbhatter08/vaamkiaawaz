@@ -22,13 +22,22 @@ function extractFirstImageFromContent(html: string): string | null {
 }
 
 function getOgImage(post: { id: string; postImage: string | null; content: string }): string {
-  // 1. Post thumbnail
+  // Prefer direct disk media URLs. WhatsApp (and many crawlers) often fail when
+  // og:image points at /api/image/blog/... which now redirects to /api/media/...
+  if (post.postImage?.startsWith("/api/media/")) {
+    return post.postImage;
+  }
+
+  // 1. Post thumbnail (legacy base64 still needs the binary proxy)
   if (post.postImage) {
     return `/api/image/blog/${post.id}`;
   }
 
   // 2. First image inside the article content
   const contentImage = extractFirstImageFromContent(post.content);
+  if (contentImage?.startsWith("/api/media/")) {
+    return contentImage;
+  }
   if (contentImage) {
     return `/api/image/blog/${post.id}`;
   }

@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import fs from "fs/promises";
+import path from "path";
 import { prisma } from "@/lib/prisma";
-import { isMediaUrl } from "@/lib/fileStorage";
+import { isMediaUrl, mediaUrlToRelativePath, resolveUploadPath } from "@/lib/fileStorage";
+
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
 
 function safeDefaultRedirect(req: Request) {
   return NextResponse.redirect(new URL("/vaamki-logo-sm.png", req.url));
@@ -21,6 +31,33 @@ function isSafeLocalPath(value: string): boolean {
     }
   }
   return false;
+}
+
+async function serveMediaFile(dataUri: string, req: Request) {
+  const relative = mediaUrlToRelativePath(dataUri);
+  const fullPath = relative ? resolveUploadPath(relative) : null;
+  if (!fullPath) {
+    return safeDefaultRedirect(req);
+  }
+
+  const stat = await fs.stat(fullPath).catch(() => null);
+  if (!stat || !stat.isFile()) {
+    return safeDefaultRedirect(req);
+  }
+
+  const ext = path.extname(fullPath).replace(".", "").toLowerCase();
+  const mimeType = EXT_TO_MIME[ext] || "application/octet-stream";
+  const buffer = await fs.readFile(fullPath);
+
+  return new Response(buffer, {
+    headers: {
+      "Content-Type": mimeType,
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Length": String(buffer.length),
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": "inline",
+    },
+  });
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -59,6 +96,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           "X-Content-Type-Options": "nosniff",
         },
       });
+    }
+
+    // Disk-backed media: stream bytes (do not redirect — WhatsApp often skips redirects)
+    if (isMediaUrl(dataUri) || dataUri.startsWith("/api/media/")) {
+      return serveMediaFile(dataUri, req);
     }
 
     // Never redirect to arbitrary external / protocol-relative hosts (open redirect)
