@@ -34,6 +34,8 @@ type ApiBlogPost = {
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
   createdAt: string;

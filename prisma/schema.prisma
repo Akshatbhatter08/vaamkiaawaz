@@ -19,9 +19,11 @@ model BlogPost {
   dislikeCount Int               @default(0)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
-  postImage    String?           @db.LongText
-  imageFocus   String?           @db.VarChar(32)
-  authorImage  String?           @db.LongText
+  postImage         String?           @db.LongText
+  imageFocus        String?           @db.VarChar(32)
+  imageFocusHero    String?           @db.VarChar(32)
+  imageFocusGround  String?           @db.VarChar(32)
+  authorImage       String?           @db.LongText
   authorUserId String?
   uploaderName String?
   isHidden     Boolean           @default(false)

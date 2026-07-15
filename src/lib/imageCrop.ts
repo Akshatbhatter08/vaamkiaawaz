@@ -10,6 +10,25 @@ export type ImageFocus = {
   y: number;
 };
 
+export type ImageFocusVariant = "card" | "hero" | "ground";
+
+export type ImageFocusFields = {
+  imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
+};
+
+/** Card keeps legacy `imageFocus`. Hero/ground fall back to it for old posts. */
+export const resolveImageFocus = (
+  fields: ImageFocusFields | null | undefined,
+  variant: ImageFocusVariant = "card",
+): string | null => {
+  if (!fields) return null;
+  if (variant === "hero") return fields.imageFocusHero?.trim() || fields.imageFocus?.trim() || null;
+  if (variant === "ground") return fields.imageFocusGround?.trim() || fields.imageFocus?.trim() || null;
+  return fields.imageFocus?.trim() || null;
+};
+
 const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -65,6 +84,21 @@ export const getCroppedImageDataUrl = async (
   );
 
   return canvas.toDataURL("image/jpeg", quality);
+};
+
+/** Compress full image for Option A multi-focus storage (not a single aspect crop). */
+export const getCompressedImageDataUrl = async (
+  imageSrc: string,
+  maxWidth = 1280,
+  quality = 0.85,
+): Promise<string> => {
+  const image = await loadImage(imageSrc);
+  return getCroppedImageDataUrl(
+    imageSrc,
+    { x: 0, y: 0, width: image.naturalWidth || image.width, height: image.naturalHeight || image.height },
+    maxWidth,
+    quality,
+  );
 };
 
 const readFileAsDataUrl = (file: File): Promise<string> =>

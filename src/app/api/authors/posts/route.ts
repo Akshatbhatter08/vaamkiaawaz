@@ -19,6 +19,8 @@ const mapBlog = (post: {
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -32,6 +34,8 @@ const mapBlog = (post: {
   author: post.author,
   postImage: post.postImage,
   imageFocus: post.imageFocus ?? null,
+  imageFocusHero: post.imageFocusHero ?? null,
+  imageFocusGround: post.imageFocusGround ?? null,
   authorImage: post.authorImage,
   clickCount: post.clickCount,
   uploaderName: post.uploaderName ?? null,
@@ -62,6 +66,8 @@ export async function GET(request: NextRequest) {
         author: string;
         postImage: string | null;
         imageFocus: string | null;
+        imageFocusHero: string | null;
+        imageFocusGround: string | null;
         authorImage: string | null;
         clickCount: number;
         uploaderName: string | null;
@@ -70,7 +76,7 @@ export async function GET(request: NextRequest) {
     >`
       SELECT
         \`id\`, \`category\`, \`title\`, \`excerpt\`, \`author\`,
-        \`postImage\`, \`imageFocus\`, \`authorImage\`, \`clickCount\`,
+        \`postImage\`, \`imageFocus\`, \`imageFocusHero\`, \`imageFocusGround\`, \`authorImage\`, \`clickCount\`,
         \`uploaderName\`, \`createdAt\`
       FROM \`BlogPost\`
       WHERE \`isHidden\` = false

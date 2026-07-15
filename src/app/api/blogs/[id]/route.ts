@@ -28,6 +28,8 @@ const mapBlog = (post: {
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -42,6 +44,8 @@ const mapBlog = (post: {
   author: post.author,
   postImage: post.postImage,
   imageFocus: post.imageFocus ?? null,
+  imageFocusHero: post.imageFocusHero ?? null,
+  imageFocusGround: post.imageFocusGround ?? null,
   authorImage: post.authorImage,
   clickCount: post.clickCount,
   uploaderName: post.uploaderName ?? null,
@@ -133,6 +137,8 @@ export async function PATCH(request: NextRequest, context: Context) {
     category?: string;
     postImage?: string | null;
     imageFocus?: string | null;
+    imageFocusHero?: string | null;
+    imageFocusGround?: string | null;
   };
 
   const updateData: Record<string, unknown> = {};
@@ -180,6 +186,12 @@ export async function PATCH(request: NextRequest, context: Context) {
 
   if (body.imageFocus !== undefined) {
     updateData.imageFocus = body.imageFocus?.trim() || null;
+  }
+  if (body.imageFocusHero !== undefined) {
+    updateData.imageFocusHero = body.imageFocusHero?.trim() || null;
+  }
+  if (body.imageFocusGround !== undefined) {
+    updateData.imageFocusGround = body.imageFocusGround?.trim() || null;
   }
 
   if (Object.keys(updateData).length === 0) {

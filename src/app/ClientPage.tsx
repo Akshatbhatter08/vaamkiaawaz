@@ -12,11 +12,11 @@ import { ArticleRichText } from "@/utils/sanitizeHtml";
 import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
 import { SectionHeader } from "@/components/SectionHeader";
 import { ArticleCard } from "@/components/ArticleCard";
-import { ImageCropModal } from "@/components/ImageCropModal";
+import { ImageCropModal, type ImageCropConfirmResult } from "@/components/ImageCropModal";
 import { startNavigationProgress } from "@/components/NavigationProgress";
 import { LinkPendingDim } from "@/components/LinkPendingDim";
 import { ensureHomepageTranslateState, rememberSiteGoogTrans, setTranslateScope } from "@/lib/translateScope";
-import { focusToObjectPosition, compressImageFile } from "@/lib/imageCrop";
+import { focusToObjectPosition, compressImageFile, resolveImageFocus } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
 import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
@@ -42,6 +42,8 @@ export type NewsPost = {
   author: string;
   postImage?: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage?: string | null;
   time: string;
   createdAt?: string;
@@ -68,6 +70,8 @@ type ApiBlogPost = {
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -365,6 +369,8 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   author: post.author,
   postImage: post.postImage,
   imageFocus: post.imageFocus ?? null,
+  imageFocusHero: post.imageFocusHero ?? null,
+  imageFocusGround: post.imageFocusGround ?? null,
   authorImage: post.authorImage,
   time: formatRelativeTime(post.createdAt),
   createdAt: post.createdAt,
@@ -654,6 +660,8 @@ export default function ClientPage({
     content: "",
     postImage: "",
     imageFocus: "",
+    imageFocusHero: "",
+    imageFocusGround: "",
     authorImage: "",
   });
 
@@ -670,6 +678,8 @@ export default function ClientPage({
             ...parsed,
             postImage: typeof parsed.postImage === "string" ? parsed.postImage : "",
             imageFocus: typeof parsed.imageFocus === "string" ? parsed.imageFocus : "",
+            imageFocusHero: typeof parsed.imageFocusHero === "string" ? parsed.imageFocusHero : "",
+            imageFocusGround: typeof parsed.imageFocusGround === "string" ? parsed.imageFocusGround : "",
             authorImage: typeof parsed.authorImage === "string" ? parsed.authorImage : "",
           }));
         }
@@ -1929,6 +1939,8 @@ export default function ClientPage({
       author: formState.author.trim(),
       postImage: resolvedPostImage,
       imageFocus: formState.imageFocus || null,
+      imageFocusHero: formState.imageFocusHero || null,
+      imageFocusGround: formState.imageFocusGround || null,
       authorImage: selectedAuthorProfile.image?.trim() ?? "",
       time: "अभी-अभी",
       createdAt: new Date().toISOString(),
@@ -1974,6 +1986,8 @@ export default function ClientPage({
           author: submittedAuthor,
           postImage: submittedPostImage || undefined,
           imageFocus: (formState.imageFocus ?? "").trim() || undefined,
+          imageFocusHero: (formState.imageFocusHero ?? "").trim() || undefined,
+          imageFocusGround: (formState.imageFocusGround ?? "").trim() || undefined,
         }),
       });
       const data = (await response.json()) as { post?: ApiBlogPost; error?: string };
@@ -2005,6 +2019,8 @@ export default function ClientPage({
         content: "",
         postImage: "",
         imageFocus: "",
+        imageFocusHero: "",
+        imageFocusGround: "",
         authorImage: availableAuthors[0]?.image ?? "",
       });
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
@@ -2049,7 +2065,13 @@ export default function ClientPage({
   const handleImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>, key: "postImage") => {
     const file = event.target.files?.[0];
     if (!file) {
-      setFormState((prev) => ({ ...prev, [key]: "", imageFocus: "" }));
+      setFormState((prev) => ({
+        ...prev,
+        [key]: "",
+        imageFocus: "",
+        imageFocusHero: "",
+        imageFocusGround: "",
+      }));
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -2065,10 +2087,16 @@ export default function ClientPage({
     event.target.value = "";
   };
 
-  const handleCropConfirm = async (result: { dataUrl: string; imageFocus: string }) => {
+  const handleCropConfirm = async (result: ImageCropConfirmResult) => {
     try {
       const url = await uploadDataUrl(result.dataUrl, "posts", "thumbnail.jpg");
-      setFormState((prev) => ({ ...prev, postImage: url, imageFocus: result.imageFocus }));
+      setFormState((prev) => ({
+        ...prev,
+        postImage: url,
+        imageFocus: result.imageFocus,
+        imageFocusHero: result.imageFocusHero,
+        imageFocusGround: result.imageFocusGround,
+      }));
       setCropModalSrc(null);
     } catch {
       setBlogMessage("थंबनेल सेव नहीं हो सका।");
@@ -2274,7 +2302,7 @@ export default function ClientPage({
     title: post.title,
     excerpt: post.excerpt,
     imageUrl: getPreviewImage(post),
-    imageFocus: post.imageFocus,
+    imageFocus: resolveImageFocus(post, "card"),
     categoryName: post.category,
     categorySlug: post.category,
     authorName: post.author,
@@ -2765,7 +2793,7 @@ export default function ClientPage({
               <img
                 src={getPreviewImage(featuredForDisplay[0])!}
                 alt={featuredForDisplay[0].title}
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(featuredForDisplay[0].imageFocus), filter: "saturate(0.85) contrast(1.05)" }}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(resolveImageFocus(featuredForDisplay[0], "hero")), filter: "saturate(0.85) contrast(1.05)" }}
               />
             )}
             <div className="hero-section__shade" />
@@ -2917,7 +2945,7 @@ export default function ClientPage({
                           src={getPreviewImage(story)!}
                           alt={story.title}
                           className="h-full w-full object-cover"
-                          style={{ objectPosition: focusToObjectPosition(story.imageFocus) }}
+                          style={{ objectPosition: focusToObjectPosition(resolveImageFocus(story, "card")) }}
                         />
                       </div>
                     )}
@@ -3213,7 +3241,7 @@ export default function ClientPage({
                             <img
                               src={getPreviewImage(gr[0])!}
                               alt={gr[0].title}
-                              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(gr[0].imageFocus), filter: "saturate(0.9)" }}
+                              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(resolveImageFocus(gr[0], "ground")), filter: "saturate(0.9)" }}
                             />
                           )}
                         </div>
@@ -3238,7 +3266,7 @@ export default function ClientPage({
                                 <img
                                   src={getPreviewImage(article)!}
                                   alt={article.title}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(article.imageFocus), filter: "saturate(0.9)" }}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: focusToObjectPosition(resolveImageFocus(article, "card")), filter: "saturate(0.9)" }}
                                 />
                               )}
                             </div>
@@ -3375,7 +3403,7 @@ export default function ClientPage({
                     src={resolvePostImage(formState.postImage, formState.content)!}
                     alt="Post preview"
                     className="h-16 w-24 rounded-md object-cover"
-                    style={{ objectPosition: focusToObjectPosition(formState.imageFocus) }}
+                    style={{ objectPosition: focusToObjectPosition(resolveImageFocus(formState, "card")) }}
                   />
                 </div>
               )}
@@ -3442,7 +3470,7 @@ export default function ClientPage({
                   src={getPreviewImage(previewPost)!}
                   alt={previewPost.title}
                   className="mt-4 max-h-[320px] w-full rounded-lg object-cover"
-                  style={{ objectPosition: focusToObjectPosition(previewPost.imageFocus) }}
+                  style={{ objectPosition: focusToObjectPosition(resolveImageFocus(previewPost, "card")) }}
                 />
               )}
               <div className="mt-5 text-[var(--foreground)] ql-snow" style={{ overflowX: 'hidden', maxWidth: '100%' }}>
