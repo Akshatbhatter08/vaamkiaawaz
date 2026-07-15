@@ -18,6 +18,8 @@ const mapBlog = (post: {
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
+  imageFocusHero?: string | null;
+  imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
@@ -32,6 +34,8 @@ const mapBlog = (post: {
     author: post.author,
     postImage: post.postImage,
     imageFocus: post.imageFocus ?? null,
+    imageFocusHero: post.imageFocusHero ?? null,
+    imageFocusGround: post.imageFocusGround ?? null,
     authorImage: post.authorImage,
     clickCount: post.clickCount,
     uploaderName: post.uploaderName ?? null,
@@ -67,6 +71,8 @@ export async function GET() {
             author: true,
             postImage: true,
             imageFocus: true,
+            imageFocusHero: true,
+            imageFocusGround: true,
             authorImage: true,
             clickCount: true,
             uploaderName: true,
@@ -90,6 +96,8 @@ export async function GET() {
             author: true,
             postImage: true,
             imageFocus: true,
+            imageFocusHero: true,
+            imageFocusGround: true,
             authorImage: true,
             clickCount: true,
             uploaderName: true,
@@ -157,6 +165,8 @@ export async function POST(request: NextRequest) {
     author?: string;
     postImage?: string;
     imageFocus?: string;
+    imageFocusHero?: string;
+    imageFocusGround?: string;
     authorImage?: string;
   };
 
@@ -175,6 +185,8 @@ export async function POST(request: NextRequest) {
   }
   const authorImage = null;
   const imageFocus = body.imageFocus?.trim() || null;
+  const imageFocusHero = body.imageFocusHero?.trim() || imageFocus;
+  const imageFocusGround = body.imageFocusGround?.trim() || imageFocus;
 
   if (!title || !excerpt || !content || !author) {
     return NextResponse.json({ error: "शीर्षक, सारांश, पूरा लेख और लेखक आवश्यक हैं।" }, { status: 400 });
@@ -213,6 +225,8 @@ export async function POST(request: NextRequest) {
       author, 
       postImage, 
       imageFocus,
+      imageFocusHero,
+      imageFocusGround,
       authorImage,
       authorUserId: userId,
       uploaderName: uploaderName

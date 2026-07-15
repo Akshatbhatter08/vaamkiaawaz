@@ -10,7 +10,7 @@ import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
 import { ArticleRichText } from "@/utils/sanitizeHtml";
 import { getCategoryClass, formatViews, readingTime, cleanHtml, getTodayHindi, fmtDate, speakHindiText } from "@/utils/designUtils";
-import { focusToObjectPosition } from "@/lib/imageCrop";
+import { focusToObjectPosition, resolveImageFocus } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import AuthorProfileBox from "@/components/AuthorProfileBox";
@@ -20,12 +20,13 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
 import ArticleEngagement from "@/components/ArticleEngagement";
-import { ImageCropModal } from "@/components/ImageCropModal";
+import { ImageCropModal, type ImageCropConfirmResult } from "@/components/ImageCropModal";
 import { uploadDataUrl } from "@/lib/uploadClient";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
-  author: string; postImage?: string | null; imageFocus?: string | null; authorImage?: string | null;
+  author: string; postImage?: string | null; imageFocus?: string | null;
+  imageFocusHero?: string | null; imageFocusGround?: string | null; authorImage?: string | null;
   clickCount?: number; uploaderName?: string | null; authorUserId?: string | null;
   createdAt: string; time: string; source: "blog";
 };
@@ -105,6 +106,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     content: post.content,
     postImage: post.postImage || "",
     imageFocus: post.imageFocus || "",
+    imageFocusHero: post.imageFocusHero || "",
+    imageFocusGround: post.imageFocusGround || "",
   });
   const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
   const [resourceFilter, setResourceFilter] = useState<"all" | "link" | "pdf">("all");
@@ -466,10 +469,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     event.target.value = "";
   };
 
-  const handleCropConfirm = async (result: { dataUrl: string; imageFocus: string }) => {
+  const handleCropConfirm = async (result: ImageCropConfirmResult) => {
     try {
       const url = await uploadDataUrl(result.dataUrl, "posts", "thumbnail.jpg");
-      setEditForm((prev) => ({ ...prev, postImage: url, imageFocus: result.imageFocus }));
+      setEditForm((prev) => ({
+        ...prev,
+        postImage: url,
+        imageFocus: result.imageFocus,
+        imageFocusHero: result.imageFocusHero,
+        imageFocusGround: result.imageFocusGround,
+      }));
       setCropModalSrc(null);
     } catch {
       alert("थंबनेल सेव नहीं हो सका।");
@@ -890,7 +899,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       src={resolvePostImage(editForm.postImage, editForm.content) || editForm.postImage}
                       alt="Thumbnail preview"
                       className="mt-2 h-24 w-36 rounded-md object-cover"
-                      style={{ objectPosition: focusToObjectPosition(editForm.imageFocus) }}
+                      style={{ objectPosition: focusToObjectPosition(resolveImageFocus(editForm, "card")) }}
                     />
                   )}
                 </div>
@@ -981,7 +990,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 {/* Hero image - only show if not already embedded in content */}
                 {heroImg && !post.content?.includes(heroImg) && (
                   <div className="overflow-hidden rounded-xl border border-[var(--line)]">
-                    <img src={heroImg} alt={post.title} className="article-hero-img w-full object-cover" style={{ maxHeight: 480, objectPosition: focusToObjectPosition(post.imageFocus) }} />
+                    <img src={heroImg} alt={post.title} className="article-hero-img w-full object-cover" style={{ maxHeight: 480, objectPosition: focusToObjectPosition(resolveImageFocus(post, "hero")) }} />
                   </div>
                 )}
 
@@ -1161,7 +1170,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <Link key={sp.id} href={`/post/${sp.id}`} className="rise-on-hover card-lift group flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
                   {resolvePostImage(sp.postImage, sp.content) && (
                     <div className="card-image-container">
-                      <img src={resolvePostImage(sp.postImage, sp.content)!} alt="" style={{ objectPosition: focusToObjectPosition(sp.imageFocus) }} />
+                      <img src={resolvePostImage(sp.postImage, sp.content)!} alt="" style={{ objectPosition: focusToObjectPosition(resolveImageFocus(sp, "card")) }} />
                     </div>
                   )}
                   <div className="flex flex-col gap-2 p-4">
