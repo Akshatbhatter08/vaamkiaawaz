@@ -800,7 +800,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       <div className="flex gap-2">
                         <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon /></a>
                         <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon /></a>
-                        <a href="https://www.instagram.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
+                        <a href="https://www.x.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
                       </div>
                     </div>
                     
