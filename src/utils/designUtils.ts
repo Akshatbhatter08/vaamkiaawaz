@@ -106,6 +106,12 @@ export function readingTime(html: string): number {
   return Math.max(1, Math.ceil(words / 200));
 }
 
+/** Prefer server-computed readTime when full content is omitted from list payloads. */
+export function getPostReadTime(post: { content?: string; excerpt?: string; readTime?: number }): number {
+  if (post.readTime != null && post.readTime > 0) return post.readTime;
+  return readingTime(post.content || post.excerpt || "");
+}
+
 /**
  * Clean HTML: strip zero-width chars and normalize spaces
  */

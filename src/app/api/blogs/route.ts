@@ -8,6 +8,7 @@ import { isValidAuthorImageRef, isValidImageRef } from "@/lib/fileStorage";
 import { extractFirstImageFromHtml } from "@/lib/postImage";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 import { generateContributorCode, getContributorCodeFromPermissions, parseUserPermissions } from "@/lib/contributorCode";
+import { readingTime } from "@/utils/designUtils";
 
 const mapBlog = (post: {
   id: string;
@@ -31,6 +32,7 @@ const mapBlog = (post: {
     title: post.title,
     excerpt: post.excerpt,
     content: "", // Content intentionally omitted for speed
+    readTime: readingTime(post.content || post.excerpt || ""),
     author: post.author,
     postImage: post.postImage,
     imageFocus: post.imageFocus ?? null,
@@ -68,6 +70,7 @@ export async function GET() {
             category: true,
             title: true,
             excerpt: true,
+            content: true,
             author: true,
             postImage: true,
             imageFocus: true,
@@ -93,6 +96,7 @@ export async function GET() {
             category: true,
             title: true,
             excerpt: true,
+            content: true,
             author: true,
             postImage: true,
             imageFocus: true,
