@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
+import { readingTime } from "@/utils/designUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ const mapBlog = (post: {
   category: string;
   title: string;
   excerpt: string;
+  content?: string;
   author: string;
   postImage: string | null;
   imageFocus?: string | null;
@@ -31,6 +33,7 @@ const mapBlog = (post: {
   title: post.title,
   excerpt: post.excerpt,
   content: "", // Content intentionally omitted for speed
+  readTime: readingTime(post.content || post.excerpt || ""),
   author: post.author,
   postImage: post.postImage,
   imageFocus: post.imageFocus ?? null,
@@ -63,6 +66,7 @@ export async function GET(request: NextRequest) {
         category: string;
         title: string;
         excerpt: string;
+        content: string;
         author: string;
         postImage: string | null;
         imageFocus: string | null;
@@ -75,7 +79,7 @@ export async function GET(request: NextRequest) {
       }>
     >`
       SELECT
-        \`id\`, \`category\`, \`title\`, \`excerpt\`, \`author\`,
+        \`id\`, \`category\`, \`title\`, \`excerpt\`, \`content\`, \`author\`,
         \`postImage\`, \`imageFocus\`, \`imageFocusHero\`, \`imageFocusGround\`, \`authorImage\`, \`clickCount\`,
         \`uploaderName\`, \`createdAt\`
       FROM \`BlogPost\`

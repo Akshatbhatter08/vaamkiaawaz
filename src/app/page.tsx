@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
+import { readingTime } from "@/utils/designUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ async function HomePageContent() {
         category: true,
         title: true,
         excerpt: true,
+        content: true,
         author: true,
         postImage: true,
         imageFocus: true,
@@ -74,6 +76,7 @@ async function HomePageContent() {
         category: true,
         title: true,
         excerpt: true,
+        content: true,
         author: true,
         postImage: true,
         imageFocus: true,
@@ -99,6 +102,7 @@ async function HomePageContent() {
         title: post.title,
         excerpt: post.excerpt,
         content: "", // Intentionally omit content from the client payload to prevent 20MB hydration issues
+        readTime: readingTime(post.content || post.excerpt || ""),
         author: post.author,
         postImage: post.postImage ?? null,
         imageFocus: post.imageFocus ?? null,

@@ -9,7 +9,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import { ArticleRichText } from "@/utils/sanitizeHtml";
-import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
+import { getCategoryClass, formatViews, getPostReadTime } from "@/utils/designUtils";
 import { SectionHeader } from "@/components/SectionHeader";
 import { ArticleCard } from "@/components/ArticleCard";
 import { ImageCropModal, type ImageCropConfirmResult } from "@/components/ImageCropModal";
@@ -49,6 +49,7 @@ export type NewsPost = {
   createdAt?: string;
   clickCount?: number;
   uploaderName?: string | null;
+  readTime?: number;
   source?: "static" | "blog";
 };
 
@@ -75,6 +76,7 @@ type ApiBlogPost = {
   authorImage: string | null;
   clickCount: number;
   uploaderName?: string | null;
+  readTime?: number;
   createdAt: string;
 };
 
@@ -376,6 +378,7 @@ const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   createdAt: post.createdAt,
   clickCount: post.clickCount,
   uploaderName: post.uploaderName,
+  readTime: post.readTime,
   source: "blog",
 });
 
@@ -1125,7 +1128,7 @@ export default function ClientPage({
   const threeMinutePosts = useMemo(
     () =>
       filteredNews
-        .filter((post) => readingTime(post.content || post.excerpt || "") <= 3)
+        .filter((post) => getPostReadTime(post) <= 3)
         .slice(0, 10),
     [filteredNews],
   );
@@ -2308,7 +2311,7 @@ export default function ClientPage({
     authorName: post.author,
     authorAvatar: post.authorImage,
     timeLabel: getPostTimeLabel(post),
-    readTime: readingTime(post.content || post.excerpt || ""),
+    readTime: getPostReadTime(post),
     views: getPostClicks(post),
     slug: post.id,
     size,
@@ -2857,7 +2860,7 @@ export default function ClientPage({
                 <span style={{ opacity: 0.5 }}>·</span>
                 <span>{getPostTimeLabel(featuredForDisplay[0])}</span>
                 <span style={{ opacity: 0.5 }}>·</span>
-                <span>{readingTime(featuredForDisplay[0].content || featuredForDisplay[0].excerpt || "")} मिनट पाठ</span>
+                <span>{getPostReadTime(featuredForDisplay[0])} मिनट पाठ</span>
                 <span style={{ opacity: 0.5 }}>·</span>
                 <span>{formatViews(getPostClicks(featuredForDisplay[0]))} पाठक</span>
               </div>
@@ -2900,7 +2903,7 @@ export default function ClientPage({
                       {story.title}
                     </p>
                     <span style={{ fontFamily: "Inter, sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, display: "block" }}>
-                      {getPostTimeLabel(story)} · {readingTime(story.content || story.excerpt || "")} मिनट पाठ
+                      {getPostTimeLabel(story)} · {getPostReadTime(story)} मिनट पाठ
                     </span>
                   </div>
                 </Link>

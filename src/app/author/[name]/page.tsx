@@ -6,7 +6,7 @@ import AuthorProfileBox from "@/components/AuthorProfileBox";
 import AuthorPageSkeleton from "@/components/skeletons/AuthorPageSkeleton";
 import { ArticleCard } from "@/components/ArticleCard";
 import { SectionHeader } from "@/components/SectionHeader";
-import { getCategoryClass, formatViews, readingTime } from "@/utils/designUtils";
+import { getCategoryClass, formatViews, getPostReadTime } from "@/utils/designUtils";
 import { resolvePostImage } from "@/lib/postImage";
 
 const decodeAuthorName = (value: string) => {
@@ -38,6 +38,7 @@ type ApiBlogPost = {
   imageFocusGround?: string | null;
   authorImage: string | null;
   clickCount: number;
+  readTime?: number;
   createdAt: string;
 };
 
@@ -238,7 +239,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
                         authorName={post.author}
                         authorAvatar={post.authorImage}
                         timeLabel={formatDate(post.createdAt)}
-                        readTime={readingTime(post.content || post.excerpt || "")}
+                        readTime={getPostReadTime(post)}
                         views={post.clickCount ?? 0}
                         slug={post.id}
                       />
