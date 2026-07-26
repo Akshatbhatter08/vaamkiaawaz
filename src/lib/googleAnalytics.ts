@@ -1,3 +1,4 @@
+﻿import fs from "fs";
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -53,38 +54,106 @@ const getPropertyId = (): string => {
   return propertyId;
 };
 
-const getAnalyticsClient = (): BetaAnalyticsDataClient => {
-  if (client) return client;
+const normalizePrivateKey = (raw: string): string => {
+  let key = raw.trim();
+
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
+  }
+
+  key = key.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
+
+  const pemMatch = key.match(/-----BEGIN PRIVATE KEY-----\s*([\s\S]+?)\s*-----END PRIVATE KEY-----/);
+  if (pemMatch) {
+    const body = pemMatch[1].replace(/\s+/g, "");
+    if (!body) {
+      throw new Error("GA4_PRIVATE_KEY is empty after parsing.");
+    }
+    const chunks = body.match(/.{1,64}/g) ?? [body];
+    return `-----BEGIN PRIVATE KEY-----\n${chunks.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  }
+
+  if (!key.includes("\n") && key.includes("-----BEGIN")) {
+    key = key
+      .replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+      .replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----");
+  }
+
+  if (!key.includes("BEGIN PRIVATE KEY")) {
+    throw new Error(
+      "GA4_PRIVATE_KEY is invalid. Paste the full service-account private key including BEGIN/END lines.",
+    );
+  }
+
+  return `${key.trim()}\n`;
+};
+
+type ServiceAccountCredentials = {
+  client_email: string;
+  private_key: string;
+};
+
+const parseServiceAccountJson = (json: string): ServiceAccountCredentials => {
+  const parsed = JSON.parse(json) as {
+    client_email?: string;
+    private_key?: string;
+  };
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error("Service account JSON is missing client_email or private_key.");
+  }
+  return {
+    client_email: parsed.client_email.trim(),
+    private_key: normalizePrivateKey(parsed.private_key),
+  };
+};
+
+const resolveCredentials = (): ServiceAccountCredentials | { keyFilename: string } => {
+  const credentialsFile = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (credentialsFile && fs.existsSync(credentialsFile)) {
+    return { keyFilename: credentialsFile };
+  }
+
+  const credentialsBase64 = process.env.GA4_CREDENTIALS_BASE64?.trim();
+  if (credentialsBase64) {
+    const json = Buffer.from(credentialsBase64, "base64").toString("utf8");
+    return parseServiceAccountJson(json);
+  }
 
   const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
   if (credentialsJson) {
-    const parsed = JSON.parse(credentialsJson) as {
-      client_email?: string;
-      private_key?: string;
-    };
-    if (!parsed.client_email || !parsed.private_key) {
-      throw new Error("GOOGLE_APPLICATION_CREDENTIALS_JSON is invalid.");
-    }
-    client = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: parsed.client_email,
-        private_key: parsed.private_key.replace(/\\n/g, "\n"),
-      },
-    });
-    return client;
+    return parseServiceAccountJson(credentialsJson);
   }
 
   const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
-  const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!clientEmail || !privateKey) {
-    throw new Error("Google Analytics credentials are not configured.");
+  const privateKeyRaw = process.env.GA4_PRIVATE_KEY;
+  if (clientEmail && privateKeyRaw) {
+    return {
+      client_email: clientEmail,
+      private_key: normalizePrivateKey(privateKeyRaw),
+    };
+  }
+
+  if (credentialsFile) {
+    throw new Error(`GOOGLE_APPLICATION_CREDENTIALS file not found: ${credentialsFile}`);
+  }
+
+  throw new Error("Google Analytics credentials are not configured.");
+};
+
+const getAnalyticsClient = (): BetaAnalyticsDataClient => {
+  if (client) return client;
+
+  const resolved = resolveCredentials();
+  if ("keyFilename" in resolved) {
+    client = new BetaAnalyticsDataClient({ keyFilename: resolved.keyFilename });
+    return client;
   }
 
   client = new BetaAnalyticsDataClient({
-    credentials: {
-      client_email: clientEmail,
-      private_key: privateKey,
-    },
+    credentials: resolved,
   });
   return client;
 };
