@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, User, Calendar, BarChart3 } from "lucide-react";
+import { ArrowLeft, User, Calendar, BarChart3, Globe } from "lucide-react";
 
 type Post = {
   id: string;
@@ -13,8 +13,41 @@ type Post = {
   createdAt: Date;
 };
 
+type AnalyticsReport = {
+  range: { days: number };
+  cachedAt: string;
+  totals: {
+    activeUsers: number;
+    sessions: number;
+    screenPageViews: number;
+  };
+  daily: Array<{
+    date: string;
+    activeUsers: number;
+    screenPageViews: number;
+  }>;
+  topPages: Array<{
+    path: string;
+    views: number;
+    users: number;
+    postId: string | null;
+  }>;
+  topPosts: Array<{
+    path: string;
+    views: number;
+    users: number;
+    postId: string | null;
+  }>;
+};
+
+const DAY_OPTIONS = [7, 14, 30, 60, 90] as const;
+
 export default function ReportsClient({ posts }: { posts: Post[] }) {
-  const [filterMode, setFilterMode] = useState<"author" | "date">("author");
+  const [filterMode, setFilterMode] = useState<"author" | "date" | "analytics">("author");
+  const [analyticsDays, setAnalyticsDays] = useState(30);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsReport | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState("");
 
   const authorStats = useMemo(() => {
     const stats: Record<string, { author: string; totalViews: number; postCount: number; posts: Post[] }> = {};
@@ -45,7 +78,6 @@ export default function ReportsClient({ posts }: { posts: Post[] }) {
       stats[dateStr].postCount += 1;
       stats[dateStr].posts.push(post);
     });
-    // Sort dates descending (newest first, based on the first post's actual Date object in that group)
     return Object.values(stats).sort((a, b) => {
       const dateA = new Date(a.posts[0].createdAt).getTime();
       const dateB = new Date(b.posts[0].createdAt).getTime();
@@ -53,9 +85,42 @@ export default function ReportsClient({ posts }: { posts: Post[] }) {
     });
   }, [posts]);
 
+  const postTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    posts.forEach((post) => map.set(post.id, post.title));
+    return map;
+  }, [posts]);
+
+  const loadAnalytics = useCallback(async (days: number) => {
+    setAnalyticsLoading(true);
+    setAnalyticsError("");
+    try {
+      const response = await fetch(`/api/analytics?days=${days}`, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await response.json()) as AnalyticsReport & { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "Google Analytics डेटा लोड नहीं हो सका।");
+      }
+      setAnalyticsData(data);
+    } catch (error) {
+      setAnalyticsData(null);
+      setAnalyticsError(error instanceof Error ? error.message : "Google Analytics डेटा लोड नहीं हो सका।");
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (filterMode !== "analytics") return;
+    void loadAnalytics(analyticsDays);
+  }, [filterMode, analyticsDays, loadAnalytics]);
+
+  const formatGaNumber = (value: number) => new Intl.NumberFormat("hi-IN").format(value);
+
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-10">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
           <div className="flex items-center gap-4">
@@ -71,11 +136,9 @@ export default function ReportsClient({ posts }: { posts: Post[] }) {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto mt-8 px-4 lg:px-8 max-w-5xl">
-        {/* Toggle Controls */}
-        <div className="mb-8 flex justify-center">
-          <div className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1 shadow-sm">
+        <div className="mb-8 flex flex-col items-center gap-4">
+          <div className="inline-flex flex-wrap justify-center rounded-lg border border-[var(--line)] bg-[var(--surface)] p-1 shadow-sm">
             <button
               onClick={() => setFilterMode("author")}
               className={`flex items-center gap-2 rounded-md px-6 py-2 text-sm font-semibold transition-colors ${
@@ -98,10 +161,40 @@ export default function ReportsClient({ posts }: { posts: Post[] }) {
               <Calendar className="h-4 w-4" />
               तिथि के अनुसार (Date-wise)
             </button>
+            <button
+              onClick={() => setFilterMode("analytics")}
+              className={`flex items-center gap-2 rounded-md px-6 py-2 text-sm font-semibold transition-colors ${
+                filterMode === "analytics"
+                  ? "bg-[var(--primary)] text-white shadow"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--headline)]"
+              }`}
+            >
+              <Globe className="h-4 w-4" />
+              Google Analytics
+            </button>
           </div>
+
+          {filterMode === "analytics" && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-sm font-semibold text-[var(--muted)]">अवधि:</span>
+              {DAY_OPTIONS.map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setAnalyticsDays(days)}
+                  className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+                    analyticsDays === days
+                      ? "bg-[var(--primary)] text-white"
+                      : "border border-[var(--line)] text-[var(--muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--headline)]"
+                  }`}
+                >
+                  {days} दिन
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Reports View */}
         <div className="space-y-6">
           {filterMode === "author" &&
             authorStats.map((stat) => (
@@ -162,6 +255,104 @@ export default function ReportsClient({ posts }: { posts: Post[] }) {
                 </div>
               </div>
             ))}
+
+          {filterMode === "analytics" && (
+            <>
+              {analyticsLoading && (
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">
+                  Google Analytics डेटा लोड हो रहा है…
+                </div>
+              )}
+
+              {!analyticsLoading && analyticsError && (
+                <div className="rounded-xl border border-red-300 bg-red-50 p-5 text-sm text-red-700">
+                  {analyticsError}
+                </div>
+              )}
+
+              {!analyticsLoading && !analyticsError && analyticsData && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase text-[var(--muted)]">सक्रिय उपयोगकर्ता</p>
+                      <p className="mt-2 text-2xl font-bold text-[var(--headline)]">{formatGaNumber(analyticsData.totals.activeUsers)}</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase text-[var(--muted)]">सत्र (Sessions)</p>
+                      <p className="mt-2 text-2xl font-bold text-[var(--headline)]">{formatGaNumber(analyticsData.totals.sessions)}</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase text-[var(--muted)]">पेज व्यूज़</p>
+                      <p className="mt-2 text-2xl font-bold text-[var(--primary)]">{formatGaNumber(analyticsData.totals.screenPageViews)}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between border-b border-[var(--line)] pb-3">
+                      <h2 className="text-xl font-bold text-[var(--headline)] flex items-center gap-2">
+                        <Globe className="h-5 w-5 text-[var(--primary)]" />
+                        शीर्ष लेख (GA)
+                      </h2>
+                      <span className="text-xs text-[var(--muted)]">पिछले {analyticsData.range.days} दिन</span>
+                    </div>
+                    {analyticsData.topPosts.length === 0 ? (
+                      <p className="text-sm text-[var(--muted)]">इस अवधि में कोई लेख पेज डेटा नहीं मिला।</p>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {analyticsData.topPosts.map((row) => (
+                          <div key={row.path} className="rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3">
+                            <h3 className="line-clamp-2 text-sm font-bold text-[var(--headline)]" title={row.postId ? postTitleById.get(row.postId) ?? row.path : row.path}>
+                              {row.postId ? postTitleById.get(row.postId) ?? row.path : row.path}
+                            </h3>
+                            <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
+                              <span>{row.path}</span>
+                              <span className="flex items-center gap-1 font-bold text-[var(--foreground)]">
+                                <BarChart3 className="h-3 w-3" /> {formatGaNumber(row.views)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between border-b border-[var(--line)] pb-3">
+                      <h2 className="text-xl font-bold text-[var(--headline)] flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-[var(--primary)]" />
+                        शीर्ष पेज
+                      </h2>
+                      <span className="text-xs text-[var(--muted)]">कैश: {new Date(analyticsData.cachedAt).toLocaleString("hi-IN")}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {analyticsData.topPages.map((row) => (
+                        <div key={row.path} className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm">
+                          <span className="truncate pr-3 text-[var(--headline)]">{row.path}</span>
+                          <span className="shrink-0 font-semibold text-[var(--primary)]">{formatGaNumber(row.views)} व्यूज़</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {analyticsData.daily.length > 0 && (
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                      <h2 className="mb-4 text-xl font-bold text-[var(--headline)]">दैनिक रुझान</h2>
+                      <div className="space-y-2">
+                        {analyticsData.daily.slice(-14).map((row) => (
+                          <div key={row.date} className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm">
+                            <span className="text-[var(--muted)]">{row.date}</span>
+                            <span className="font-semibold text-[var(--foreground)]">
+                              {formatGaNumber(row.screenPageViews)} व्यूज़ · {formatGaNumber(row.activeUsers)} उपयोगकर्ता
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </div>
       </main>
     </div>
