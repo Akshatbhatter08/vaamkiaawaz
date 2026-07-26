@@ -15,6 +15,7 @@ export default async function ReportsPage() {
 
   // Fetch all posts with necessary statistics
   const posts = await prisma.blogPost.findMany({
+    where: { isHidden: false },
     select: {
       id: true,
       title: true,
