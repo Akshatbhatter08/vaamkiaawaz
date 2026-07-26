@@ -519,6 +519,10 @@ export default function ClientPage({
   const [activeNavTab, setActiveNavTab] = useState("home");
   const [resourceFilter, setResourceFilter] = useState<"all" | "link" | "pdf">("all");
   const [featuredVicharIds, setFeaturedVicharIds] = useState<string[]>(initialFeaturedVicharIds);
+  const [featuredVicharDisplayPosts, setFeaturedVicharDisplayPosts] = useState<NewsPost[]>([]);
+  const [vicharSelectionPosts, setVicharSelectionPosts] = useState<{ id: string; title: string; author: string }[]>([]);
+  const [vicharSearchQuery, setVicharSearchQuery] = useState("");
+  const [eventImageUploading, setEventImageUploading] = useState(false);
   const [historicEventModalOpen, setHistoricEventModalOpen] = useState(false);
   const [historicEventData, setHistoricEventData] = useState<{
     title: string;
@@ -950,6 +954,29 @@ export default function ClientPage({
     void loadBlogs();
   }, []);
 
+  useEffect(() => {
+    if (featuredVicharIds.length === 0) {
+      setFeaturedVicharDisplayPosts([]);
+      return;
+    }
+    const loadFeatured = async () => {
+      try {
+        const response = await fetch(
+          `/api/blogs/by-ids?ids=${encodeURIComponent(featuredVicharIds.join(","))}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as { posts?: ApiBlogPost[] };
+        if (Array.isArray(data.posts)) {
+          setFeaturedVicharDisplayPosts(data.posts.map(mapApiBlogToNewsPost));
+        }
+      } catch {
+        setFeaturedVicharDisplayPosts([]);
+      }
+    };
+    void loadFeatured();
+  }, [featuredVicharIds]);
+
   const currentUser = useMemo(
     () => users.find((user) => user.email.toLowerCase() === sessionEmail.toLowerCase()),
     [sessionEmail, users],
@@ -967,6 +994,28 @@ export default function ClientPage({
       penNameDisplayMode: currentUser.penNameDisplayMode,
     });
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!isAuthModalOpen || currentUser?.role !== "master") return;
+    const loadVicharSelection = async () => {
+      try {
+        const response = await fetch("/api/blogs/selection", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          posts?: { id: string; title: string; author: string }[];
+        };
+        if (Array.isArray(data.posts)) {
+          setVicharSelectionPosts(data.posts);
+        }
+      } catch {
+        setVicharSelectionPosts([]);
+      }
+    };
+    void loadVicharSelection();
+  }, [isAuthModalOpen, currentUser?.role]);
 
   const canPublishBlog = useMemo(() => {
     if (!currentUser) {
@@ -1133,11 +1182,15 @@ export default function ClientPage({
     [filteredNews],
   );
 
-  const pramukhVicharPosts = useMemo(() => {
-    if (featuredVicharIds.length === 0) return [];
-    const byId = new Map(filteredNews.map((post) => [post.id, post]));
-    return featuredVicharIds.map((id) => byId.get(id)).filter((post): post is NewsPost => Boolean(post));
-  }, [featuredVicharIds, filteredNews]);
+  const filteredVicharSelectionPosts = useMemo(() => {
+    const query = vicharSearchQuery.trim().toLowerCase();
+    if (!query) return vicharSelectionPosts;
+    return vicharSelectionPosts.filter(
+      (post) =>
+        post.title.toLowerCase().includes(query) ||
+        post.author.toLowerCase().includes(query),
+    );
+  }, [vicharSelectionPosts, vicharSearchQuery]);
 
   const filteredResources = useMemo(() => {
     if (resourceFilter === "all") return resources;
@@ -1624,6 +1677,27 @@ export default function ClientPage({
         setEvents((prev) => prev.filter(ev => ev.id !== id));
       }
     } catch {}
+  };
+
+  const handleEventImageInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setAdminMessage("कृपया वैध image file चुनें।");
+      return;
+    }
+    setEventImageUploading(true);
+    try {
+      const compressed = await compressImageFile(file, 1280, 0.85);
+      const url = await uploadMediaFile(compressed, "events", "event.jpg");
+      setNewEventForm((prev) => ({ ...prev, imageUrl: url }));
+      setAdminMessage("");
+    } catch {
+      setAdminMessage("इवेंट फोटो अपलोड नहीं हो सकी।");
+    } finally {
+      setEventImageUploading(false);
+      event.target.value = "";
+    }
   };
 
   const [resourceMessage, setResourceMessage] = useState("");
@@ -2988,10 +3062,10 @@ export default function ClientPage({
             <section className="home-vichar rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
               <h3 className="mb-4 font-serif text-2xl font-bold text-[var(--headline)]">प्रमुख विचार</h3>
               <div className="grid gap-3">
-                {pramukhVicharPosts.length === 0 ? (
+                {featuredVicharDisplayPosts.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">कोई प्रमुख विचार चयनित नहीं है।</p>
                 ) : (
-                  pramukhVicharPosts.map((post) => (
+                  featuredVicharDisplayPosts.map((post) => (
                     <Link
                       key={post.id}
                       href={`/post/${post.id}`}
@@ -3735,7 +3809,29 @@ export default function ClientPage({
                             <input type="time" value={newEventForm.time} onChange={e => setNewEventForm({...newEventForm, time: e.target.value})} className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           </div>
                           <input value={newEventForm.location} onChange={e => setNewEventForm({...newEventForm, location: e.target.value})} placeholder="स्थान (Location) (वैकल्पिक)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
-                          <input type="url" value={newEventForm.imageUrl || ''} onChange={e => setNewEventForm({...newEventForm, imageUrl: e.target.value})} placeholder="इमेज URL (Share Thumbnail) (वैकल्पिक)" className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
+                          <label className="flex flex-col gap-2 rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+                            <span>इवेंट फोटो (वैकल्पिक)</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => void handleEventImageInputChange(e)}
+                              disabled={eventImageUploading}
+                              className="w-full text-xs"
+                            />
+                            {eventImageUploading && <span className="text-xs">अपलोड हो रहा है…</span>}
+                            {newEventForm.imageUrl && (
+                              <div className="mt-1 flex items-center gap-3">
+                                <img src={newEventForm.imageUrl} alt="इवेंट पूर्वावलोकन" className="h-16 w-24 rounded border border-[var(--line)] object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setNewEventForm((prev) => ({ ...prev, imageUrl: "" }))}
+                                  className="text-xs text-red-500 hover:underline"
+                                >
+                                  फोटो हटाएं
+                                </button>
+                              </div>
+                            )}
+                          </label>
                           <textarea required value={newEventForm.details} onChange={e => setNewEventForm({...newEventForm, details: e.target.value})} placeholder="पूरी जानकारी" className="w-full h-20 resize-none rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" />
                           <button className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]">
                             {editingEventId ? "इवेंट अपडेट करें" : "+ नया इवेंट जोड़ें"}
@@ -3760,8 +3856,19 @@ export default function ClientPage({
                       <section className="rounded-lg border border-[var(--line)] p-4">
                         <h4 className="text-lg font-semibold text-[var(--headline)]">प्रमुख विचार चयन</h4>
                         <p className="mt-1 text-xs text-[var(--muted)]">होमपेज पर दिखने वाले लेख चुनें (केवल शीर्षक दिखेगा)</p>
-                        <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-                          {blogs.slice(0, 50).map((post) => (
+                        <input
+                          type="search"
+                          value={vicharSearchQuery}
+                          onChange={(e) => setVicharSearchQuery(e.target.value)}
+                          placeholder="लेख खोजें (शीर्षक या लेखक)..."
+                          className="mt-3 w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        />
+                        <p className="mt-2 text-xs text-[var(--muted)]">
+                          {filteredVicharSelectionPosts.length} लेख दिखाए जा रहे हैं
+                          {vicharSearchQuery.trim() ? ` (कुल ${vicharSelectionPosts.length})` : ""}
+                        </p>
+                        <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                          {filteredVicharSelectionPosts.map((post) => (
                             <label key={post.id} className="flex items-start gap-2 text-sm">
                               <input
                                 type="checkbox"
@@ -3773,9 +3880,15 @@ export default function ClientPage({
                                   void saveFeaturedVichar(next);
                                 }}
                               />
-                              <span className="line-clamp-2">{post.title}</span>
+                              <span className="line-clamp-2">
+                                <span className="text-[var(--muted)]">{post.author} — </span>
+                                {post.title}
+                              </span>
                             </label>
                           ))}
+                          {filteredVicharSelectionPosts.length === 0 && (
+                            <p className="text-xs text-[var(--muted)]">कोई लेख नहीं मिला।</p>
+                          )}
                         </div>
                       </section>
 

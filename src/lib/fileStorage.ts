@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 
-export const UPLOAD_SUBFOLDERS = ["posts", "content", "authors", "resources"] as const;
+export const UPLOAD_SUBFOLDERS = ["posts", "content", "authors", "resources", "events"] as const;
 export type UploadSubfolder = (typeof UPLOAD_SUBFOLDERS)[number];
 
 const MIME_TO_EXT: Record<string, string> = {

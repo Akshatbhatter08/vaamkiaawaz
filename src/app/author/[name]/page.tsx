@@ -110,10 +110,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
           throw new Error("Failed to fetch author posts");
         }
         const data = (await response.json()) as { posts?: ApiBlogPost[] };
-        const filtered = (data.posts ?? [])
-          .filter((post) => post.author.trim().toLowerCase() === authorName.toLowerCase())
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setPosts(filtered);
+        setPosts(data.posts ?? []);
       } catch {
         setPosts([]);
       } finally {
