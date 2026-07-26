@@ -53,8 +53,48 @@ const getPropertyId = (): string => {
   return propertyId;
 };
 
+const normalizePrivateKey = (raw: string): string => {
+  let key = raw.trim();
+
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
+  }
+
+  key = key.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
+
+  if (!key.includes("\n") && key.includes("-----BEGIN")) {
+    key = key
+      .replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+      .replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----");
+  }
+
+  if (!key.includes("BEGIN PRIVATE KEY")) {
+    throw new Error(
+      "GA4_PRIVATE_KEY is invalid. Paste the full service-account private key including BEGIN/END lines.",
+    );
+  }
+
+  return `${key.trim()}\n`;
+};
+
 const getAnalyticsClient = (): BetaAnalyticsDataClient => {
   if (client) return client;
+
+  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
+  const privateKeyRaw = process.env.GA4_PRIVATE_KEY;
+
+  if (clientEmail && privateKeyRaw) {
+    client = new BetaAnalyticsDataClient({
+      credentials: {
+        client_email: clientEmail,
+        private_key: normalizePrivateKey(privateKeyRaw),
+      },
+    });
+    return client;
+  }
 
   const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
   if (credentialsJson) {
@@ -67,26 +107,14 @@ const getAnalyticsClient = (): BetaAnalyticsDataClient => {
     }
     client = new BetaAnalyticsDataClient({
       credentials: {
-        client_email: parsed.client_email,
-        private_key: parsed.private_key.replace(/\\n/g, "\n"),
+        client_email: parsed.client_email.trim(),
+        private_key: normalizePrivateKey(parsed.private_key),
       },
     });
     return client;
   }
 
-  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
-  const privateKey = process.env.GA4_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!clientEmail || !privateKey) {
-    throw new Error("Google Analytics credentials are not configured.");
-  }
-
-  client = new BetaAnalyticsDataClient({
-    credentials: {
-      client_email: clientEmail,
-      private_key: privateKey,
-    },
-  });
-  return client;
+  throw new Error("Google Analytics credentials are not configured.");
 };
 
 const toNumber = (value: string | null | undefined): number => {
