@@ -16,12 +16,15 @@ export type ImageCropConfirmResult = {
 };
 
 type CropStepId = "card" | "hero" | "ground";
+type CropMode = "crop" | "resize";
 
 type StepConfig = {
   id: CropStepId;
   label: string;
   aspect: number;
   hint: string;
+  resizeHint: string;
+  dimensions: string;
 };
 
 const STEPS: StepConfig[] = [
@@ -29,19 +32,25 @@ const STEPS: StepConfig[] = [
     id: "card",
     label: "कार्ड (16:9)",
     aspect: 16 / 9,
+    dimensions: "16:9",
     hint: "आर्टिकल कार्ड और सूची थंबनेल के लिए क्षेत्र चुनें।",
+    resizeHint: "पूरी छवि को 16:9 अनुपात में फिट करें (ज़ूम/खिसकाकर समायोजित करें)।",
   },
   {
     id: "hero",
     label: "होम हीरो (चौड़ा)",
     aspect: 2.3,
+    dimensions: "2.3:1",
     hint: "होम पेज के बड़े हीरो बैनर के लिए क्षेत्र चुनें।",
+    resizeHint: "पूरी छवि को होम हीरो अनुपात (2.3:1) में फिट करें।",
   },
   {
     id: "ground",
     label: "ग्राउंड (4:3)",
     aspect: 4 / 3,
+    dimensions: "4:3",
     hint: "ग्राउंड रिपोर्ट / चौकोर कार्ड के लिए क्षेत्र चुनें।",
+    resizeHint: "पूरी छवि को 4:3 अनुपात में फिट करें।",
   },
 ];
 
@@ -49,12 +58,14 @@ type StepCropState = {
   crop: { x: number; y: number };
   zoom: number;
   pixels: Area | null;
+  mode: CropMode;
 };
 
 const defaultStepState = (): StepCropState => ({
   crop: { x: 0, y: 0 },
   zoom: 1,
   pixels: null,
+  mode: "crop",
 });
 
 type ImageCropModalProps = {
@@ -107,6 +118,16 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
     }));
   };
 
+  const setMode = (mode: CropMode) => {
+    setStepStates((prev) => ({
+      ...prev,
+      [step.id]: {
+        ...defaultStepState(),
+        mode,
+      },
+    }));
+  };
+
   const allStepsReady =
     !!stepStates.card.pixels && !!stepStates.hero.pixels && !!stepStates.ground.pixels;
 
@@ -124,7 +145,6 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
         return focusFromCrop(pixelCrop, imageSize.width, imageSize.height);
       };
 
-      // Store full compressed image so all three focus regions remain valid.
       const dataUrl = await getCompressedImageDataUrl(imageSrc);
       onConfirm({
         dataUrl,
@@ -139,6 +159,7 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
 
   const canGoNext = !!current.pixels;
   const isLast = stepIndex === STEPS.length - 1;
+  const stepHint = current.mode === "resize" ? step.resizeHint : step.hint;
 
   return (
     <div
@@ -188,7 +209,7 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
               marginTop: 6,
             }}
           >
-            चरण {stepIndex + 1} / {STEPS.length}: {step.hint}
+            चरण {stepIndex + 1} / {STEPS.length}: {stepHint}
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {STEPS.map((s, i) => {
@@ -217,15 +238,61 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
               );
             })}
           </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <span
+              style={{
+                fontFamily: "'Noto Sans Devanagari', sans-serif",
+                fontSize: 12,
+                color: "var(--text-secondary)",
+              }}
+            >
+              अनुपात: {step.dimensions}
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setMode("crop")}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: current.mode === "crop" ? "1px solid var(--crimson)" : "1px solid var(--line)",
+                  background: current.mode === "crop" ? "var(--surface-mid)" : "transparent",
+                  fontFamily: "'Noto Sans Devanagari', sans-serif",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "var(--text-primary)",
+                }}
+              >
+                क्रॉप
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("resize")}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: current.mode === "resize" ? "1px solid var(--crimson)" : "1px solid var(--line)",
+                  background: current.mode === "resize" ? "var(--surface-mid)" : "transparent",
+                  fontFamily: "'Noto Sans Devanagari', sans-serif",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "var(--text-primary)",
+                }}
+              >
+                आकार बदलें
+              </button>
+            </div>
+          </div>
         </div>
 
         <div style={{ position: "relative", height: 320, margin: "16px 20px 0", background: "#111" }}>
           <Cropper
-            key={step.id}
+            key={`${step.id}-${current.mode}`}
             image={imageSrc}
             crop={current.crop}
             zoom={current.zoom}
             aspect={step.aspect}
+            objectFit={current.mode === "resize" ? "contain" : "cover"}
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={onCropComplete}
@@ -266,7 +333,7 @@ export function ImageCropModal({ imageSrc, onConfirm, onCancel }: ImageCropModal
                 marginBottom: 6,
               }}
             >
-              पूर्वावलोकन — {step.label}
+              पूर्वावलोकन — {step.label} ({current.mode === "resize" ? "आकार बदलें" : "क्रॉप"})
             </p>
             <div
               style={{
