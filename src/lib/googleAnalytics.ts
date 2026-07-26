@@ -1,3 +1,4 @@
+import fs from "fs";
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -65,6 +66,16 @@ const normalizePrivateKey = (raw: string): string => {
 
   key = key.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
 
+  const pemMatch = key.match(/-----BEGIN PRIVATE KEY-----\s*([\s\S]+?)\s*-----END PRIVATE KEY-----/);
+  if (pemMatch) {
+    const body = pemMatch[1].replace(/\s+/g, "");
+    if (!body) {
+      throw new Error("GA4_PRIVATE_KEY is empty after parsing.");
+    }
+    const chunks = body.match(/.{1,64}/g) ?? [body];
+    return `-----BEGIN PRIVATE KEY-----\n${chunks.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  }
+
   if (!key.includes("\n") && key.includes("-----BEGIN")) {
     key = key
       .replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
@@ -80,41 +91,71 @@ const normalizePrivateKey = (raw: string): string => {
   return `${key.trim()}\n`;
 };
 
-const getAnalyticsClient = (): BetaAnalyticsDataClient => {
-  if (client) return client;
+type ServiceAccountCredentials = {
+  client_email: string;
+  private_key: string;
+};
 
-  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
-  const privateKeyRaw = process.env.GA4_PRIVATE_KEY;
+const parseServiceAccountJson = (json: string): ServiceAccountCredentials => {
+  const parsed = JSON.parse(json) as {
+    client_email?: string;
+    private_key?: string;
+  };
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error("Service account JSON is missing client_email or private_key.");
+  }
+  return {
+    client_email: parsed.client_email.trim(),
+    private_key: normalizePrivateKey(parsed.private_key),
+  };
+};
 
-  if (clientEmail && privateKeyRaw) {
-    client = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: clientEmail,
-        private_key: normalizePrivateKey(privateKeyRaw),
-      },
-    });
-    return client;
+const resolveCredentials = (): ServiceAccountCredentials | { keyFilename: string } => {
+  const credentialsFile = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (credentialsFile && fs.existsSync(credentialsFile)) {
+    return { keyFilename: credentialsFile };
+  }
+
+  const credentialsBase64 = process.env.GA4_CREDENTIALS_BASE64?.trim();
+  if (credentialsBase64) {
+    const json = Buffer.from(credentialsBase64, "base64").toString("utf8");
+    return parseServiceAccountJson(json);
   }
 
   const credentialsJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON?.trim();
   if (credentialsJson) {
-    const parsed = JSON.parse(credentialsJson) as {
-      client_email?: string;
-      private_key?: string;
+    return parseServiceAccountJson(credentialsJson);
+  }
+
+  const clientEmail = process.env.GA4_CLIENT_EMAIL?.trim();
+  const privateKeyRaw = process.env.GA4_PRIVATE_KEY;
+  if (clientEmail && privateKeyRaw) {
+    return {
+      client_email: clientEmail,
+      private_key: normalizePrivateKey(privateKeyRaw),
     };
-    if (!parsed.client_email || !parsed.private_key) {
-      throw new Error("GOOGLE_APPLICATION_CREDENTIALS_JSON is invalid.");
-    }
-    client = new BetaAnalyticsDataClient({
-      credentials: {
-        client_email: parsed.client_email.trim(),
-        private_key: normalizePrivateKey(parsed.private_key),
-      },
-    });
-    return client;
+  }
+
+  if (credentialsFile) {
+    throw new Error(`GOOGLE_APPLICATION_CREDENTIALS file not found: ${credentialsFile}`);
   }
 
   throw new Error("Google Analytics credentials are not configured.");
+};
+
+const getAnalyticsClient = (): BetaAnalyticsDataClient => {
+  if (client) return client;
+
+  const resolved = resolveCredentials();
+  if ("keyFilename" in resolved) {
+    client = new BetaAnalyticsDataClient({ keyFilename: resolved.keyFilename });
+    return client;
+  }
+
+  client = new BetaAnalyticsDataClient({
+    credentials: resolved,
+  });
+  return client;
 };
 
 const toNumber = (value: string | null | undefined): number => {
