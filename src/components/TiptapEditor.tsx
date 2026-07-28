@@ -82,14 +82,15 @@ export const LegacySpan = Mark.create({
     ];
   },
   renderHTML({ HTMLAttributes }) {
-    let style = HTMLAttributes.style || "";
-    if (HTMLAttributes.color && !style.includes("color")) {
-       style += `color: ${HTMLAttributes.color};`;
+    const attrs = { ...(HTMLAttributes as Record<string, string | undefined>) };
+    let style = attrs.style || "";
+    if (attrs.color && !style.includes("color")) {
+       style += `color: ${attrs.color};`;
     }
-    if (HTMLAttributes.face && !style.includes("font-family")) {
-       style += `font-family: ${HTMLAttributes.face};`;
+    if (attrs.face && !style.includes("font-family")) {
+       style += `font-family: ${attrs.face};`;
     }
-    const attrs = { ...HTMLAttributes, style: style || undefined };
+    attrs.style = style || undefined;
     delete attrs.color;
     delete attrs.face;
     delete attrs.size;
@@ -1083,8 +1084,9 @@ export const TiptapEditor: React.FC<TiptapEditorProps> = ({
           controller.insertBefore(centerIcon, icons[1]);
 
           // Widen the controller to fit 3 icons instead of 2
-          const currentWidth = parseInt(controller.style.width) || 66;
-          controller.style.width = `${currentWidth + 30}px`;
+          const controllerEl = controller as HTMLElement;
+          const currentWidth = parseInt(controllerEl.style.width) || 66;
+          controllerEl.style.width = `${currentWidth + 30}px`;
         }
       });
     });

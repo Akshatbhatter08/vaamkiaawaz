@@ -103,7 +103,7 @@ export default function AuthorPage({ params }: { params: Promise<{ name: string 
     const loadPosts = async () => {
       try {
         const response = await fetch(
-          `/api/authors/posts?author=${encodeURIComponent(authorName)}`,
+          `/api/authors/posts?name=${encodeURIComponent(authorName)}`,
           { cache: "no-store" },
         );
         if (!response.ok) {

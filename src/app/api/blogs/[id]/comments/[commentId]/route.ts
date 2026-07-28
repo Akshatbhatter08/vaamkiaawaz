@@ -43,8 +43,8 @@ export async function DELETE(request: NextRequest, context: Context) {
 
     await prisma.articleComment.delete({ where: { id: commentId } });
     return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: "Internal server error", details: message }, { status: 500 });
+  } catch (err) {
+    console.error("DELETE comment error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

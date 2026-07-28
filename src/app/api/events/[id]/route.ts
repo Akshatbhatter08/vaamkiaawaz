@@ -1,12 +1,12 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireUser, isMasterAdmin } from "@/lib/requireUser";
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authPayload = await requireAuth(request);
-  if (authPayload instanceof NextResponse) return authPayload;
+  const user = await requireUser(request);
+  if (user instanceof NextResponse) return user;
 
-  if (authPayload.role !== 'MASTER_ADMIN') {
+  if (!isMasterAdmin(user)) {
     return NextResponse.json({ error: "केवल मास्टर एडमिन यह कर सकता है।" }, { status: 403 });
   }
 
@@ -25,10 +25,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const authPayload = await requireAuth(request);
-  if (authPayload instanceof NextResponse) return authPayload;
+  const user = await requireUser(request);
+  if (user instanceof NextResponse) return user;
 
-  if (authPayload.role !== 'MASTER_ADMIN') {
+  if (!isMasterAdmin(user)) {
     return NextResponse.json({ error: "केवल मास्टर एडमिन यह कर सकता है।" }, { status: 403 });
   }
 
@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   };
 
   const { title, date, time, location, details, imageUrl } = body;
-  
+
   if (!title || !details) {
     return NextResponse.json({ error: "शीर्षक और विवरण आवश्यक हैं।" }, { status: 400 });
   }

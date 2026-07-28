@@ -22,6 +22,13 @@ import { GoToTopButton } from "@/components/GoToTopButton";
 import ArticleEngagement from "@/components/ArticleEngagement";
 import { ImageCropModal, type ImageCropConfirmResult } from "@/components/ImageCropModal";
 import { uploadDataUrl } from "@/lib/uploadClient";
+import {
+  endArticleOnlyTranslation,
+  getTranslateScope,
+  leaveArticleTranslateAndGoHome,
+  rememberSiteGoogTrans,
+  setTranslateScope,
+} from "@/lib/translateScope";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
@@ -251,13 +258,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       return;
     }
     if (value === "parichay") {
+      if (leaveArticleTranslateAndGoHome("/?tab=parichay")) return;
       router.push("/?tab=parichay");
       return;
     }
     if (value === "home") {
+      if (leaveArticleTranslateAndGoHome("/")) return;
       router.push("/");
       return;
     }
+    if (leaveArticleTranslateAndGoHome(`/?tab=${value}`)) return;
     router.push(`/?tab=${value}`);
   };
 
@@ -266,7 +276,10 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       setIsCategoryMenuOpen((prev) => !prev);
       return;
     }
-    router.push(value === "home" ? "/" : `/?tab=${value}`);
+    const href = value === "home" ? "/" : `/?tab=${value}`;
+    if (!leaveArticleTranslateAndGoHome(href)) {
+      router.push(href);
+    }
     setIsMobileNavOpen(false);
   };
 
@@ -348,8 +361,30 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       }
     };
     checkAndMoveTranslate();
+
+    // Any language pick while on the article page is article-scoped (not site-wide)
+    const onComboChange = () => {
+      if (getTranslateScope() === "site") {
+        rememberSiteGoogTrans();
+      }
+      setTranslateScope("article");
+    };
+    const attachTimer = window.setInterval(() => {
+      const combo = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+      if (combo && !(combo as HTMLSelectElement & { dataset: DOMStringMap }).dataset.vaamkiArticleBound) {
+        combo.dataset.vaamkiArticleBound = "1";
+        combo.addEventListener("change", onComboChange);
+      }
+    }, 500);
     
     return () => {
+      window.clearInterval(attachTimer);
+      const combo = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+      if (combo) {
+        combo.removeEventListener("change", onComboChange);
+        delete combo.dataset.vaamkiArticleBound;
+      }
+      endArticleOnlyTranslation();
       const translateEl = document.getElementById("google_translate_element");
       const container = document.getElementById("google_translate_container");
       if (container && translateEl) {
@@ -357,6 +392,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!showTranslate) return;
+    if (getTranslateScope() === "site") {
+      rememberSiteGoogTrans();
+    }
+    setTranslateScope("article");
+  }, [showTranslate]);
 
   const handleLoginClick = () => {
     setIsLoginModalOpen(true);
@@ -560,7 +603,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 आज का इतिहास
               </button>
             </div>
-            <Link href="/" className="home-header__brand" style={{ textDecoration: "none" }}>
+            <Link
+              href="/"
+              className="home-header__brand"
+              style={{ textDecoration: "none" }}
+              onClick={(event) => {
+                if (leaveArticleTranslateAndGoHome("/")) {
+                  event.preventDefault();
+                }
+              }}
+            >
               <img
                 src="/vaamki-logo.png"
                 alt="वाम की आवाज़ लोगो"
@@ -831,7 +883,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
         {/* ─── Breadcrumb ─── */}
         <nav className="article-no-print notranslate flex items-center gap-1.5 py-3 text-xs text-[var(--muted)]">
-          <Link href="/" className="hover:text-[var(--primary)]">होम</Link>
+          <Link
+            href="/"
+            className="hover:text-[var(--primary)]"
+            onClick={(event) => {
+              if (leaveArticleTranslateAndGoHome("/")) {
+                event.preventDefault();
+              }
+            }}
+          >
+            होम
+          </Link>
           <ChevronRight className="h-3 w-3" />
           <Link href={`/?tab=fresh`} className="hover:text-[var(--primary)]">ताज़ा खबरें</Link>
           <ChevronRight className="h-3 w-3" />
@@ -963,7 +1025,13 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <div className="article-no-print relative inline-flex items-center">
                     <button
                       type="button"
-                      onClick={() => setShowTranslate(!showTranslate)}
+                      onClick={() => {
+                        if (getTranslateScope() === "site") {
+                          rememberSiteGoogTrans();
+                        }
+                        setTranslateScope("article");
+                        setShowTranslate(!showTranslate);
+                      }}
                       className="inline-flex items-center gap-1.5"
                       style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "var(--foreground)", background: "transparent", border: "1px solid var(--line)", padding: "4px 12px", cursor: "pointer" }}
                       title="Translate article"
@@ -1013,7 +1081,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                 <div className="hidden print-only notranslate mt-10 pt-6 border-t-2 border-black text-center break-inside-avoid">
                   <h4 className="font-serif text-lg font-bold text-black mb-2">{post.title}</h4>
                   <p className="text-xs text-gray-700 mb-4 font-medium">
-                    अपलोडर: <span className="font-semibold">{displayUploaderName || post.author}</span> &bull; 
+                    {displayUploaderName ? (
+                      <>अपलोडर: <span className="font-semibold">{displayUploaderName}</span> &bull; </>
+                    ) : null}
                     प्रकाशित: {fmtDate(post.createdAt)} &bull; {mins} मिनट पठन
                   </p>
                   <div className="flex items-center justify-center gap-3">

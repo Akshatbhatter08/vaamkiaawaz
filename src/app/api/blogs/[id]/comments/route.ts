@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -17,6 +18,10 @@ const mapComment = (comment: {
   comment: comment.comment,
   createdAt: comment.createdAt.toISOString(),
 });
+
+function stripDangerousText(value: string): string {
+  return value.replace(/[<>]/g, "").trim();
+}
 
 export async function GET(_request: NextRequest, context: Context) {
   const { id } = await context.params;
@@ -37,15 +42,24 @@ export async function GET(_request: NextRequest, context: Context) {
     });
 
     return NextResponse.json({ comments: comments.map(mapComment) });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: "Internal server error", details: message }, { status: 500 });
+  } catch (err) {
+    console.error("GET comments error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest, context: Context) {
   const { id } = await context.params;
   try {
+    const ip = getClientIp(request);
+    const ipLimit = checkRateLimit(`comment:ip:${ip}`, 10, 10 * 60 * 1000);
+    if (!ipLimit.ok) {
+      return NextResponse.json(
+        { error: "बहुत अधिक टिप्पणियाँ। कृपया बाद में प्रयास करें।" },
+        { status: 429, headers: { "Retry-After": String(ipLimit.retryAfterSec) } },
+      );
+    }
+
     await ensureBlogSchema();
     const post = await prisma.blogPost.findUnique({
       where: { id },
@@ -61,9 +75,17 @@ export async function POST(request: NextRequest, context: Context) {
       comment?: string;
     };
 
-    const name = body.name?.trim() || "";
-    const email = body.email?.trim() || "";
-    const comment = body.comment?.trim() || "";
+    const name = stripDangerousText(body.name || "");
+    const email = (body.email?.trim() || "").toLowerCase();
+    const comment = stripDangerousText(body.comment || "");
+
+    const emailLimit = checkRateLimit(`comment:email:${email}`, 5, 10 * 60 * 1000);
+    if (email && !emailLimit.ok) {
+      return NextResponse.json(
+        { error: "बहुत अधिक टिप्पणियाँ। कृपया बाद में प्रयास करें।" },
+        { status: 429, headers: { "Retry-After": String(emailLimit.retryAfterSec) } },
+      );
+    }
 
     if (!name || name.length > 120) {
       return NextResponse.json({ error: "कृपया वैध नाम दर्ज करें।" }, { status: 400 });
@@ -81,8 +103,8 @@ export async function POST(request: NextRequest, context: Context) {
     });
 
     return NextResponse.json({ comment: mapComment(created) }, { status: 201 });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: "Internal server error", details: message }, { status: 500 });
+  } catch (err) {
+    console.error("POST comments error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

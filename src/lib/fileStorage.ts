@@ -108,3 +108,41 @@ export const PDF_MAX_BYTES = 3.5 * 1024 * 1024;
 
 export const ALLOWED_IMAGE_MIMES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
 export const ALLOWED_PDF_MIMES = new Set(["application/pdf"]);
+
+/** Media URL only (no data: URI) for new post/cover images. */
+export function isValidMediaImageUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return isMediaUrl(value);
+}
+
+type DetectedType = { mime: string; ext: string } | null;
+
+/** Verify real file type from magic bytes; reject spoofed MIME. */
+export function detectFileType(buffer: Buffer): DetectedType {
+  if (buffer.length < 12) return null;
+
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { mime: "image/jpeg", ext: "jpg" };
+  }
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return { mime: "image/png", ext: "png" };
+  }
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
+    return { mime: "image/gif", ext: "gif" };
+  }
+  if (
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return { mime: "image/webp", ext: "webp" };
+  }
+  if (buffer.toString("ascii", 0, 4) === "%PDF") {
+    return { mime: "application/pdf", ext: "pdf" };
+  }
+  return null;
+}

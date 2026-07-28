@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
 import {
-  ALLOWED_IMAGE_MIMES,
-  ALLOWED_PDF_MIMES,
   IMAGE_MAX_BYTES,
   PDF_MAX_BYTES,
   type UploadSubfolder,
   UPLOAD_SUBFOLDERS,
-  mimeToExt,
+  detectFileType,
   saveUpload,
 } from "@/lib/fileStorage";
+import { requireUser, canPublishContent, isMasterAdmin } from "@/lib/requireUser";
 
 export async function POST(request: NextRequest) {
-  const authPayload = await requireAuth(request);
-  if (authPayload instanceof NextResponse) return authPayload;
+  const user = await requireUser(request);
+  if (user instanceof NextResponse) return user;
 
   try {
     const formData = await request.formData();
@@ -29,27 +27,38 @@ export async function POST(request: NextRequest) {
     }
 
     const subfolder = subfolderRaw as UploadSubfolder;
-    const mimeType = file.type || "application/octet-stream";
-    const isImage = ALLOWED_IMAGE_MIMES.has(mimeType);
-    const isPdf = ALLOWED_PDF_MIMES.has(mimeType);
 
     if (subfolder === "resources") {
-      if (!isPdf) {
-        return NextResponse.json({ error: "केवल PDF अपलोड करें।" }, { status: 400 });
+      if (!isMasterAdmin(user)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-      if (file.size > PDF_MAX_BYTES) {
-        return NextResponse.json({ error: "फ़ाइल 3.5MB से कम होनी चाहिए।" }, { status: 400 });
-      }
-    } else if (!isImage) {
-      return NextResponse.json({ error: "केवल image file अपलोड करें।" }, { status: 400 });
-    } else if (file.size > IMAGE_MAX_BYTES) {
-      return NextResponse.json({ error: "फ़ाइल 5MB से कम होनी चाहिए।" }, { status: 400 });
+    } else if (!canPublishContent(user)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = mimeToExt(mimeType);
-    const url = await saveUpload(buffer, subfolder, ext);
+    const detected = detectFileType(buffer);
+    if (!detected) {
+      return NextResponse.json({ error: "फ़ाइल प्रकार पहचान नहीं हो सका।" }, { status: 400 });
+    }
 
+    if (subfolder === "resources") {
+      if (detected.mime !== "application/pdf") {
+        return NextResponse.json({ error: "केवल PDF अपलोड करें।" }, { status: 400 });
+      }
+      if (buffer.length > PDF_MAX_BYTES) {
+        return NextResponse.json({ error: "फ़ाइल 3.5MB से कम होनी चाहिए।" }, { status: 400 });
+      }
+    } else {
+      if (!detected.mime.startsWith("image/")) {
+        return NextResponse.json({ error: "केवल image file अपलोड करें।" }, { status: 400 });
+      }
+      if (buffer.length > IMAGE_MAX_BYTES) {
+        return NextResponse.json({ error: "फ़ाइल 5MB से कम होनी चाहिए।" }, { status: 400 });
+      }
+    }
+
+    const url = await saveUpload(buffer, subfolder, detected.ext);
     return NextResponse.json({ url }, { status: 201 });
   } catch (error) {
     console.error("POST /api/uploads error:", error);

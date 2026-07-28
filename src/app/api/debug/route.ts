@@ -1,31 +1,29 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser, isMasterAdmin } from "@/lib/requireUser";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
-  const dbUrl = process.env.DATABASE_URL || "NOT SET";
-  
-  // Mask the password for security but show structure
-  let masked = dbUrl;
-  try {
-    const url = new URL(dbUrl);
-    masked = `${url.protocol}//${url.username}:****@${url.hostname}:${url.port}${url.pathname}${url.search}`;
-  } catch {
-    masked = `INVALID URL FORMAT: ${dbUrl.substring(0, 30)}...`;
+export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Test actual database connection
+  const user = await requireUser(request);
+  if (user instanceof NextResponse) return user;
+  if (!isMasterAdmin(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   let connectionResult = "NOT TESTED";
   try {
-    const result = await prisma.$queryRawUnsafe<any[]>("SELECT 1 as test");
+    const result = await prisma.$queryRawUnsafe<{ test: number }[]>("SELECT 1 as test");
     connectionResult = `SUCCESS - got ${result.length} row(s)`;
-  } catch (error: any) {
-    connectionResult = `FAILED: ${error.message}`;
+  } catch (error) {
+    console.error("GET /api/debug connection error:", error);
+    connectionResult = "FAILED";
   }
 
   return NextResponse.json({
-    databaseUrl: masked,
     connectionTest: connectionResult,
     nodeEnv: process.env.NODE_ENV || "NOT SET",
-    cwd: process.cwd(),
   });
 }

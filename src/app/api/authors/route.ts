@@ -74,11 +74,10 @@ export async function GET() {
     return NextResponse.json({
       authors: Array.from(authorMap.values()).sort((a, b) => a.name.localeCompare(b.name, "hi")),
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("GET /api/authors error:", error);
     return NextResponse.json({ 
       error: "लेखक सूची लोड नहीं हो सकी।",
-      details: error.message || String(error)
     }, { status: 500 });
   }
 }

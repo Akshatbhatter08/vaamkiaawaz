@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 type Context = {
   params: Promise<{ id: string }>;
 };
+
+function isValidVisitorId(visitorId: string): boolean {
+  return /^[A-Za-z0-9_-]{8,191}$/.test(visitorId);
+}
 
 export async function GET(request: NextRequest, context: Context) {
   const { id } = await context.params;
@@ -21,7 +26,7 @@ export async function GET(request: NextRequest, context: Context) {
     }
 
     let userReaction: "like" | "dislike" | null = null;
-    if (visitorId) {
+    if (visitorId && isValidVisitorId(visitorId)) {
       const existing = await prisma.articleReaction.findUnique({
         where: { blogPostId_visitorId: { blogPostId: id, visitorId } },
         select: { reaction: true },
@@ -36,9 +41,9 @@ export async function GET(request: NextRequest, context: Context) {
       dislikeCount: post.dislikeCount,
       userReaction,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: "Internal server error", details: message }, { status: 500 });
+  } catch (err) {
+    console.error("GET reactions error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -46,6 +51,15 @@ export async function POST(request: NextRequest, context: Context) {
   const { id } = await context.params;
 
   try {
+    const ip = getClientIp(request);
+    const limit = checkRateLimit(`reaction:${ip}:${id}`, 40, 10 * 60 * 1000);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSec) } },
+      );
+    }
+
     await ensureBlogSchema();
     const post = await prisma.blogPost.findUnique({
       where: { id },
@@ -63,7 +77,7 @@ export async function POST(request: NextRequest, context: Context) {
     const visitorId = body.visitorId?.trim() || "";
     const reaction = body.reaction;
 
-    if (!visitorId || visitorId.length > 191) {
+    if (!visitorId || !isValidVisitorId(visitorId)) {
       return NextResponse.json({ error: "Invalid visitor id" }, { status: 400 });
     }
     if (reaction !== "like" && reaction !== "dislike" && reaction !== null) {
@@ -114,8 +128,8 @@ export async function POST(request: NextRequest, context: Context) {
     });
 
     return NextResponse.json(result);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: "Internal server error", details: message }, { status: 500 });
+  } catch (err) {
+    console.error("POST reactions error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
