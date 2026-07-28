@@ -4,8 +4,21 @@ import { requireUser, canManageCategories } from "@/lib/requireUser";
 
 export async function GET() {
   try {
-    const categories = await prisma.category.findMany();
-    return NextResponse.json({ categories }, { status: 200 });
+    const [categories, postCategoryRows] = await Promise.all([
+      prisma.category.findMany(),
+      prisma.blogPost.findMany({
+        where: { isHidden: false },
+        select: { category: true },
+        distinct: ["category"],
+        orderBy: { category: "asc" },
+      }),
+    ]);
+
+    const postCategories = postCategoryRows
+      .map((row) => row.category.trim())
+      .filter((name) => name.length > 0);
+
+    return NextResponse.json({ categories, postCategories }, { status: 200 });
   } catch (error) {
     console.error("GET /api/categories error:", error);
     return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 });

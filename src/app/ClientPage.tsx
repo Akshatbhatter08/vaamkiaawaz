@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon } from "lucide-react";
+import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,6 +19,7 @@ import { ensureHomepageTranslateState, rememberSiteGoogTrans, setTranslateScope 
 import { focusToObjectPosition, compressImageFile, resolveImageFocus } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
+import { matchesSearch, MIN_SEARCH_LENGTH } from "@/lib/searchUtils";
 import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
@@ -215,92 +216,6 @@ const movementTracker: {
 
 const resistanceSlogans =
   "इंकलाब ज़िंदाबाद \u00A0\u00A0✊\u00A0\u00A0 मेहनतकश एक हों \u00A0\u00A0✊\u00A0\u00A0 न्याय, समानता, प्रगति \u00A0\u00A0✊\u00A0\u00A0 उठो ! बोलो ! बदलो ! \u00A0\u00A0✊\u00A0\u00A0 जन संघर्ष जारी है \u00A0\u00A0✊\u00A0\u00A0 हम न रुकेंगे, न झुकेंगे \u00A0\u00A0✊\u00A0\u00A0 संविधान बचाओ \u00A0\u00A0✊\u00A0\u00A0 लोकतंत्र हमारा अधिकार है \u00A0\u00A0✊\u00A0\u00A0 विकल्प की आवाज़ \u00A0\u00A0✊\u00A0\u00A0 ";
-
-const devanagariToLatin: Record<string, string> = {
-  "अ": "a",
-  "आ": "aa",
-  "इ": "i",
-  "ई": "ee",
-  "उ": "u",
-  "ऊ": "oo",
-  "ऋ": "ri",
-  "ए": "e",
-  "ऐ": "ai",
-  "ओ": "o",
-  "औ": "au",
-  "ा": "aa",
-  "ि": "i",
-  "ी": "ee",
-  "ु": "u",
-  "ू": "oo",
-  "ृ": "ri",
-  "े": "e",
-  "ै": "ai",
-  "ो": "o",
-  "ौ": "au",
-  "क": "k",
-  "ख": "kh",
-  "ग": "g",
-  "घ": "gh",
-  "ङ": "ng",
-  "च": "ch",
-  "छ": "chh",
-  "ज": "j",
-  "झ": "jh",
-  "ञ": "ny",
-  "ट": "t",
-  "ठ": "th",
-  "ड": "d",
-  "ढ": "dh",
-  "ण": "n",
-  "त": "t",
-  "थ": "th",
-  "द": "d",
-  "ध": "dh",
-  "न": "n",
-  "प": "p",
-  "फ": "ph",
-  "ब": "b",
-  "भ": "bh",
-  "म": "m",
-  "य": "y",
-  "र": "r",
-  "ल": "l",
-  "व": "va",
-  "श": "sh",
-  "ष": "sh",
-  "स": "s",
-  "ह": "h",
-  "ं": "n",
-  "ँ": "n",
-  "ः": "h",
-  "्": "",
-};
-
-const transliterate = (text: string) =>
-  text
-    .split("")
-    .map((char) => devanagariToLatin[char] ?? char)
-    .join("")
-    .toLowerCase();
-
-const normalizeForSearch = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const normalizeRomanized = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/aa/g, "a")
-    .replace(/ee/g, "i")
-    .replace(/oo/g, "u")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const stripLatinVowels = (text: string) => text.replace(/[aeiou]/g, "");
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -515,6 +430,10 @@ export default function ClientPage({
   const [topBlogs, setTopBlogs] = useState<NewsPost[]>(initialTopBlogs);
   const [feedHasMore, setFeedHasMore] = useState(initialBlogs.length >= 30);
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const [postCategories, setPostCategories] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<NewsPost[]>([]);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -838,7 +757,7 @@ export default function ClientPage({
           if (data.categories) {
             const managed: string[] = [...DEFAULT_CATEGORIES];
             const hidden: string[] = [];
-            data.categories.forEach((cat: any) => {
+            data.categories.forEach((cat: { name: string; isHidden?: boolean }) => {
               if (cat.isHidden) {
                 hidden.push(cat.name);
               } else {
@@ -847,6 +766,13 @@ export default function ClientPage({
             });
             setManagedCategories(Array.from(new Set(managed)));
             setHiddenCategories(Array.from(new Set(hidden)));
+          }
+          if (Array.isArray(data.postCategories)) {
+            setPostCategories(
+              data.postCategories
+                .map((name: string) => normalizeCategoryLabel(name))
+                .filter((name: string) => name.length > 0),
+            );
           }
         }
       } catch (err) {}
@@ -962,6 +888,65 @@ export default function ClientPage({
     };
     void loadBlogs();
   }, []);
+
+  useEffect(() => {
+    const q = searchTerm.trim();
+    if (q.length < MIN_SEARCH_LENGTH) {
+      setSearchResults([]);
+      setSearchHasMore(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchResults([]);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      const runSearch = async () => {
+        try {
+          const params = new URLSearchParams({
+            q,
+            limit: "24",
+          });
+          if (selectedCategory !== "सभी") params.set("category", selectedCategory);
+          if (selectedAuthor) params.set("author", selectedAuthor);
+          if (selectedNewsDate) params.set("date", selectedNewsDate);
+
+          const response = await fetch(`/api/blogs/search?${params.toString()}`, {
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            throw new Error("Search failed");
+          }
+          const data = (await response.json()) as {
+            posts?: ApiBlogPost[];
+            hasMore?: boolean;
+          };
+          if (controller.signal.aborted) return;
+
+          setSearchResults(Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : []);
+          setSearchHasMore(Boolean(data.hasMore));
+          setNewsVisibleCount(24);
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          setSearchResults([]);
+          setSearchHasMore(false);
+        } finally {
+          if (!controller.signal.aborted) {
+            setSearchLoading(false);
+          }
+        }
+      };
+      void runSearch();
+    }, 300);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [searchTerm, selectedCategory, selectedAuthor, selectedNewsDate]);
 
   useEffect(() => {
     if (featuredVicharIds.length === 0) {
@@ -1136,29 +1121,16 @@ export default function ClientPage({
 
   const isMaster = currentUser?.role === "master";
 
+  const isSearchActive = searchTerm.trim().length >= MIN_SEARCH_LENGTH;
+
   const filteredNews = useMemo(() => {
-    const q = normalizeForSearch(searchTerm);
-    const qLatin = transliterate(q);
-    const qRoman = normalizeRomanized(qLatin);
-    const qSkeleton = stripLatinVowels(qRoman);
+    if (isSearchActive) {
+      return [...searchResults].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
+    }
+
     const source = [...blogs];
-    const searched = !q
-      ? source
-      : source.filter((post) => {
-          const raw = normalizeForSearch([post.title, post.excerpt, post.category, post.author].join(" "));
-          const latin = transliterate(raw);
-          const roman = normalizeRomanized(latin);
-          const skeleton = stripLatinVowels(roman);
-          return (
-            raw.includes(q) ||
-            latin.includes(q) ||
-            latin.includes(qLatin) ||
-            roman.includes(qRoman) ||
-            skeleton.includes(qSkeleton)
-          );
-        });
     const categoryFiltered =
-      selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
+      selectedCategory === "सभी" ? source : source.filter((post) => post.category === selectedCategory);
     const authorFiltered = selectedAuthor
       ? categoryFiltered.filter((post) => normalizeCategoryName(post.author) === normalizeCategoryName(selectedAuthor))
       : categoryFiltered;
@@ -1174,7 +1146,7 @@ export default function ClientPage({
         })
       : authorFiltered;
     return [...dateFiltered].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
-  }, [blogs, searchTerm, selectedAuthor, selectedCategory, selectedNewsDate]);
+  }, [blogs, isSearchActive, searchResults, selectedAuthor, selectedCategory, selectedNewsDate]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   const feedPosts = useMemo(() => filteredNews, [filteredNews]);
@@ -1189,6 +1161,60 @@ export default function ClientPage({
       setNewsVisibleCount(nextVisible);
       return;
     }
+
+    if (isSearchActive) {
+      if (!searchHasMore || feedLoadingMore || searchResults.length === 0) {
+        setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
+        return;
+      }
+
+      const oldestLoaded = searchResults[searchResults.length - 1];
+      if (!oldestLoaded?.createdAt) return;
+
+      setFeedLoadingMore(true);
+      try {
+        const params = new URLSearchParams({
+          q: searchTerm.trim(),
+          limit: String(FEED_PAGE_SIZE),
+          before: oldestLoaded.createdAt,
+          beforeId: oldestLoaded.id,
+        });
+        if (selectedCategory !== "सभी") params.set("category", selectedCategory);
+        if (selectedAuthor) params.set("author", selectedAuthor);
+        if (selectedNewsDate) params.set("date", selectedNewsDate);
+
+        const response = await fetch(`/api/blogs/search?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch more search results");
+        }
+        const data = (await response.json()) as {
+          posts?: ApiBlogPost[];
+          hasMore?: boolean;
+        };
+        const incoming = Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : [];
+        if (incoming.length > 0) {
+          setSearchResults((prev) => {
+            const seen = new Set(prev.map((post) => post.id));
+            const merged = [...prev];
+            for (const post of incoming) {
+              if (!seen.has(post.id)) {
+                seen.add(post.id);
+                merged.push(post);
+              }
+            }
+            return merged;
+          });
+        }
+        setSearchHasMore(Boolean(data.hasMore) && incoming.length > 0);
+        setNewsVisibleCount((prev) => prev + FEED_PAGE_SIZE);
+      } catch {
+        setBlogSyncMessage("खोज परिणाम लोड नहीं हो सके। कृपया दोबारा प्रयास करें।");
+      } finally {
+        setFeedLoadingMore(false);
+      }
+      return;
+    }
+
     if (!feedHasMore || feedLoadingMore) {
       setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
       return;
@@ -1237,9 +1263,24 @@ export default function ClientPage({
     } finally {
       setFeedLoadingMore(false);
     }
-  }, [blogs, feedHasMore, feedLoadingMore, feedPosts.length, newsVisibleCount]);
+  }, [
+    blogs,
+    feedHasMore,
+    feedLoadingMore,
+    feedPosts.length,
+    isSearchActive,
+    newsVisibleCount,
+    searchHasMore,
+    searchResults,
+    searchTerm,
+    selectedAuthor,
+    selectedCategory,
+    selectedNewsDate,
+  ]);
 
-  const canLoadMoreFeed = newsVisibleCount < feedPosts.length || feedHasMore;
+  const canLoadMoreFeed = isSearchActive
+    ? newsVisibleCount < feedPosts.length || searchHasMore
+    : newsVisibleCount < feedPosts.length || feedHasMore;
 
   const threeMinutePosts = useMemo(
     () =>
@@ -1297,8 +1338,8 @@ export default function ClientPage({
 
   const allCategories = useMemo(() => {
     const set = new Set<string>();
-    blogs.forEach((post) => {
-      set.add(normalizeCategoryLabel(post.category));
+    postCategories.forEach((category) => {
+      set.add(normalizeCategoryLabel(category));
     });
     DEFAULT_CATEGORIES.forEach((category) => {
       set.add(category);
@@ -1309,7 +1350,7 @@ export default function ClientPage({
     const hidden = new Set(hiddenCategories.map(normalizeCategoryName));
     const sorted = Array.from(set).filter((category) => !hidden.has(normalizeCategoryName(category)));
     return ["सभी", ...sorted];
-  }, [blogs, managedCategories, hiddenCategories]);
+  }, [postCategories, managedCategories, hiddenCategories]);
 
   useEffect(() => {
     if (!allCategories.includes(selectedCategory)) {
@@ -1334,25 +1375,11 @@ export default function ClientPage({
   }, [blogs, events, resources]);
 
   const filteredBlogs = useMemo(() => {
-    const q = normalizeForSearch(searchTerm);
-    const qLatin = transliterate(q);
-    const qRoman = normalizeRomanized(qLatin);
-    const qSkeleton = stripLatinVowels(qRoman);
-    const searched = !q
+    const searched = !searchTerm.trim()
       ? blogs
-      : blogs.filter((post) => {
-          const raw = normalizeForSearch([post.title, post.excerpt, post.category, post.author].join(" "));
-          const latin = transliterate(raw);
-          const roman = normalizeRomanized(latin);
-          const skeleton = stripLatinVowels(roman);
-          return (
-            raw.includes(q) ||
-            latin.includes(q) ||
-            latin.includes(qLatin) ||
-            roman.includes(qRoman) ||
-            skeleton.includes(qSkeleton)
-          );
-        });
+      : blogs.filter((post) =>
+          matchesSearch([post.title, post.excerpt, post.category, post.author], searchTerm),
+        );
     const categoryFiltered =
       selectedCategory === "सभी" ? searched : searched.filter((post) => post.category === selectedCategory);
     const authorFiltered = selectedAuthor
@@ -1936,6 +1963,13 @@ export default function ClientPage({
         }
         return [...prev, name];
       });
+      setPostCategories((prev) => {
+        const lowerName = normalizeCategoryName(name);
+        if (prev.some((item) => normalizeCategoryName(item) === lowerName)) {
+          return prev;
+        }
+        return [...prev, normalizeCategoryLabel(name)];
+      });
       setHiddenCategories((prev) => prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(name)));
       setNewCategoryName("");
       setAdminMessage("कैटेगरी जोड़ दी गई।");
@@ -2149,6 +2183,13 @@ export default function ClientPage({
           return prev;
         }
         return [...prev, targetCategory];
+      });
+      setPostCategories((prev) => {
+        const key = normalizeCategoryName(targetCategory);
+        if (prev.some((item) => normalizeCategoryName(item) === key)) {
+          return prev;
+        }
+        return [...prev, normalizeCategoryLabel(targetCategory)];
       });
       setHiddenCategories((prev) =>
         prev.filter((item) => normalizeCategoryName(item) !== normalizeCategoryName(targetCategory)),
@@ -2678,7 +2719,7 @@ export default function ClientPage({
                 </div>
               )}
               <div className="home-nav__actions ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 pr-1 sm:pr-0 lg:w-auto lg:flex-none lg:justify-end">
-                <div className="hidden md:block">
+                <div className="hidden md:flex items-center gap-2">
                   <GooeyInput
                     value={searchTerm}
                     onValueChange={setSearchTerm}
@@ -2717,6 +2758,9 @@ export default function ClientPage({
                         : "text-black placeholder:text-[#6B7280]! placeholder:opacity-100!"
                     }}
                   />
+                  {isSearchActive && searchLoading && (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--primary)]" aria-hidden />
+                  )}
                 </div>
                 <input
                   type="date"
@@ -2839,17 +2883,20 @@ export default function ClientPage({
                     </a>
                   </div>
                   
-                  <div className="mb-4">
+                  <div className="mb-4 flex items-center gap-2">
                     <GooeyInput
                       value={searchTerm}
                       onValueChange={setSearchTerm}
                       placeholder="खोज"
                       enableHindiKeyboard
-                      className="w-full"
+                      className="w-full min-w-0 flex-1"
                       collapsedWidth={200}
                       expandedWidth={280}
                       expandedOffset={0}
                     />
+                    {isSearchActive && searchLoading && (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--primary)]" aria-hidden />
+                    )}
                   </div>
                   <div className="space-y-2">
                     {navTabs.map((tab) => (
@@ -3070,9 +3117,22 @@ export default function ClientPage({
                 <span className="text-sm text-[var(--muted)]">
                   {selectedCategory !== "सभी" ? `${selectedCategory} • ` : ""}
                   {selectedAuthor ? `${selectedAuthor} • ` : ""}
-                  {filteredNews.length} परिणाम
+                  {isSearchActive && searchLoading
+                    ? "खोज रहे हैं..."
+                    : `${filteredNews.length} परिणाम`}
                 </span>
               </div>
+              {isSearchActive && searchLoading ? (
+                <div
+                  className="flex flex-col items-center justify-center gap-3 py-16 text-[var(--muted)]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" aria-hidden />
+                  <p className="text-sm font-medium">खोज रहे हैं...</p>
+                </div>
+              ) : (
+              <>
               <div className="grid gap-4 sm:grid-cols-2">
                 {visibleFeedPosts.map((story) => (
                   <Link
@@ -3119,11 +3179,16 @@ export default function ClientPage({
               {canLoadMoreFeed && (
                 <button
                   onClick={() => void loadMoreFeedPosts()}
-                  disabled={feedLoadingMore}
+                  disabled={feedLoadingMore || searchLoading}
                   className="rise-on-hover mt-5 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] disabled:opacity-60"
                 >
-                  {feedLoadingMore ? "लोड हो रहा है..." : "More Posts"}
+                  {feedLoadingMore || searchLoading ? "लोड हो रहा है..." : "More Posts"}
                 </button>
+              )}
+              {isSearchActive && !searchLoading && filteredNews.length === 0 && (
+                <p className="mt-4 text-sm text-[var(--muted)]">कोई परिणाम नहीं मिला।</p>
+              )}
+              </>
               )}
             </section>
 
