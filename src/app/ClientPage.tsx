@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
@@ -362,6 +362,8 @@ const formatRelativeTime = (isoDate: string) => {
   });
 };
 
+const FEED_PAGE_SIZE = 12;
+
 const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   id: post.id,
   category: normalizeCategoryLabel(post.category),
@@ -511,6 +513,8 @@ export default function ClientPage({
   const [blogVisibleCount, setBlogVisibleCount] = useState(24);
   const [blogs, setBlogs] = useState<NewsPost[]>(initialBlogs);
   const [topBlogs, setTopBlogs] = useState<NewsPost[]>(initialTopBlogs);
+  const [feedHasMore, setFeedHasMore] = useState(initialBlogs.length >= 30);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -931,16 +935,21 @@ export default function ClientPage({
   useEffect(() => {
     const loadBlogs = async () => {
       try {
-        const response = await fetch("/api/blogs", { cache: "no-store" });
+        const response = await fetch("/api/blogs?limit=30&includeTop=true", { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Failed to fetch blogs");
         }
-        const data = (await response.json()) as { posts: ApiBlogPost[], topPosts?: ApiBlogPost[] };
+        const data = (await response.json()) as {
+          posts: ApiBlogPost[];
+          topPosts?: ApiBlogPost[];
+          hasMore?: boolean;
+        };
         if (Array.isArray(data.posts)) {
           setBlogs(data.posts.map(mapApiBlogToNewsPost));
           if (Array.isArray(data.topPosts)) {
             setTopBlogs(data.topPosts.map(mapApiBlogToNewsPost));
           }
+          setFeedHasMore(Boolean(data.hasMore));
           setBlogSyncMessage("");
         }
       } catch (error) {
@@ -1173,6 +1182,64 @@ export default function ClientPage({
     () => feedPosts.slice(0, newsVisibleCount),
     [feedPosts, newsVisibleCount],
   );
+
+  const loadMoreFeedPosts = useCallback(async () => {
+    const nextVisible = newsVisibleCount + FEED_PAGE_SIZE;
+    if (nextVisible <= feedPosts.length) {
+      setNewsVisibleCount(nextVisible);
+      return;
+    }
+    if (!feedHasMore || feedLoadingMore) {
+      setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
+      return;
+    }
+
+    const oldestLoaded = blogs.reduce<NewsPost | null>((oldest, post) => {
+      if (!oldest) return post;
+      return getPostSortTimestamp(post) < getPostSortTimestamp(oldest) ? post : oldest;
+    }, null);
+    if (!oldestLoaded?.createdAt) return;
+
+    setFeedLoadingMore(true);
+    try {
+      const params = new URLSearchParams({
+        limit: String(FEED_PAGE_SIZE),
+        before: oldestLoaded.createdAt,
+        beforeId: oldestLoaded.id,
+        includeTop: "false",
+      });
+      const response = await fetch(`/api/blogs?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to fetch more posts");
+      }
+      const data = (await response.json()) as {
+        posts?: ApiBlogPost[];
+        hasMore?: boolean;
+      };
+      const incoming = Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : [];
+      if (incoming.length > 0) {
+        setBlogs((prev) => {
+          const seen = new Set(prev.map((post) => post.id));
+          const merged = [...prev];
+          for (const post of incoming) {
+            if (!seen.has(post.id)) {
+              seen.add(post.id);
+              merged.push(post);
+            }
+          }
+          return merged;
+        });
+      }
+      setFeedHasMore(Boolean(data.hasMore) && incoming.length > 0);
+      setNewsVisibleCount((prev) => prev + FEED_PAGE_SIZE);
+    } catch {
+      setBlogSyncMessage("और पोस्ट लोड नहीं हो सकीं। कृपया दोबारा प्रयास करें।");
+    } finally {
+      setFeedLoadingMore(false);
+    }
+  }, [blogs, feedHasMore, feedLoadingMore, feedPosts.length, newsVisibleCount]);
+
+  const canLoadMoreFeed = newsVisibleCount < feedPosts.length || feedHasMore;
 
   const threeMinutePosts = useMemo(
     () =>
@@ -3049,12 +3116,13 @@ export default function ClientPage({
                   </Link>
                 ))}
               </div>
-              {visibleFeedPosts.length < feedPosts.length && (
+              {canLoadMoreFeed && (
                 <button
-                  onClick={() => setNewsVisibleCount((prev) => prev + 12)}
-                  className="rise-on-hover mt-5 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]"
+                  onClick={() => void loadMoreFeedPosts()}
+                  disabled={feedLoadingMore}
+                  className="rise-on-hover mt-5 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] disabled:opacity-60"
                 >
-                  More Posts
+                  {feedLoadingMore ? "लोड हो रहा है..." : "More Posts"}
                 </button>
               )}
             </section>
