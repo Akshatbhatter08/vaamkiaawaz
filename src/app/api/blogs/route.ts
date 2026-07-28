@@ -45,7 +45,30 @@ const mapBlog = (post: {
   };
 };
 
-export async function GET() {
+const postSelect = {
+  id: true,
+  category: true,
+  title: true,
+  excerpt: true,
+  content: true,
+  author: true,
+  postImage: true,
+  imageFocus: true,
+  imageFocusHero: true,
+  imageFocusGround: true,
+  authorImage: true,
+  clickCount: true,
+  uploaderName: true,
+  createdAt: true,
+} as const;
+
+const parseFeedLimit = (value: string | null, fallback: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(50, Math.max(1, Math.round(parsed)));
+};
+
+export async function GET(request: NextRequest) {
   try {
     await ensureBlogSchema();
     const count = await prisma.blogPost.count().catch(() => 0);
@@ -61,60 +84,63 @@ export async function GET() {
       });
     }
 
+    const { searchParams } = request.nextUrl;
+    const before = searchParams.get("before")?.trim();
+    const beforeId = searchParams.get("beforeId")?.trim();
+    const includeTop = searchParams.get("includeTop") !== "false";
+    const isPaginated = searchParams.has("limit") || Boolean(before);
+    const limit = isPaginated ? parseFeedLimit(searchParams.get("limit"), 12) : 100;
+
+    const where: {
+      isHidden: boolean;
+      OR?: Array<Record<string, unknown>>;
+    } = { isHidden: false };
+
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!Number.isNaN(beforeDate.getTime())) {
+        where.OR = beforeId
+          ? [
+              { createdAt: { lt: beforeDate } },
+              { AND: [{ createdAt: beforeDate }, { id: { lt: beforeId } }] },
+            ]
+          : [{ createdAt: { lt: beforeDate } }];
+      }
+    }
+
+    const fetchedPosts = await prisma.blogPost.findMany({
+      where,
+      select: postSelect,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: isPaginated ? limit + 1 : limit,
+    });
+
+    const hasMore = isPaginated ? fetchedPosts.length > limit : false;
+    const pagePosts = isPaginated && hasMore ? fetchedPosts.slice(0, limit) : fetchedPosts;
+
     const posts = await enrichPostsWithThumbnails(
-      await enrichPostsWithAuthorImages(
-        await prisma.blogPost.findMany({
-          where: { isHidden: false },
-          select: {
-            id: true,
-            category: true,
-            title: true,
-            excerpt: true,
-            content: true,
-            author: true,
-            postImage: true,
-            imageFocus: true,
-            imageFocusHero: true,
-            imageFocusGround: true,
-            authorImage: true,
-            clickCount: true,
-            uploaderName: true,
-            createdAt: true,
-          },
-          orderBy: [{ createdAt: "desc" }],
-          take: 100,
-        }),
-      ),
+      await enrichPostsWithAuthorImages(pagePosts),
     );
 
-    const topPosts = await enrichPostsWithThumbnails(
-      await enrichPostsWithAuthorImages(
-        await prisma.blogPost.findMany({
-          where: { isHidden: false },
-          select: {
-            id: true,
-            category: true,
-            title: true,
-            excerpt: true,
-            content: true,
-            author: true,
-            postImage: true,
-            imageFocus: true,
-            imageFocusHero: true,
-            imageFocusGround: true,
-            authorImage: true,
-            clickCount: true,
-            uploaderName: true,
-            createdAt: true,
-          },
-          orderBy: [{ clickCount: "desc" }],
-          take: 10,
-        }),
-      ),
-    );
+    const topPosts = includeTop
+      ? await enrichPostsWithThumbnails(
+          await enrichPostsWithAuthorImages(
+            await prisma.blogPost.findMany({
+              where: { isHidden: false },
+              select: postSelect,
+              orderBy: [{ clickCount: "desc" }],
+              take: 10,
+            }),
+          ),
+        )
+      : [];
 
     return NextResponse.json(
-      { posts: posts.map(mapBlog), topPosts: topPosts.map(mapBlog) },
+      {
+        posts: posts.map(mapBlog),
+        topPosts: topPosts.map(mapBlog),
+        ...(isPaginated ? { hasMore } : {}),
+      },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0, must-revalidate",
