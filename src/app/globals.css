@@ -545,15 +545,42 @@ body {
 }
 
 .article-body img {
-  width: 100%;
   height: auto;
   margin: 24px 0;
   filter: saturate(0.85) contrast(1.05);
   max-width: 100%;
 }
 
+/* Full-width only for plain images without editor resize metadata */
+.article-body img:not([containerstyle]):not([wrapperstyle]):not([width]):not([style*="width"]) {
+  width: 100%;
+}
+
+.article-body img[containerstyle],
+.article-body img[wrapperstyle],
+.article-body img[width],
+.article-body img[style*="width"] {
+  width: auto;
+}
+
 .article-body img:not([wrapperstyle*="float"]) {
   margin: 1em 0;
+}
+
+.article-body figure[style*="float: left"],
+.article-body [data-article-img-layout="wrapper"][style*="float: left"] {
+  margin-right: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.article-body figure[style*="float: right"],
+.article-body [data-article-img-layout="wrapper"][style*="float: right"] {
+  margin-left: 0.75rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.article-body [data-article-img-layout="container"] {
+  max-width: 100%;
 }
 
 .article-body > * + * {
@@ -678,6 +705,8 @@ body {
 .ProseMirror figure, .article-body figure { margin: 0; display: inline-block; max-width: 100%; }
 img[wrapperstyle*="float: left"] { float: left !important; margin-right: 1rem !important; margin-bottom: 0.5rem !important; }
 img[wrapperstyle*="float: right"] { float: right !important; margin-left: 1rem !important; margin-bottom: 0.5rem !important; }
+.article-body figure[style*="float: left"] { float: left !important; }
+.article-body figure[style*="float: right"] { float: right !important; }
 .ProseMirror figure:has(img[wrapperstyle*="margin: 0 auto"]),
 .article-body figure:has(img[wrapperstyle*="margin: 0 auto"]),
 .ProseMirror figure:has(img:not([wrapperstyle*="float"])),
