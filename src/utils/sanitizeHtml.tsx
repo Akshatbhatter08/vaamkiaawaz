@@ -23,6 +23,61 @@ const normalizeText = (text: string): string => {
  * This guarantees that <span>, <p>, style attributes, and colors
  * are completely preserved.
  */
+const appendStyle = (element: HTMLElement, style: string) => {
+  const trimmed = style.trim();
+  if (!trimmed) return;
+  const existing = element.getAttribute("style")?.trim();
+  element.setAttribute("style", existing ? `${existing}; ${trimmed}` : trimmed);
+};
+
+/**
+ * Restores TipTap resize-image layout on the published page.
+ * Saved HTML stores layout in containerstyle/wrapperstyle on <img>, but only
+ * the editor node-view applies those as wrapper elements at edit time.
+ */
+const normalizeArticleImages = (doc: Document) => {
+  doc.querySelectorAll("img").forEach((img) => {
+    const image = img as HTMLImageElement;
+    const containerStyle = (image.getAttribute("containerstyle") || "").trim();
+    const wrapperStyle = (image.getAttribute("wrapperstyle") || "").trim();
+    const widthAttr = image.getAttribute("width");
+
+    if (!containerStyle && !wrapperStyle && !widthAttr) return;
+    if (image.closest("[data-article-img-layout]")) return;
+
+    const widthFromContainer = containerStyle.match(/width:\s*([^;]+)/i)?.[1]?.trim();
+    if (widthFromContainer) {
+      image.style.width = widthFromContainer;
+    } else if (widthAttr) {
+      image.style.width = widthAttr.includes("%") ? widthAttr : `${widthAttr}px`;
+    }
+    image.style.height = "auto";
+    image.style.maxWidth = "100%";
+
+    const figure = image.closest("figure");
+
+    if (wrapperStyle) {
+      if (figure) {
+        appendStyle(figure as HTMLElement, wrapperStyle);
+      } else {
+        const wrapper = doc.createElement("div");
+        wrapper.setAttribute("data-article-img-layout", "wrapper");
+        wrapper.setAttribute("style", wrapperStyle);
+        image.parentNode?.insertBefore(wrapper, image);
+        wrapper.appendChild(image);
+      }
+    }
+
+    if (containerStyle) {
+      const container = doc.createElement("div");
+      container.setAttribute("data-article-img-layout", "container");
+      container.setAttribute("style", containerStyle);
+      image.parentNode?.insertBefore(container, image);
+      container.appendChild(image);
+    }
+  });
+};
+
 const sanitizeNode = (node: Node, debug: boolean = false) => {
   if (node.nodeType === Node.TEXT_NODE) {
     if (node.nodeValue) {
@@ -54,6 +109,7 @@ export const sanitizeHtmlClient = (html: string, debug: boolean = false): string
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     sanitizeNode(doc.body, debug);
+    normalizeArticleImages(doc);
     
     // Trim trailing empty paragraphs and line breaks (common Quill artifact)
     const children = Array.from(doc.body.childNodes);
