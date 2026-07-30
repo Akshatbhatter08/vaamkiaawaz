@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
@@ -23,6 +24,7 @@ import { matchesSearch, MIN_SEARCH_LENGTH } from "@/lib/searchUtils";
 import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
+import { MobileHome } from "./MobileHome";
 import "react-quill-new/dist/quill.snow.css";
 
 const cleanHtml = (html: string | undefined | null) => {
@@ -33,6 +35,27 @@ const cleanHtml = (html: string | undefined | null) => {
     .replace(/&nbsp;/g, " ")
     .replace(/\u00A0/g, " ");
 };
+
+/** Matches the phone breakpoint that swaps the desktop tree for MobileHome in globals.css. */
+const PHONE_MEDIA_QUERY = "(max-width: 768px)";
+
+/**
+ * Renders admin controls in place on desktop, or moves the very same React elements into the
+ * mobile admin panel when `inMobilePanel` is set. A portal (instead of a second copy of the
+ * markup) keeps a single instance of the heavy editors and their form state.
+ */
+function AdminSlot({
+  inMobilePanel,
+  target,
+  children,
+}: {
+  inMobilePanel: boolean;
+  target: HTMLElement | null;
+  children: React.ReactNode;
+}) {
+  if (!inMobilePanel) return <>{children}</>;
+  return target ? createPortal(children, target) : null;
+}
 
 export type NewsPost = {
   id: string;
@@ -420,6 +443,16 @@ export default function ClientPage({
   const [isParichayVisible, setIsParichayVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  /* Starts false so SSR and the first client render agree; the desktop tree is what the server
+     emits, and only admin controls (which never render on the server anyway) react to this. */
+  const [isPhoneViewport, setIsPhoneViewport] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+  /* Portal targets inside MobileHome's admin panel, captured via callback refs. */
+  const [mobileAddNewsSlot, setMobileAddNewsSlot] = useState<HTMLDivElement | null>(null);
+  const [mobileResourceSlot, setMobileResourceSlot] = useState<HTMLDivElement | null>(null);
+  const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
+  const [savedPosts, setSavedPosts] = useState<NewsPost[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
@@ -1120,6 +1153,88 @@ export default function ClientPage({
   }, [currentUser]);
 
   const isMaster = currentUser?.role === "master";
+
+  useEffect(() => {
+    const query = window.matchMedia(PHONE_MEDIA_QUERY);
+    const apply = () => setIsPhoneViewport(query.matches);
+    apply();
+    setHasMounted(true);
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+
+  /* Both homepage trees used to stay mounted at every width, with CSS hiding one of them — so
+     every render walked both. Server output and the first client render still contain both (that
+     keeps hydration byte-identical and avoids a blank first paint on either form factor); once
+     mounted, the tree the viewport does not use is dropped. */
+  const showMobileTree = !hasMounted || isPhoneViewport;
+  const showDesktopContent = !hasMounted || !isPhoneViewport;
+
+  // Saved articles live on the account, so the list is re-read whenever the session changes.
+  useEffect(() => {
+    if (!currentUser) {
+      setSavedPostIds([]);
+      setSavedPosts([]);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/saved-articles", { cache: "no-store", credentials: "include" })
+      .then((response) => (response.ok ? response.json() : { ids: [] }))
+      .then((data) => {
+        if (!cancelled) setSavedPostIds(Array.isArray(data.ids) ? data.ids : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  const handleToggleSavedPost = useCallback(
+    async (postId: string) => {
+      if (!currentUser) {
+        setIsAuthModalOpen(true);
+        return;
+      }
+      const wasSaved = savedPostIds.includes(postId);
+      setSavedPostIds((prev) => (wasSaved ? prev.filter((id) => id !== postId) : [postId, ...prev]));
+      try {
+        const response = await fetch("/api/saved-articles", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blogPostId: postId, saved: !wasSaved }),
+        });
+        if (!response.ok) throw new Error("save failed");
+      } catch {
+        setSavedPostIds((prev) => (wasSaved ? [postId, ...prev] : prev.filter((id) => id !== postId)));
+      }
+    },
+    [currentUser, savedPostIds],
+  );
+
+  /* Called when the सहेजें tab is opened, so the (potentially image-heavy) article payloads are
+     only fetched when the list is actually shown. */
+  const loadSavedPosts = useCallback(async () => {
+    if (!currentUser || savedPostIds.length === 0) {
+      setSavedPosts([]);
+      return;
+    }
+    setSavedLoading(true);
+    try {
+      const response = await fetch(
+        `/api/blogs/by-ids?ids=${encodeURIComponent(savedPostIds.join(","))}`,
+        { cache: "no-store" },
+      );
+      if (response.ok) {
+        const data = (await response.json()) as { posts?: ApiBlogPost[] };
+        if (Array.isArray(data.posts)) setSavedPosts(data.posts.map(mapApiBlogToNewsPost));
+      }
+    } catch {
+      /* keep whatever list is already on screen */
+    } finally {
+      setSavedLoading(false);
+    }
+  }, [currentUser, savedPostIds]);
 
   const isSearchActive = searchTerm.trim().length >= MIN_SEARCH_LENGTH;
 
@@ -2227,7 +2342,10 @@ export default function ClientPage({
   ];
 
   const scrollToSection = (id: string) => {
-    const section = document.getElementById(id);
+    // At the phone breakpoint the desktop tree is hidden, so prefer whichever of the
+    // two trees is actually visible; the mobile sections mirror ids as "m-<id>".
+    const candidates = [document.getElementById(id), document.getElementById(`m-${id}`)];
+    const section = candidates.find((el) => el && el.offsetParent !== null) ?? candidates.find(Boolean);
     if (section) {
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -2520,8 +2638,75 @@ export default function ClientPage({
     <>
     <div className={`print:hidden ${theme === "dark" ? "theme-dark" : "theme-light"} news-shell min-h-screen`}>
       <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10">
+        {/* Mobile-only homepage tree (≤768px). It reads the same state and handlers as the
+            desktop markup below — no separate data source. The desktop content blocks carry
+            .home-desktop-only for the pre-hydration paint and are then dropped from the render
+            (showDesktopContent), while the shared modals and the nav drawer stay mounted at every
+            width so they keep working on mobile. */}
+        {showMobileTree && (
+        <MobileHome
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onChangeFontSize={changeFontSize}
+          onOpenMenu={() => setIsMobileNavOpen(true)}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          breakingStories={filteredNews.slice(0, 8)}
+          slogans={resistanceSlogans}
+          /* The swipe stack absorbs the desktop hero (story 0) plus every story from the
+             "आज की प्राथमिकताएँ" grid (stories 1–4), so all priority stories are swipeable. */
+          heroStories={filteredNews.slice(0, 5)}
+          latestPosts={visibleFeedPosts}
+          canLoadMore={canLoadMoreFeed}
+          loadingMore={feedLoadingMore || searchLoading}
+          onLoadMore={() => void loadMoreFeedPosts()}
+          categories={allCategories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={(category) => {
+            setSelectedCategory(category);
+            setNewsVisibleCount(24);
+            setBlogVisibleCount(24);
+          }}
+          explainerPosts={threeMinutePosts.length > 0 ? threeMinutePosts : filteredNews.slice(0, 10)}
+          groundPosts={filteredNews.slice(5, 8)}
+          tracker={movementTracker}
+          featuredVichar={featuredVicharDisplayPosts}
+          topReadPosts={topReadPosts}
+          resources={filteredResources}
+          resourceFilter={resourceFilter}
+          onResourceFilterChange={setResourceFilter}
+          onOpenResource={setActiveResource}
+          newsletterName={newsletterName}
+          newsletterPhone={newsletterPhone}
+          newsletterEmail={newsletterEmail}
+          onNewsletterNameChange={setNewsletterName}
+          onNewsletterPhoneChange={setNewsletterPhone}
+          onNewsletterEmailChange={setNewsletterEmail}
+          onNewsletterSubmit={handleNewsletter}
+          newsletterMessage={newsletterMessage}
+          events={filteredEvents}
+          onOpenEvent={setActiveEvent}
+          onOpenArchive={() => setEventArchiveModalOpen(true)}
+          formatDateWithDay={formatDateWithDay}
+          onNavTab={handleNavTabChange}
+          getPreviewImage={getPreviewImage}
+          getPostTimeLabel={getPostTimeLabel}
+          getPostClicks={getPostClicks}
+          onPostClick={handlePostClick}
+          isLoggedIn={Boolean(currentUser)}
+          savedPostIds={savedPostIds}
+          savedPosts={savedPosts}
+          savedLoading={savedLoading}
+          onToggleSavedPost={handleToggleSavedPost}
+          onLoadSavedPosts={loadSavedPosts}
+          canPublishBlog={canPublishBlog}
+          isMaster={Boolean(isMaster)}
+          addNewsSlotRef={setMobileAddNewsSlot}
+          resourceSlotRef={setMobileResourceSlot}
+        />
+        )}
+
         <div
-          className="site-topbar home-topbar hidden min-[450px]:flex flex-wrap items-center justify-between gap-2 border-b border-[var(--divider)] text-xs sm:text-sm"
+          className="site-topbar home-topbar home-desktop-only hidden min-[450px]:flex flex-wrap items-center justify-between gap-2 border-b border-[var(--divider)] text-xs sm:text-sm"
           style={{ minHeight: "32px", color: "var(--text-muted)", fontFamily: "Inter, sans-serif", paddingTop: 4, paddingBottom: 4 }}
         >
           <span className="home-topbar__date shrink-0 whitespace-nowrap" style={{ fontSize: 11 }}>{formatDate()}</span>
@@ -2612,10 +2797,10 @@ export default function ClientPage({
 
         <div
           ref={stickyHeaderRef}
-          className={`sticky top-0 z-50 transition-colors duration-200`}
+          className={`home-sticky-chrome sticky top-0 z-50 transition-colors duration-200`}
           style={{ "--compact-progress": 0, background: isScrolledHeader ? 'var(--surface-mid)' : 'transparent', borderBottom: isScrolledHeader ? '1px solid var(--divider)' : 'none' } as CSSProperties}
         >
-          <header id="top" className="headline-fade home-header">
+          <header id="top" className="headline-fade home-header home-desktop-only">
             <div className="home-header__slot home-header__slot--left hidden lg:flex">
               <button
                 type="button"
@@ -2661,7 +2846,7 @@ export default function ClientPage({
           </header>
 
           <nav
-            className="home-nav backdrop-blur-md"
+            className="home-nav home-desktop-only backdrop-blur-md"
             style={{
               background: isScrolledHeader ? "rgba(15,15,15,0.96)" : "var(--ink)",
               borderBottom: "2px solid var(--crimson)",
@@ -2944,7 +3129,8 @@ export default function ClientPage({
           </AnimatePresence>
         </div>
 
-        <section className="home-breaking" style={{ height: 36, background: "var(--crimson)", display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0 }}>
+        {showDesktopContent && (
+        <section className="home-breaking home-desktop-only" style={{ height: 36, background: "var(--crimson)", display: "flex", alignItems: "center", overflow: "hidden", flexShrink: 0 }}>
           <div
             style={{
               background: "var(--crimson-dark)",
@@ -2977,9 +3163,10 @@ export default function ClientPage({
             </div>
           </div>
         </section>
+        )}
 
-        {featuredForDisplay[0] && (
-          <section className="hero-section" style={{ position: "relative", height: 520, overflow: "hidden", background: "var(--ink)", marginTop: 16, marginBottom: 16 }}>
+        {showDesktopContent && featuredForDisplay[0] && (
+          <section className="hero-section home-desktop-only" style={{ position: "relative", height: 520, overflow: "hidden", background: "var(--ink)", marginTop: 16, marginBottom: 16 }}>
             {getPreviewImage(featuredForDisplay[0]) && (
               <img
                 src={getPreviewImage(featuredForDisplay[0])!}
@@ -3100,7 +3287,12 @@ export default function ClientPage({
           </section>
         )}
 
-        <main className="home-main grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Masters keep the desktop main column on mobile too — it hosts the resource
+            add/edit form, which is not rebuilt into the public mobile view. */}
+        {/* Always desktop-only: the admin controls that used to force this container open on
+            phones now render inside the mobile tree instead (see mobileAdminTools). */}
+        <main className="home-main home-desktop-only grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {showDesktopContent && (
           <section className="home-main__primary space-y-6 lg:col-span-8">
             <section className="home-priorities" style={{ background: "var(--surface)", padding: "8px 0 16px" }}>
               <SectionHeader title="आज की प्राथमिकताएँ" href="#" linkText="सभी देखें →" />
@@ -3214,6 +3406,7 @@ export default function ClientPage({
               </div>
             </section>
           </section>
+          )}
 
           <aside className="home-aside space-y-6 lg:col-span-4 lg:self-start lg:sticky lg:top-[170px] lg:max-h-[calc(100vh-170px)] lg:overflow-y-auto no-visible-scrollbar pb-6">
             <section className="home-topread rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -3305,6 +3498,7 @@ export default function ClientPage({
               </div>
 
               {isMaster && (
+                <AdminSlot inMobilePanel={isPhoneViewport} target={mobileResourceSlot}>
                 <div className="mt-5 border-t border-[var(--line)] pt-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm font-semibold text-[var(--headline)]">{editingResourceId ? "संसाधन अपडेट करें" : "संसाधन जोड़ें"}</p>
@@ -3364,6 +3558,7 @@ export default function ClientPage({
                     {resourceMessage && <p className="text-xs text-[var(--primary)]">{resourceMessage}</p>}
                   </form>
                 </div>
+                </AdminSlot>
               )}
             </section>
 
@@ -3431,8 +3626,8 @@ export default function ClientPage({
           </aside>
         </main>
 
-        {filteredNews.slice(5, 8).length > 0 && (
-          <section className="home-ground" style={{ background: "var(--cream)", padding: "60px 24px", marginTop: 16, marginLeft: -16, marginRight: -16 }}>
+        {showDesktopContent && filteredNews.slice(5, 8).length > 0 && (
+          <section className="home-ground home-desktop-only" style={{ background: "var(--cream)", padding: "60px 24px", marginTop: 16, marginLeft: -16, marginRight: -16 }}>
             <div style={{ maxWidth: 1280, margin: "0 auto" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
                 <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, color: "var(--crimson)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
@@ -3504,8 +3699,8 @@ export default function ClientPage({
           </section>
         )}
 
-        {(threeMinutePosts.length > 0 || filteredNews.length > 1) && (
-          <section className="home-explainer-section" style={{ background: "var(--surface)", padding: "60px 0" }}>
+        {showDesktopContent && (threeMinutePosts.length > 0 || filteredNews.length > 1) && (
+          <section className="home-explainer-section home-desktop-only" style={{ background: "var(--surface)", padding: "60px 0" }}>
             <div style={{ maxWidth: 1280, margin: "0 auto" }}>
               <SectionHeader title="समझें सिर्फ 3 मिनट में" badge="3 मिनट" />
             </div>
@@ -3524,7 +3719,8 @@ export default function ClientPage({
           </section>
         )}
 
-        <section className="home-tracker-section" style={{ background: "var(--surface)", padding: "40px 0" }}>
+        {showDesktopContent && (
+        <section className="home-tracker-section home-desktop-only" style={{ background: "var(--surface)", padding: "40px 0" }}>
           <SectionHeader title="सक्रिय संघर्ष ट्रैकर" badge="LIVE" />
           <div style={{ border: "1px solid var(--divider)" }}>
             {movementTracker.map((m, i) => (
@@ -3552,8 +3748,12 @@ export default function ClientPage({
             ))}
           </div>
         </section>
+        )}
 
-        <section id="add-news" className="home-addnews my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 scroll-m-32">
+        {/* Publishing stays gated to admins/contributors. The section itself is desktop-only; on
+            phones the form below is portaled into the mobile admin panel instead, so this wrapper
+            never drags the desktop layout onto a phone screen. */}
+        <section id="add-news" className="home-addnews home-desktop-only my-8 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 scroll-m-32">
           <h3 className="font-serif text-2xl font-bold text-[var(--headline)]">नई खबर जोड़ें</h3>
           {!canPublishBlog && (
             <p className="mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--muted)]">
@@ -3561,6 +3761,7 @@ export default function ClientPage({
             </p>
           )}
           {canPublishBlog && (
+            <AdminSlot inMobilePanel={isPhoneViewport} target={mobileAddNewsSlot}>
             <form onSubmit={handlePreviewBlog} className="mt-5 grid gap-3 md:grid-cols-2">
               <input
                 value={formState.title}
@@ -3640,6 +3841,7 @@ export default function ClientPage({
                 </button>
               </div>
             </form>
+            </AdminSlot>
           )}
           {blogMessage && <p className="mt-3 text-sm font-medium text-[var(--primary)]">{blogMessage}</p>}
         </section>
@@ -4387,7 +4589,8 @@ export default function ClientPage({
           </div>
         )}
 
-        <footer className="site-footer" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
+        {showDesktopContent && (
+        <footer className="site-footer home-desktop-only" style={{ background: "var(--ink)", borderTop: "3px solid var(--crimson)", padding: "48px 24px 24px", marginLeft: -16, marginRight: -16 }}>
           <div style={{ maxWidth: 1280, margin: "0 auto" }}>
             <div className="footer-grid" style={{ marginBottom: 40 }}>
               <div>
@@ -4475,6 +4678,7 @@ export default function ClientPage({
             </div>
           </div>
         </footer>
+        )}
       </div>
     </div>
 

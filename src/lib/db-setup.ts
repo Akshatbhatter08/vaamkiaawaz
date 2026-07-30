@@ -194,6 +194,21 @@ const ensureBlogPostStorageColumns = async () => {
       CONSTRAINT \`ArticleReaction_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`SavedArticle\` (
+      \`id\` VARCHAR(191) NOT NULL,
+      \`userId\` VARCHAR(191) NOT NULL,
+      \`blogPostId\` VARCHAR(191) NOT NULL,
+      \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      INDEX \`SavedArticle_userId_idx\`(\`userId\`),
+      INDEX \`SavedArticle_blogPostId_idx\`(\`blogPostId\`),
+      UNIQUE INDEX \`SavedArticle_userId_blogPostId_key\`(\`userId\`, \`blogPostId\`),
+      PRIMARY KEY (\`id\`),
+      CONSTRAINT \`SavedArticle_userId_fkey\` FOREIGN KEY (\`userId\`) REFERENCES \`User\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT \`SavedArticle_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
 };
 
 /**

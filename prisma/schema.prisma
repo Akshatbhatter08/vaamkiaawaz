@@ -30,6 +30,7 @@ model BlogPost {
   User         User?             @relation(fields: [authorUserId], references: [id])
   comments     ArticleComment[]
   reactions    ArticleReaction[]
+  savedBy      SavedArticle[]
 
   @@index([authorUserId], map: "BlogPost_authorUserId_fkey")
 }
@@ -68,6 +69,20 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   BlogPost     BlogPost[]
+  savedArticles SavedArticle[]
+}
+
+model SavedArticle {
+  id         String   @id @default(cuid())
+  userId     String
+  blogPostId String
+  createdAt  DateTime @default(now())
+  User       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  BlogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blogPostId])
+  @@index([userId])
+  @@index([blogPostId])
 }
 
 model AbhiyanEvent {

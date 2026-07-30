@@ -19,7 +19,7 @@ export function GoToTopButton() {
     <button
       type="button"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      className="fixed bottom-6 right-6 z-[90] inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-lg transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+      className="go-to-top-btn fixed bottom-6 right-6 z-[90] inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-lg transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
       aria-label="ऊपर जाएं"
       title="ऊपर जाएं"
     >

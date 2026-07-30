@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages, Link as LinkIcon } from "lucide-react";
+import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages, Link as LinkIcon, Bookmark, BookmarkCheck } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
 import { AnimatePresence, motion } from "motion/react";
@@ -349,6 +349,45 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   }, []);
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Saved state is per account, so it is re-read whenever the session changes.
+  useEffect(() => {
+    if (!sessionEmail) {
+      setIsSaved(false);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/saved-articles", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { ids: [] }))
+      .then((d) => {
+        if (!cancelled) setIsSaved(Array.isArray(d.ids) && d.ids.includes(post.id));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionEmail, post.id]);
+
+  const toggleSaved = async () => {
+    if (!sessionEmail) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    const next = !isSaved;
+    setIsSaved(next);
+    try {
+      const res = await fetch("/api/saved-articles", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blogPostId: post.id, saved: next }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    } catch {
+      setIsSaved(!next);
+    }
+  };
 
   useEffect(() => {
     const checkAndMoveTranslate = () => {
@@ -1022,6 +1061,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   >
                     🔊 <span>सुनें</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={toggleSaved}
+                    aria-pressed={isSaved}
+                    title={isSaved ? "सहेजा गया — हटाने के लिए दबाएं" : "इस लेख को सहेजें"}
+                    className="article-no-print inline-flex items-center gap-1.5"
+                    style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: isSaved ? "var(--primary)" : "var(--foreground)", background: "transparent", border: `1px solid ${isSaved ? "var(--primary)" : "var(--line)"}`, padding: "4px 12px", cursor: "pointer" }}
+                  >
+                    {isSaved ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+                    <span>{isSaved ? "सहेजा गया" : "सहेजें"}</span>
+                  </button>
                   <div className="article-no-print relative inline-flex items-center">
                     <button
                       type="button"
@@ -1248,7 +1298,26 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     <h4 className="line-clamp-2 font-serif text-lg font-semibold leading-snug text-[var(--headline)] group-hover:text-[var(--primary)]">{sp.title}</h4>
                     <div className="line-clamp-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(sp.excerpt) }} />
                     <p className="mt-1 text-xs text-[var(--muted)]">
-                      <Link href={`/author/${encodeURIComponent(sp.author)}`} className="hover:text-[var(--primary)] hover:underline">{sp.author}</Link> • {sp.time}
+                      <span
+                        role="link"
+                        tabIndex={0}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          router.push(`/author/${encodeURIComponent(sp.author)}`);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            router.push(`/author/${encodeURIComponent(sp.author)}`);
+                          }
+                        }}
+                        className="cursor-pointer hover:text-[var(--primary)] hover:underline"
+                      >
+                        {sp.author}
+                      </span>{" "}
+                      • {sp.time}
                     </p>
                   </div>
                 </Link>
