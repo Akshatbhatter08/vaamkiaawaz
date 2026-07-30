@@ -19,6 +19,7 @@ import { LinkPendingDim } from "@/components/LinkPendingDim";
 import { ensureHomepageTranslateState, rememberSiteGoogTrans, setTranslateScope } from "@/lib/translateScope";
 import { focusToObjectPosition, compressImageFile, resolveImageFocus } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
+import { CLICK_WEIGHT, recordAffinity, SAVE_WEIGHT } from "@/lib/feedAffinity";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
 import { matchesSearch, MIN_SEARCH_LENGTH } from "@/lib/searchUtils";
 import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
@@ -605,6 +606,9 @@ export default function ClientPage({
   const clickedPostIds = useRef(new Set<string>());
 
   const handlePostClick = (postId: string) => {
+    /* Single choke point for every article open on the site, so the फीड tab's category
+       affinity counter is fed from here rather than from each call site. */
+    recordAffinity(blogs.find((item) => item.id === postId)?.category, CLICK_WEIGHT);
     if (!clickedPostIds.current.has(postId)) {
       clickedPostIds.current.add(postId);
       setBlogs((prev) =>
@@ -1196,6 +1200,10 @@ export default function ClientPage({
         return;
       }
       const wasSaved = savedPostIds.includes(postId);
+      if (!wasSaved) {
+        const post = blogs.find((item) => item.id === postId) ?? savedPosts.find((item) => item.id === postId);
+        recordAffinity(post?.category, SAVE_WEIGHT);
+      }
       setSavedPostIds((prev) => (wasSaved ? prev.filter((id) => id !== postId) : [postId, ...prev]));
       try {
         const response = await fetch("/api/saved-articles", {
@@ -1209,7 +1217,7 @@ export default function ClientPage({
         setSavedPostIds((prev) => (wasSaved ? [postId, ...prev] : prev.filter((id) => id !== postId)));
       }
     },
-    [currentUser, savedPostIds],
+    [blogs, currentUser, savedPosts, savedPostIds],
   );
 
   /* Called when the सहेजें tab is opened, so the (potentially image-heavy) article payloads are
@@ -1264,6 +1272,12 @@ export default function ClientPage({
   }, [blogs, isSearchActive, searchResults, selectedAuthor, selectedCategory, selectedNewsDate]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
+  /* Pool the फीड tab ranks client-side. Deliberately not filteredNews: the feed must not
+     inherit the homepage's category/author/date filters. Recency order is its cold-start order. */
+  const mobileFeedPool = useMemo(
+    () => [...blogs].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a)).slice(0, 50),
+    [blogs],
+  );
   const feedPosts = useMemo(() => filteredNews, [filteredNews]);
   const visibleFeedPosts = useMemo(
     () => feedPosts.slice(0, newsVisibleCount),
@@ -2655,6 +2669,7 @@ export default function ClientPage({
           /* The swipe stack absorbs the desktop hero (story 0) plus every story from the
              "आज की प्राथमिकताएँ" grid (stories 1–4), so all priority stories are swipeable. */
           heroStories={filteredNews.slice(0, 5)}
+          feedPool={mobileFeedPool}
           latestPosts={visibleFeedPosts}
           canLoadMore={canLoadMoreFeed}
           loadingMore={feedLoadingMore || searchLoading}

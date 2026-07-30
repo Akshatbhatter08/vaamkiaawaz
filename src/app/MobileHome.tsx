@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getCategoryClass, formatViews, getPostReadTime, speakHindiText } from "@/utils/designUtils";
 import { focusToObjectPosition, resolveImageFocus } from "@/lib/imageCrop";
+import { affinityWeight, readAffinity, weightedShuffle } from "@/lib/feedAffinity";
 import { SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import type { NewsPost, PlatformResource } from "./ClientPage";
 
@@ -55,6 +56,8 @@ export type MobileHomeProps = {
   slogans: string;
 
   heroStories: NewsPost[];
+  /* Article pool the फीड tab ranks client-side (already-fetched posts, no extra request). */
+  feedPool: NewsPost[];
   latestPosts: NewsPost[];
   canLoadMore: boolean;
   loadingMore: boolean;
@@ -190,6 +193,117 @@ const badgeStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const feedPanelStyle: React.CSSProperties = {
+  ...savedPanelStyle,
+};
+
+/* Vertical twin of .home-mobile__hero-track. Declared inline for the same reason the सहेजें
+   sheet is: the overlay has to be laid out correctly the moment the tab is tapped. The slides
+   themselves keep .home-mobile__hero-slide, whose `flex: 0 0 100%` resolves against the
+   column axis here, so one card fills the panel. */
+const feedTrackStyle: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  overflowY: "auto",
+  overflowX: "hidden",
+  scrollSnapType: "y mandatory",
+};
+
+/* The hero slide card, shared by the homepage hero stack and the फीड tab. Markup, classes and
+   handlers are unchanged from the original inline hero slide. */
+function HeroSlide({
+  story,
+  image,
+  isSaved,
+  onToggleSavedPost,
+  onPostClick,
+  onShare,
+  getPostTimeLabel,
+  getPostClicks,
+}: {
+  story: NewsPost;
+  image: string | null | undefined;
+  isSaved: boolean;
+  onToggleSavedPost: (postId: string) => void;
+  onPostClick: (postId: string) => void;
+  onShare: (post: NewsPost) => void;
+  getPostTimeLabel: (post: NewsPost) => string;
+  getPostClicks: (post: NewsPost) => number;
+}) {
+  return (
+    <article className="home-mobile__hero-slide">
+      {image ? (
+        <img
+          src={image}
+          alt={story.title}
+          className="home-mobile__hero-image"
+          style={{ objectPosition: focusToObjectPosition(resolveImageFocus(story, "hero")) }}
+        />
+      ) : (
+        <div className="home-mobile__hero-image home-mobile__hero-image--empty" />
+      )}
+      <div className="home-mobile__hero-scrim" />
+
+      <div className="home-mobile__hero-copy">
+        <span className={`cat-pill ${getCategoryClass(story.category)}`}>{story.category}</span>
+        <Link href={`/post/${story.id}`} onClick={() => onPostClick(story.id)} style={{ textDecoration: "none" }}>
+          <h2 className="home-mobile__hero-title">{story.title}</h2>
+        </Link>
+        <p className="home-mobile__hero-excerpt">{stripHtml(story.excerpt)}</p>
+        <div className="home-mobile__hero-meta">
+          {story.authorImage ? (
+            <img src={story.authorImage} alt="" className="avatar-circle home-mobile__hero-avatar" />
+          ) : (
+            <span className="avatar-circle home-mobile__hero-avatar home-mobile__hero-avatar--empty" />
+          )}
+          <span>
+            {story.author} · {getPostTimeLabel(story)} · {getPostReadTime(story)} मिनट पाठ
+          </span>
+        </div>
+        <Link
+          href={`/post/${story.id}`}
+          onClick={() => onPostClick(story.id)}
+          className="btn-primary home-mobile__hero-cta"
+        >
+          पूरा पढ़ें →
+        </Link>
+      </div>
+
+      <div className="home-mobile__hero-rail">
+        {/* The mockup shows a like control here, but reactions are stored per
+            article and are not part of the homepage payload, so this slot
+            surfaces the real reader count instead of an unbacked like button. */}
+        <span className="home-mobile__hero-rail-item">
+          <Eye size={19} />
+          <span>{formatViews(getPostClicks(story))}</span>
+        </span>
+        <button
+          type="button"
+          className={`home-mobile__hero-rail-item${isSaved ? " is-saved" : ""}`}
+          aria-pressed={isSaved}
+          onClick={() => onToggleSavedPost(story.id)}
+        >
+          {isSaved ? <BookmarkCheck size={19} /> : <Bookmark size={19} />}
+          <span>{isSaved ? "सहेजा" : "सहेजें"}</span>
+        </button>
+        <button type="button" className="home-mobile__hero-rail-item" onClick={() => onShare(story)}>
+          <Share2 size={19} />
+          <span>शेयर</span>
+        </button>
+        <button
+          type="button"
+          className="home-mobile__hero-rail-item"
+          onClick={() => speakHindiText(`${story.title}। ${stripHtml(story.excerpt)}`)}
+        >
+          <Volume2 size={19} />
+          <span>सुनें</span>
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export function MobileHome(props: MobileHomeProps) {
   const {
     theme,
@@ -200,6 +314,7 @@ export function MobileHome(props: MobileHomeProps) {
     breakingStories,
     slogans,
     heroStories,
+    feedPool,
     latestPosts,
     canLoadMore,
     loadingMore,
@@ -248,6 +363,9 @@ export function MobileHome(props: MobileHomeProps) {
   const heroTrackRef = useRef<HTMLDivElement | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [isSavedOpen, setIsSavedOpen] = useState(false);
+  const [isFeedOpen, setIsFeedOpen] = useState(false);
+  const [feedItems, setFeedItems] = useState<NewsPost[]>([]);
+  const feedTrackRef = useRef<HTMLDivElement | null>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -264,9 +382,43 @@ export function MobileHome(props: MobileHomeProps) {
       onOpenAuth();
       return;
     }
+    setIsFeedOpen(false);
     setIsSavedOpen(true);
     onLoadSavedPosts();
   }, [isLoggedIn, onOpenAuth, onLoadSavedPosts]);
+
+  /* Ranks the pool by the visitor's device-local category affinity. With no affinity yet
+     (first ever open) the pool order is kept as-is, i.e. the homepage's recency order. */
+  const rankFeed = useCallback(() => {
+    const pool = feedPool.slice(0, 50);
+    const affinity = readAffinity();
+    if (pool.length === 0 || Object.keys(affinity).length === 0) return pool;
+    return weightedShuffle(pool, (post) => affinityWeight(affinity, post.category));
+  }, [feedPool]);
+
+  const openFeed = useCallback(() => {
+    setIsFeedOpen(true);
+    setFeedItems(rankFeed());
+    if (feedTrackRef.current) feedTrackRef.current.scrollTop = 0;
+  }, [rankFeed]);
+
+  /* Endless by recycling the same client-held pool: as the reader nears the end another
+     re-ranked batch is appended (re-reading affinity, so saves/clicks made inside the feed
+     count), rotated if needed so the seam never repeats the same article back-to-back. */
+  const handleFeedScroll = useCallback(() => {
+    const track = feedTrackRef.current;
+    if (!track || track.clientHeight === 0) return;
+    const index = Math.round(track.scrollTop / track.clientHeight);
+    if (index < feedItems.length - 3) return;
+    setFeedItems((prev) => {
+      if (prev.length === 0 || prev.length > 400) return prev;
+      const next = rankFeed();
+      if (next.length > 1 && next[0].id === prev[prev.length - 1].id) {
+        [next[0], next[1]] = [next[1], next[0]];
+      }
+      return [...prev, ...next];
+    });
+  }, [feedItems.length, rankFeed]);
 
   const showsAdminPanel = canPublishBlog || isMaster;
 
@@ -403,80 +555,19 @@ export function MobileHome(props: MobileHomeProps) {
             ref={heroTrackRef}
             onScroll={handleHeroScroll}
           >
-            {heroStories.map((story) => {
-              const image = getPreviewImage(story);
-              return (
-                <article className="home-mobile__hero-slide" key={`m-hero-${story.id}`}>
-                  {image ? (
-                    <img
-                      src={image}
-                      alt={story.title}
-                      className="home-mobile__hero-image"
-                      style={{ objectPosition: focusToObjectPosition(resolveImageFocus(story, "hero")) }}
-                    />
-                  ) : (
-                    <div className="home-mobile__hero-image home-mobile__hero-image--empty" />
-                  )}
-                  <div className="home-mobile__hero-scrim" />
-
-                  <div className="home-mobile__hero-copy">
-                    <span className={`cat-pill ${getCategoryClass(story.category)}`}>{story.category}</span>
-                    <Link href={`/post/${story.id}`} onClick={() => onPostClick(story.id)} style={{ textDecoration: "none" }}>
-                      <h2 className="home-mobile__hero-title">{story.title}</h2>
-                    </Link>
-                    <p className="home-mobile__hero-excerpt">{stripHtml(story.excerpt)}</p>
-                    <div className="home-mobile__hero-meta">
-                      {story.authorImage ? (
-                        <img src={story.authorImage} alt="" className="avatar-circle home-mobile__hero-avatar" />
-                      ) : (
-                        <span className="avatar-circle home-mobile__hero-avatar home-mobile__hero-avatar--empty" />
-                      )}
-                      <span>
-                        {story.author} · {getPostTimeLabel(story)} · {getPostReadTime(story)} मिनट पाठ
-                      </span>
-                    </div>
-                    <Link
-                      href={`/post/${story.id}`}
-                      onClick={() => onPostClick(story.id)}
-                      className="btn-primary home-mobile__hero-cta"
-                    >
-                      पूरा पढ़ें →
-                    </Link>
-                  </div>
-
-                  <div className="home-mobile__hero-rail">
-                    {/* The mockup shows a like control here, but reactions are stored per
-                        article and are not part of the homepage payload, so this slot
-                        surfaces the real reader count instead of an unbacked like button. */}
-                    <span className="home-mobile__hero-rail-item">
-                      <Eye size={19} />
-                      <span>{formatViews(getPostClicks(story))}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className={`home-mobile__hero-rail-item${isSaved(story.id) ? " is-saved" : ""}`}
-                      aria-pressed={isSaved(story.id)}
-                      onClick={() => onToggleSavedPost(story.id)}
-                    >
-                      {isSaved(story.id) ? <BookmarkCheck size={19} /> : <Bookmark size={19} />}
-                      <span>{isSaved(story.id) ? "सहेजा" : "सहेजें"}</span>
-                    </button>
-                    <button type="button" className="home-mobile__hero-rail-item" onClick={() => sharePost(story)}>
-                      <Share2 size={19} />
-                      <span>शेयर</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="home-mobile__hero-rail-item"
-                      onClick={() => speakHindiText(`${story.title}। ${stripHtml(story.excerpt)}`)}
-                    >
-                      <Volume2 size={19} />
-                      <span>सुनें</span>
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+            {heroStories.map((story) => (
+              <HeroSlide
+                key={`m-hero-${story.id}`}
+                story={story}
+                image={getPreviewImage(story)}
+                isSaved={isSaved(story.id)}
+                onToggleSavedPost={onToggleSavedPost}
+                onPostClick={onPostClick}
+                onShare={sharePost}
+                getPostTimeLabel={getPostTimeLabel}
+                getPostClicks={getPostClicks}
+              />
+            ))}
           </div>
 
           {heroCount > 1 && (
@@ -929,21 +1020,23 @@ export function MobileHome(props: MobileHomeProps) {
       <nav className="home-mobile__tabbar" aria-label="मुख्य नेविगेशन">
         <button
           type="button"
-          className={isSavedOpen ? undefined : "is-active"}
+          className={isSavedOpen || isFeedOpen ? undefined : "is-active"}
           onClick={() => {
             setIsSavedOpen(false);
+            setIsFeedOpen(false);
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         >
           <Home size={19} />
           <span>होम</span>
         </button>
-        {/* Personalised feed is a separate task; the tab stays visible but says so on tap. */}
         <button
           type="button"
-          className="is-coming-soon"
-          aria-disabled="true"
-          onClick={() => setToast("फीड जल्द आ रहा है")}
+          className={isFeedOpen ? "is-active" : undefined}
+          onClick={() => {
+            setIsSavedOpen(false);
+            openFeed();
+          }}
         >
           <Play size={19} />
           <span>फीड</span>
@@ -1030,6 +1123,51 @@ export function MobileHome(props: MobileHomeProps) {
                 ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* फीड — the same hero slide card, ranked by device-local category affinity, swiped
+          vertically. Opens and closes exactly like the सहेजें sheet, so the homepage stays
+          mounted behind it and keeps its scroll position. */}
+      {isFeedOpen && (
+        <div className="home-mobile__feed" role="dialog" aria-label="फीड" style={feedPanelStyle}>
+          <div style={savedHeadStyle}>
+            <span style={sectionLabelStyle}>आपके लिए फीड</span>
+            <button
+              type="button"
+              onClick={() => setIsFeedOpen(false)}
+              aria-label="बंद करें"
+              style={savedCloseStyle}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          {feedItems.length === 0 ? (
+            <div style={savedBodyStyle}>
+              <p className="home-mobile__empty">फीड तैयार हो रही है...</p>
+            </div>
+          ) : (
+            <div
+              className="no-visible-scrollbar"
+              ref={feedTrackRef}
+              onScroll={handleFeedScroll}
+              style={feedTrackStyle}
+            >
+              {feedItems.map((story, index) => (
+                <HeroSlide
+                  key={`m-feed-${index}-${story.id}`}
+                  story={story}
+                  image={getPreviewImage(story)}
+                  isSaved={isSaved(story.id)}
+                  onToggleSavedPost={onToggleSavedPost}
+                  onPostClick={onPostClick}
+                  onShare={sharePost}
+                  getPostTimeLabel={getPostTimeLabel}
+                  getPostClicks={getPostClicks}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
