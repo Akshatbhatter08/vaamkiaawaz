@@ -50,6 +50,8 @@ export type MobileHomeProps = {
   onToggleTheme: () => void;
   onChangeFontSize: (delta: number) => void;
   onOpenMenu: () => void;
+  onToggleMenu: () => void;
+  isMenuOpen: boolean;
   onOpenAuth: () => void;
 
   breakingStories: NewsPost[];
@@ -114,6 +116,14 @@ export type MobileHomeProps = {
   resourceSlotRef: (element: HTMLDivElement | null) => void;
 };
 
+/* Opening फीड pushes its own history entry so the phone's native back gesture from an article
+   returns to the feed rather than to the homepage that stays mounted underneath it. The hash is
+   what survives the round trip through /post/[id], where this component unmounts entirely. */
+const FEED_HASH = "#feed";
+/* The ranked order and swipe offset the feed had when the reader tapped into an article, so the
+   restored feed comes back on the same card instead of a freshly re-ranked first card. */
+const FEED_STATE_KEY = "vka-feed-state";
+
 const stripHtml = (html?: string) =>
   (html || "")
     .replace(/<[^>]*>/g, " ")
@@ -134,12 +144,19 @@ const sectionLabelStyle: React.CSSProperties = {
 /* The सहेजें sheet's layout is declared here rather than left to globals.css alone: it has to
    overlay the homepage the moment the tab is tapped, even if the stylesheet chunk in the browser
    predates these class names — otherwise the sheet mounts unstyled after the footer, off-screen. */
+/* The sheet reaches bottom: 0 and reserves the tab bar's strip as its own padding instead of
+   stopping short at bottom: 62. The tab bar is only ~49px tall once env(safe-area-inset-bottom)
+   is 0 (Android gesture nav), so a sheet that stopped at 62px left a strip of the homepage
+   showing between the sheet and the bar. The bar keeps z-index 90 and still paints on top. */
+const TABBAR_RESERVE = "calc(62px + env(safe-area-inset-bottom, 0px))";
+
 const savedPanelStyle: React.CSSProperties = {
   position: "fixed",
   top: 0,
   left: 0,
   right: 0,
-  bottom: 62,
+  bottom: 0,
+  paddingBottom: TABBAR_RESERVE,
   zIndex: 89,
   background: "var(--ink)",
   display: "flex",
@@ -310,6 +327,8 @@ export function MobileHome(props: MobileHomeProps) {
     onToggleTheme,
     onChangeFontSize,
     onOpenMenu,
+    onToggleMenu,
+    isMenuOpen,
     onOpenAuth,
     breakingStories,
     slogans,
@@ -375,17 +394,11 @@ export function MobileHome(props: MobileHomeProps) {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const isSaved = useCallback((postId: string) => savedPostIds.includes(postId), [savedPostIds]);
+  const feedHistoryRef = useRef(false);
+  const feedRestoreScrollRef = useRef<number | null>(null);
+  const feedRestoredRef = useRef(false);
 
-  const openSaved = useCallback(() => {
-    if (!isLoggedIn) {
-      onOpenAuth();
-      return;
-    }
-    setIsFeedOpen(false);
-    setIsSavedOpen(true);
-    onLoadSavedPosts();
-  }, [isLoggedIn, onOpenAuth, onLoadSavedPosts]);
+  const isSaved = useCallback((postId: string) => savedPostIds.includes(postId), [savedPostIds]);
 
   /* Ranks the pool by the visitor's device-local category affinity. With no affinity yet
      (first ever open) the pool order is kept as-is, i.e. the homepage's recency order. */
@@ -396,11 +409,117 @@ export function MobileHome(props: MobileHomeProps) {
     return weightedShuffle(pool, (post) => affinityWeight(affinity, post.category));
   }, [feedPool]);
 
-  const openFeed = useCallback(() => {
-    setIsFeedOpen(true);
-    setFeedItems(rankFeed());
-    if (feedTrackRef.current) feedTrackRef.current.scrollTop = 0;
-  }, [rankFeed]);
+  /* `items`/`scrollTop` are only passed when restoring a feed the reader had already swiped
+     through; a plain tap on the फीड tab re-ranks and starts at the top as before. */
+  const openFeed = useCallback(
+    (items?: NewsPost[], scrollTop = 0) => {
+      setIsFeedOpen(true);
+      setFeedItems(items && items.length > 0 ? items : rankFeed());
+      feedRestoreScrollRef.current = scrollTop;
+      if (typeof window !== "undefined" && !feedHistoryRef.current) {
+        /* Spread the existing state so the router's own entry data survives the push. */
+        window.history.pushState({ ...window.history.state, vkaFeed: true }, "", FEED_HASH);
+        feedHistoryRef.current = true;
+      }
+    },
+    [rankFeed],
+  );
+
+  /* Closing through the UI has to unwind the pushed entry too, otherwise the back gesture from
+     the homepage would land on a stale #feed. Only entries this component pushed are popped;
+     a #feed URL opened cold (no marker in the state) just has its hash stripped in place. */
+  const closeFeed = useCallback(() => {
+    if (feedHistoryRef.current && typeof window !== "undefined") {
+      feedHistoryRef.current = false;
+      if (window.history.state?.vkaFeed) {
+        window.history.back();
+      } else {
+        window.history.replaceState(window.history.state, "", window.location.pathname);
+      }
+    }
+    setIsFeedOpen(false);
+  }, []);
+
+  const openSaved = useCallback(() => {
+    if (!isLoggedIn) {
+      onOpenAuth();
+      return;
+    }
+    closeFeed();
+    setIsSavedOpen(true);
+    onLoadSavedPosts();
+  }, [isLoggedIn, onOpenAuth, onLoadSavedPosts, closeFeed]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const atFeed = window.location.hash === FEED_HASH;
+      feedHistoryRef.current = atFeed;
+      if (!atFeed) setIsFeedOpen(false);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  /* Back from an article remounts this component at /#feed, so the feed is reopened here rather
+     than by the popstate listener above. Waits for feedPool, which the parent fills from the
+     already-fetched homepage posts. */
+  useEffect(() => {
+    if (feedRestoredRef.current) return;
+    if (typeof window === "undefined" || window.location.hash !== FEED_HASH) {
+      feedRestoredRef.current = true;
+      return;
+    }
+    if (feedPool.length === 0) return;
+    feedRestoredRef.current = true;
+    feedHistoryRef.current = true;
+
+    let saved: { ids?: unknown; scrollTop?: unknown } | null = null;
+    try {
+      saved = JSON.parse(window.sessionStorage.getItem(FEED_STATE_KEY) || "null");
+    } catch {
+      saved = null;
+    }
+    const byId = new Map(feedPool.map((post) => [post.id, post]));
+    const restored = Array.isArray(saved?.ids)
+      ? (saved.ids as unknown[])
+          .map((id) => (typeof id === "string" ? byId.get(id) : undefined))
+          .filter((post): post is NewsPost => Boolean(post))
+      : [];
+    openFeed(restored, typeof saved?.scrollTop === "number" ? saved.scrollTop : 0);
+  }, [feedPool, openFeed]);
+
+  /* The track only exists once the panel has rendered, so the swipe offset is applied here. */
+  useEffect(() => {
+    if (!isFeedOpen) return;
+    const target = feedRestoreScrollRef.current;
+    if (target === null) return;
+    feedRestoreScrollRef.current = null;
+    const track = feedTrackRef.current;
+    if (track) track.scrollTop = target;
+  }, [isFeedOpen, feedItems]);
+
+  const persistFeedState = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(
+        FEED_STATE_KEY,
+        JSON.stringify({
+          ids: feedItems.map((item) => item.id),
+          scrollTop: feedTrackRef.current?.scrollTop ?? 0,
+        }),
+      );
+    } catch {
+      /* private mode / quota — the feed just reopens re-ranked from the top */
+    }
+  }, [feedItems]);
+
+  const handleFeedPostClick = useCallback(
+    (postId: string) => {
+      persistFeedState();
+      onPostClick(postId);
+    },
+    [onPostClick, persistFeedState],
+  );
 
   /* Endless by recycling the same client-held pool: as the reader nears the end another
      re-ranked batch is appended (re-reading affinity, so saves/clicks made inside the feed
@@ -618,8 +737,12 @@ export function MobileHome(props: MobileHomeProps) {
           </button>
         </div>
 
+        {/* The empty state must mean "this category/search has nothing", so it waits for the
+            backend query to settle and only speaks when the hero came back empty too. */}
         {latestPosts.length === 0 ? (
-          <p className="home-mobile__empty">कोई परिणाम नहीं मिला।</p>
+          <p className="home-mobile__empty">
+            {loadingMore ? "लोड हो रहा है..." : heroCount > 0 ? "और खबरें नहीं हैं।" : "कोई परिणाम नहीं मिला।"}
+          </p>
         ) : (
           <>
             {firstLatest && (
@@ -833,20 +956,22 @@ export function MobileHome(props: MobileHomeProps) {
           <div className="home-mobile__section-head home-mobile__section-head--underline">
             <span style={sectionLabelStyle}>सबसे ज्यादा पढ़ी गईं</span>
           </div>
-          {topReadPosts.map((post, index) => (
-            <Link
-              key={`m-topread-${post.id}`}
-              href={`/post/${post.id}`}
-              onClick={() => onPostClick(post.id)}
-              className="home-mobile__rank-row"
-            >
-              <span className="home-mobile__rank-number">{String(index + 1).padStart(2, "0")}</span>
-              <span>
-                <span className="home-mobile__rank-title">{post.title}</span>
-                <span className="home-mobile__rank-meta">{getPostClicks(post)} क्लिक</span>
-              </span>
-            </Link>
-          ))}
+          <div className="home-mobile__scroll-list">
+            {topReadPosts.map((post, index) => (
+              <Link
+                key={`m-topread-${post.id}`}
+                href={`/post/${post.id}`}
+                onClick={() => onPostClick(post.id)}
+                className="home-mobile__rank-row"
+              >
+                <span className="home-mobile__rank-number">{String(index + 1).padStart(2, "0")}</span>
+                <span>
+                  <span className="home-mobile__rank-title">{post.title}</span>
+                  <span className="home-mobile__rank-meta">{getPostClicks(post)} क्लिक</span>
+                </span>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
@@ -874,16 +999,18 @@ export function MobileHome(props: MobileHomeProps) {
         {resources.length === 0 ? (
           <p className="home-mobile__empty">कोई संसाधन नहीं</p>
         ) : (
-          resources.map((resource) => (
-            <button
-              key={`m-resource-${resource.id}`}
-              type="button"
-              className="home-mobile__resource"
-              onClick={() => onOpenResource(resource)}
-            >
-              {resource.title} {resource.type === "pdf" ? "(PDF)" : "(Link)"}
-            </button>
-          ))
+          <div className="home-mobile__scroll-list">
+            {resources.map((resource) => (
+              <button
+                key={`m-resource-${resource.id}`}
+                type="button"
+                className="home-mobile__resource"
+                onClick={() => onOpenResource(resource)}
+              >
+                {resource.title} {resource.type === "pdf" ? "(PDF)" : "(Link)"}
+              </button>
+            ))}
+          </div>
         )}
       </section>
 
@@ -1023,7 +1150,7 @@ export function MobileHome(props: MobileHomeProps) {
           className={isSavedOpen || isFeedOpen ? undefined : "is-active"}
           onClick={() => {
             setIsSavedOpen(false);
-            setIsFeedOpen(false);
+            closeFeed();
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         >
@@ -1041,8 +1168,24 @@ export function MobileHome(props: MobileHomeProps) {
           <Play size={19} />
           <span>फीड</span>
         </button>
-        {/* No dedicated search route exists; open the drawer that holds the search field. */}
-        <button type="button" onClick={onOpenMenu}>
+        {/* No dedicated search route exists; open the drawer that holds the search field.
+            The drawer is rendered inside .home-sticky-chrome (position: sticky, z-index: 50),
+            which is its own stacking context, so its z-[130] cannot rise above the फीड/सहेजें
+            sheets at z-index 89 — opening it over an open sheet puts it behind the sheet and
+            looks like nothing happened. Close the sheet first so the drawer is on the homepage. */}
+        <button
+          type="button"
+          className={isMenuOpen ? "is-active" : undefined}
+          onClick={() => {
+            if (isFeedOpen || isSavedOpen) {
+              closeFeed();
+              setIsSavedOpen(false);
+              onOpenMenu();
+              return;
+            }
+            onToggleMenu();
+          }}
+        >
           <Search size={19} />
           <span>खोजें</span>
         </button>
@@ -1135,7 +1278,7 @@ export function MobileHome(props: MobileHomeProps) {
             <span style={sectionLabelStyle}>आपके लिए फीड</span>
             <button
               type="button"
-              onClick={() => setIsFeedOpen(false)}
+              onClick={closeFeed}
               aria-label="बंद करें"
               style={savedCloseStyle}
             >
@@ -1160,7 +1303,7 @@ export function MobileHome(props: MobileHomeProps) {
                   image={getPreviewImage(story)}
                   isSaved={isSaved(story.id)}
                   onToggleSavedPost={onToggleSavedPost}
-                  onPostClick={onPostClick}
+                  onPostClick={handleFeedPostClick}
                   onShare={sharePost}
                   getPostTimeLabel={getPostTimeLabel}
                   getPostClicks={getPostClicks}

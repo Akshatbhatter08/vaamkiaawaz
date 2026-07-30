@@ -8,6 +8,7 @@ import {
   useMemo,
   useCallback,
   type ChangeEvent,
+  type KeyboardEvent,
 } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,8 @@ export interface GooeyInputProps {
   onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
   onValueChange?: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
+  /** Fired when the reader presses Enter / the keyboard's search key. */
+  onSubmit?: (value: string) => void;
   disabled?: boolean;
   /** Show virtual Hindi keyboard on desktop when expanded */
   enableHindiKeyboard?: boolean;
@@ -113,6 +116,7 @@ export function GooeyInput({
   onChange,
   onValueChange,
   onOpenChange,
+  onSubmit,
   disabled = false,
   enableHindiKeyboard = false,
 }: GooeyInputProps) {
@@ -186,6 +190,16 @@ export function GooeyInput({
     if (!searchText) setExpanded(false);
   }, [searchText, setExpanded]);
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      inputRef.current?.blur();
+      onSubmit?.(searchText);
+    },
+    [onSubmit, searchText],
+  );
+
   const surfaceClass =
     "border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] shadow-sm";
 
@@ -237,6 +251,7 @@ export function GooeyInput({
               value={searchText}
               onChange={handleChange}
               onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
               disabled={disabled || !isExpanded}
               placeholder={placeholder}
               className={cn(

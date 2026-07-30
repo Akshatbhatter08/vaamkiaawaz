@@ -134,6 +134,12 @@ enum Role {
   CONTRIBUTOR
 }
 
+model SiteConfig {
+  id        String   @id
+  value     String   @db.LongText
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 model Category {
   id        String   @id @default(cuid())
   name      String   @unique

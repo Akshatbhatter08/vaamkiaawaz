@@ -157,6 +157,13 @@ const normalizeCategoryLabel = (value: string) => {
   return CATEGORY_LABEL_MAP[normalizedValue] ?? normalizedValue;
 };
 
+/* Chips carry the display label, but a backend filter has to name the category the way the
+   database stores it, so a renamed category is looked up under its stored name. */
+const CATEGORY_QUERY_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_LABEL_MAP).map(([stored, label]) => [label, stored]),
+);
+const toCategoryQueryValue = (label: string) => CATEGORY_QUERY_MAP[label] ?? label;
+
 const noPermissions = (): Permissions => ({
   manageHomepage: false,
   publishBlog: false,
@@ -302,6 +309,24 @@ const formatRelativeTime = (isoDate: string) => {
 };
 
 const FEED_PAGE_SIZE = 12;
+
+/* Mobile homepage split: the swipe stack takes the first MOBILE_HERO_COUNT stories and
+   ताज़ा खबरें starts after them, so the two sections don't show the same article twice. */
+const MOBILE_HERO_COUNT = 5;
+const MOBILE_LATEST_INITIAL = 5;
+const MOBILE_LATEST_PAGE_SIZE = 3;
+
+const mergeUniquePosts = (existing: NewsPost[], incoming: NewsPost[]): NewsPost[] => {
+  const seen = new Set(existing.map((post) => post.id));
+  const merged = [...existing];
+  for (const post of incoming) {
+    if (!seen.has(post.id)) {
+      seen.add(post.id);
+      merged.push(post);
+    }
+  }
+  return merged;
+};
 
 const mapApiBlogToNewsPost = (post: ApiBlogPost): NewsPost => ({
   id: post.id,
@@ -468,6 +493,12 @@ export default function ClientPage({
   const [searchResults, setSearchResults] = useState<NewsPost[]>([]);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  /* Category selection is answered by the backend, not by filtering the loaded batch: a
+     category can be non-empty in the database while having nothing in the first page. */
+  const [categoryPosts, setCategoryPosts] = useState<NewsPost[]>([]);
+  const [categoryHasMore, setCategoryHasMore] = useState(false);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [mobileLatestCount, setMobileLatestCount] = useState(MOBILE_LATEST_INITIAL);
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [managedCategories, setManagedCategories] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -946,7 +977,7 @@ export default function ClientPage({
             q,
             limit: "24",
           });
-          if (selectedCategory !== "सभी") params.set("category", selectedCategory);
+          if (selectedCategory !== "सभी") params.set("category", toCategoryQueryValue(selectedCategory));
           if (selectedAuthor) params.set("author", selectedAuthor);
           if (selectedNewsDate) params.set("date", selectedNewsDate);
 
@@ -984,6 +1015,59 @@ export default function ClientPage({
       clearTimeout(timer);
     };
   }, [searchTerm, selectedCategory, selectedAuthor, selectedNewsDate]);
+
+  /* Same shape as the search effect above, against the blogs feed's own category param. */
+  useEffect(() => {
+    if (selectedCategory === "सभी") {
+      setCategoryPosts([]);
+      setCategoryHasMore(false);
+      setCategoryLoading(false);
+      return;
+    }
+
+    setCategoryLoading(true);
+    const controller = new AbortController();
+
+    const loadCategoryPosts = async () => {
+      try {
+        const params = new URLSearchParams({
+          category: toCategoryQueryValue(selectedCategory),
+          limit: "24",
+          includeTop: "false",
+        });
+        const response = await fetch(`/api/blogs?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch category posts");
+        }
+        const data = (await response.json()) as {
+          posts?: ApiBlogPost[];
+          hasMore?: boolean;
+        };
+        if (controller.signal.aborted) return;
+        setCategoryPosts(Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : []);
+        setCategoryHasMore(Boolean(data.hasMore));
+      } catch {
+        if (controller.signal.aborted) return;
+        setCategoryPosts([]);
+        setCategoryHasMore(false);
+      } finally {
+        if (!controller.signal.aborted) {
+          setCategoryLoading(false);
+        }
+      }
+    };
+    void loadCategoryPosts();
+
+    return () => controller.abort();
+  }, [selectedCategory]);
+
+  /* Any filter change restarts ताज़ा खबरें at its first page on the phone. */
+  useEffect(() => {
+    setMobileLatestCount(MOBILE_LATEST_INITIAL);
+  }, [selectedCategory, searchTerm, selectedAuthor, selectedNewsDate]);
 
   useEffect(() => {
     if (featuredVicharIds.length === 0) {
@@ -1245,13 +1329,16 @@ export default function ClientPage({
   }, [currentUser, savedPostIds]);
 
   const isSearchActive = searchTerm.trim().length >= MIN_SEARCH_LENGTH;
+  /* Search already applies the category server-side, so the dedicated category query is only
+     the source when there is no active search. */
+  const isCategoryActive = !isSearchActive && selectedCategory !== "सभी";
 
   const filteredNews = useMemo(() => {
     if (isSearchActive) {
       return [...searchResults].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
     }
 
-    const source = [...blogs];
+    const source = isCategoryActive ? [...categoryPosts] : [...blogs];
     const categoryFiltered =
       selectedCategory === "सभी" ? source : source.filter((post) => post.category === selectedCategory);
     const authorFiltered = selectedAuthor
@@ -1269,7 +1356,16 @@ export default function ClientPage({
         })
       : authorFiltered;
     return [...dateFiltered].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
-  }, [blogs, isSearchActive, searchResults, selectedAuthor, selectedCategory, selectedNewsDate]);
+  }, [
+    blogs,
+    categoryPosts,
+    isCategoryActive,
+    isSearchActive,
+    searchResults,
+    selectedAuthor,
+    selectedCategory,
+    selectedNewsDate,
+  ]);
 
   const featuredForDisplay = useMemo(() => filteredNews.slice(0, 3), [filteredNews]);
   /* Pool the फीड tab ranks client-side. Deliberately not filteredNews: the feed must not
@@ -1284,21 +1380,17 @@ export default function ClientPage({
     [feedPosts, newsVisibleCount],
   );
 
-  const loadMoreFeedPosts = useCallback(async () => {
-    const nextVisible = newsVisibleCount + FEED_PAGE_SIZE;
-    if (nextVisible <= feedPosts.length) {
-      setNewsVisibleCount(nextVisible);
-      return;
-    }
+  /* Pulls the next page of whichever list is currently on screen — search results, the selected
+     category's posts, or the unfiltered feed — and reports whether anything new arrived, so the
+     desktop and mobile "load more" controls can each advance their own visible count. */
+  const fetchOlderFeedPosts = useCallback(async (): Promise<boolean> => {
+    if (feedLoadingMore) return false;
 
     if (isSearchActive) {
-      if (!searchHasMore || feedLoadingMore || searchResults.length === 0) {
-        setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
-        return;
-      }
+      if (!searchHasMore || searchResults.length === 0) return false;
 
       const oldestLoaded = searchResults[searchResults.length - 1];
-      if (!oldestLoaded?.createdAt) return;
+      if (!oldestLoaded?.createdAt) return false;
 
       setFeedLoadingMore(true);
       try {
@@ -1308,7 +1400,7 @@ export default function ClientPage({
           before: oldestLoaded.createdAt,
           beforeId: oldestLoaded.id,
         });
-        if (selectedCategory !== "सभी") params.set("category", selectedCategory);
+        if (selectedCategory !== "सभी") params.set("category", toCategoryQueryValue(selectedCategory));
         if (selectedAuthor) params.set("author", selectedAuthor);
         if (selectedNewsDate) params.set("date", selectedNewsDate);
 
@@ -1322,38 +1414,62 @@ export default function ClientPage({
         };
         const incoming = Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : [];
         if (incoming.length > 0) {
-          setSearchResults((prev) => {
-            const seen = new Set(prev.map((post) => post.id));
-            const merged = [...prev];
-            for (const post of incoming) {
-              if (!seen.has(post.id)) {
-                seen.add(post.id);
-                merged.push(post);
-              }
-            }
-            return merged;
-          });
+          setSearchResults((prev) => mergeUniquePosts(prev, incoming));
         }
         setSearchHasMore(Boolean(data.hasMore) && incoming.length > 0);
-        setNewsVisibleCount((prev) => prev + FEED_PAGE_SIZE);
+        return incoming.length > 0;
       } catch {
         setBlogSyncMessage("खोज परिणाम लोड नहीं हो सके। कृपया दोबारा प्रयास करें।");
+        return false;
       } finally {
         setFeedLoadingMore(false);
       }
-      return;
     }
 
-    if (!feedHasMore || feedLoadingMore) {
-      setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
-      return;
+    if (isCategoryActive) {
+      if (!categoryHasMore || categoryPosts.length === 0) return false;
+
+      const oldestLoaded = categoryPosts[categoryPosts.length - 1];
+      if (!oldestLoaded?.createdAt) return false;
+
+      setFeedLoadingMore(true);
+      try {
+        const params = new URLSearchParams({
+          category: toCategoryQueryValue(selectedCategory),
+          limit: String(FEED_PAGE_SIZE),
+          before: oldestLoaded.createdAt,
+          beforeId: oldestLoaded.id,
+          includeTop: "false",
+        });
+        const response = await fetch(`/api/blogs?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch more category posts");
+        }
+        const data = (await response.json()) as {
+          posts?: ApiBlogPost[];
+          hasMore?: boolean;
+        };
+        const incoming = Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : [];
+        if (incoming.length > 0) {
+          setCategoryPosts((prev) => mergeUniquePosts(prev, incoming));
+        }
+        setCategoryHasMore(Boolean(data.hasMore) && incoming.length > 0);
+        return incoming.length > 0;
+      } catch {
+        setBlogSyncMessage("और पोस्ट लोड नहीं हो सकीं। कृपया दोबारा प्रयास करें।");
+        return false;
+      } finally {
+        setFeedLoadingMore(false);
+      }
     }
+
+    if (!feedHasMore) return false;
 
     const oldestLoaded = blogs.reduce<NewsPost | null>((oldest, post) => {
       if (!oldest) return post;
       return getPostSortTimestamp(post) < getPostSortTimestamp(oldest) ? post : oldest;
     }, null);
-    if (!oldestLoaded?.createdAt) return;
+    if (!oldestLoaded?.createdAt) return false;
 
     setFeedLoadingMore(true);
     try {
@@ -1373,32 +1489,24 @@ export default function ClientPage({
       };
       const incoming = Array.isArray(data.posts) ? data.posts.map(mapApiBlogToNewsPost) : [];
       if (incoming.length > 0) {
-        setBlogs((prev) => {
-          const seen = new Set(prev.map((post) => post.id));
-          const merged = [...prev];
-          for (const post of incoming) {
-            if (!seen.has(post.id)) {
-              seen.add(post.id);
-              merged.push(post);
-            }
-          }
-          return merged;
-        });
+        setBlogs((prev) => mergeUniquePosts(prev, incoming));
       }
       setFeedHasMore(Boolean(data.hasMore) && incoming.length > 0);
-      setNewsVisibleCount((prev) => prev + FEED_PAGE_SIZE);
+      return incoming.length > 0;
     } catch {
       setBlogSyncMessage("और पोस्ट लोड नहीं हो सकीं। कृपया दोबारा प्रयास करें।");
+      return false;
     } finally {
       setFeedLoadingMore(false);
     }
   }, [
     blogs,
+    categoryHasMore,
+    categoryPosts,
     feedHasMore,
     feedLoadingMore,
-    feedPosts.length,
+    isCategoryActive,
     isSearchActive,
-    newsVisibleCount,
     searchHasMore,
     searchResults,
     searchTerm,
@@ -1407,9 +1515,55 @@ export default function ClientPage({
     selectedNewsDate,
   ]);
 
-  const canLoadMoreFeed = isSearchActive
-    ? newsVisibleCount < feedPosts.length || searchHasMore
-    : newsVisibleCount < feedPosts.length || feedHasMore;
+  const loadMoreFeedPosts = useCallback(async () => {
+    const nextVisible = newsVisibleCount + FEED_PAGE_SIZE;
+    if (nextVisible <= feedPosts.length) {
+      setNewsVisibleCount(nextVisible);
+      return;
+    }
+
+    const grew = await fetchOlderFeedPosts();
+    if (grew) {
+      setNewsVisibleCount((prev) => prev + FEED_PAGE_SIZE);
+      return;
+    }
+    setNewsVisibleCount(Math.min(nextVisible, feedPosts.length));
+  }, [feedPosts.length, fetchOlderFeedPosts, newsVisibleCount]);
+
+  const feedBackendHasMore = isSearchActive
+    ? searchHasMore
+    : isCategoryActive
+      ? categoryHasMore
+      : feedHasMore;
+
+  const canLoadMoreFeed = newsVisibleCount < feedPosts.length || feedBackendHasMore;
+
+  /* Phone homepage sections. The hero takes the newest MOBILE_HERO_COUNT stories and ताज़ा खबरें
+     continues after them; the offset is dropped when the current list is too short to fill the
+     hero, so a small category still lists its stories instead of showing an empty section. */
+  const mobileHeroStories = useMemo(() => feedPosts.slice(0, MOBILE_HERO_COUNT), [feedPosts]);
+  const mobileLatestStart = feedPosts.length > MOBILE_HERO_COUNT ? MOBILE_HERO_COUNT : 0;
+  const mobileLatestPosts = useMemo(
+    () => feedPosts.slice(mobileLatestStart, mobileLatestStart + mobileLatestCount),
+    [feedPosts, mobileLatestStart, mobileLatestCount],
+  );
+  const mobileCanLoadMore =
+    mobileLatestStart + mobileLatestCount < feedPosts.length || feedBackendHasMore;
+
+  const loadMoreMobileLatest = useCallback(async () => {
+    const nextCount = mobileLatestCount + MOBILE_LATEST_PAGE_SIZE;
+    if (mobileLatestStart + nextCount <= feedPosts.length) {
+      setMobileLatestCount(nextCount);
+      return;
+    }
+
+    const grew = await fetchOlderFeedPosts();
+    if (grew) {
+      setMobileLatestCount(nextCount);
+      return;
+    }
+    setMobileLatestCount(Math.max(MOBILE_LATEST_INITIAL, feedPosts.length - mobileLatestStart));
+  }, [feedPosts.length, fetchOlderFeedPosts, mobileLatestCount, mobileLatestStart]);
 
   const threeMinutePosts = useMemo(
     () =>
@@ -1452,7 +1606,7 @@ export default function ClientPage({
         const clicksB = b.source === "blog" ? (b.clickCount ?? 0) : (postClicks[b.id] ?? 0);
         return clicksB - clicksA;
       })
-      .slice(0, 4);
+      .slice(0, 10);
   }, [blogs, topBlogs, postClicks]);
 
   const filteredEvents = useMemo(() => {
@@ -2612,6 +2766,7 @@ export default function ClientPage({
     const current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const next = Math.min(22, Math.max(13, current + delta));
     document.documentElement.style.fontSize = `${next}px`;
+    document.documentElement.style.setProperty("--font-scale", String(next / 16));
   };
 
   // Map an existing NewsPost into ArticleCard props
@@ -2663,17 +2818,19 @@ export default function ClientPage({
           onToggleTheme={toggleTheme}
           onChangeFontSize={changeFontSize}
           onOpenMenu={() => setIsMobileNavOpen(true)}
+          onToggleMenu={() => setIsMobileNavOpen((prev) => !prev)}
+          isMenuOpen={isMobileNavOpen}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           breakingStories={filteredNews.slice(0, 8)}
           slogans={resistanceSlogans}
           /* The swipe stack absorbs the desktop hero (story 0) plus every story from the
              "आज की प्राथमिकताएँ" grid (stories 1–4), so all priority stories are swipeable. */
-          heroStories={filteredNews.slice(0, 5)}
+          heroStories={mobileHeroStories}
           feedPool={mobileFeedPool}
-          latestPosts={visibleFeedPosts}
-          canLoadMore={canLoadMoreFeed}
-          loadingMore={feedLoadingMore || searchLoading}
-          onLoadMore={() => void loadMoreFeedPosts()}
+          latestPosts={mobileLatestPosts}
+          canLoadMore={mobileCanLoadMore}
+          loadingMore={feedLoadingMore || searchLoading || categoryLoading}
+          onLoadMore={() => void loadMoreMobileLatest()}
           categories={allCategories}
           selectedCategory={selectedCategory}
           onSelectCategory={(category) => {
@@ -3062,15 +3219,6 @@ export default function ClientPage({
                         <Languages className="h-4 w-4" />
                       </button>
                       
-                      <button
-                        type="button"
-                        onClick={() => { setIsMobileNavOpen(false); setIsAuthModalOpen(true); }}
-                        className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)]"
-                      >
-                        <LogIn className="h-3.5 w-3.5" />
-                        <span className="truncate">{currentUser ? `${roleText}` : "लॉगिन"}</span>
-                      </button>
-                      
                       <a href={LIVE_COVERAGE_URL} className="btn-primary text-xs px-3 py-1.5">
                         सदस्यता में
                       </a>
@@ -3083,10 +3231,18 @@ export default function ClientPage({
                     </a>
                   </div>
                   
-                  <div className="mb-4 flex items-center gap-2">
+                  <div className="home-nav-drawer-search mb-4 flex items-center gap-2">
                     <GooeyInput
                       value={searchTerm}
                       onValueChange={setSearchTerm}
+                      /* Submitting from inside the drawer gets the reader to the results
+                         instead of leaving them to close the drawer by hand first. */
+                      onSubmit={(value) => {
+                        if (value.trim().length < MIN_SEARCH_LENGTH) return;
+                        setIsCategoryMenuOpen(false);
+                        setIsMobileNavOpen(false);
+                        scrollToSection("latest");
+                      }}
                       placeholder="खोज"
                       enableHindiKeyboard
                       className="w-full min-w-0 flex-1"

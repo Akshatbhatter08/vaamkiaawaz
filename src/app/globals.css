@@ -672,6 +672,13 @@ body {
   opacity: 1 !important;
 }
 
+/* Mobile nav drawer: keep typed text clear of the detached search icon bubble. */
+@media (max-width: 1024px) {
+  .home-nav-drawer-search .gooey-search-input {
+    padding-left: 2.75rem;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    TIPTAP / PROSEMIRROR STYLES (preserved)
    ═══════════════════════════════════════════════════════════════ */
@@ -2075,6 +2082,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     background: var(--ink);
     /* clears the fixed bottom tab bar */
     padding-bottom: 62px;
+    zoom: var(--font-scale, 1);
   }
 
   /* ── 1. Header ───────────────────────────────────────────── */
@@ -2740,6 +2748,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     margin-top: 4px;
   }
 
+  /* Fixed-height scroll areas for top-read and resources (fits ~4 items). */
+  .home-mobile__scroll-list {
+    max-height: 226px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* ── 10. संसाधन ──────────────────────────────────────────── */
   .home-mobile__tabs {
     display: flex;
@@ -2977,7 +2992,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   /* ── सहेजें sheet ────────────────────────────────────────── */
   .home-mobile__saved {
     position: fixed;
-    inset: 0 0 62px;
+    inset: 0;
+    /* Reserve the tab bar strip as padding instead of ending the sheet above it — the bar is
+       shorter than 62px when env(safe-area-inset-bottom) is 0, which left the homepage
+       showing through the gap. The bar's z-index 90 keeps it painted over this padding. */
+    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
     z-index: 89;
     background: var(--ink);
     display: flex;

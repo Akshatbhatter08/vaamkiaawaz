@@ -86,11 +86,18 @@ export async function GET(request: NextRequest) {
     const includeTop = searchParams.get("includeTop") !== "false";
     const isPaginated = searchParams.has("limit") || Boolean(before);
     const limit = isPaginated ? parseFeedLimit(searchParams.get("limit"), 12) : 100;
+    const category = searchParams.get("category")?.trim();
 
     const where: {
       isHidden: boolean;
+      category?: string;
       OR?: Array<Record<string, unknown>>;
     } = { isHidden: false };
+
+    /* Mirrors /api/blogs/search: "सभी" is the all-categories sentinel, not a stored value. */
+    if (category && category !== "सभी") {
+      where.category = category;
+    }
 
     if (before) {
       const beforeDate = new Date(before);
