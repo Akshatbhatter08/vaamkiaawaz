@@ -2081,12 +2081,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     display: block;
     background: var(--ink);
     /* clears the fixed bottom tab bar */
-    padding-bottom: 62px;
+    padding-bottom: 68px;
+  }
+
+  /* Font scaling applies below the top bar (and on full-screen sheets), not on the bar itself —
+     otherwise the अ+/अ− controls sit inside the zoomed layer and taps fail to change size. */
+  .home-mobile__scaled,
+  .home-mobile__saved,
+  .home-mobile__feed {
     zoom: var(--font-scale, 1);
   }
 
   /* ── 1. Header ───────────────────────────────────────────── */
   .home-mobile__header {
+    position: relative;
+    z-index: 2;
     background: var(--ink);
     padding: 10px 14px;
     display: flex;
@@ -2143,6 +2152,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     background: transparent;
     border: none;
     padding: 3px 6px;
+    cursor: pointer;
+    touch-action: manipulation;
   }
   .home-mobile__icon-btn {
     display: inline-flex;
@@ -2935,7 +2946,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     z-index: 90;
     background: var(--ink);
     border-top: 1px solid var(--divider);
-    padding: 7px 12px calc(7px + env(safe-area-inset-bottom));
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
     display: flex;
     justify-content: space-around;
   }
@@ -2943,12 +2954,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 5px;
     background: transparent;
     border: none;
     padding: 0;
     font-family: "Noto Sans Devanagari", sans-serif;
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
   }
   .home-mobile__tabbar button.is-active { color: var(--gold); }
@@ -2994,9 +3005,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     position: fixed;
     inset: 0;
     /* Reserve the tab bar strip as padding instead of ending the sheet above it — the bar is
-       shorter than 62px when env(safe-area-inset-bottom) is 0, which left the homepage
+       shorter than 68px when env(safe-area-inset-bottom) is 0, which left the homepage
        showing through the gap. The bar's z-index 90 keeps it painted over this padding. */
-    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
     z-index: 89;
     background: var(--ink);
     display: flex;
@@ -3041,7 +3052,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .home-mobile__toast {
     position: fixed;
     left: 50%;
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     z-index: 95;
     max-width: 80vw;
@@ -3054,9 +3065,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     text-align: center;
   }
 
-  /* Float above the fixed bottom tab bar (tab bar ≈ 62px + safe area). */
+  /* Float above the fixed bottom tab bar (tab bar ≈ 68px + safe area). */
   body:has(.home-mobile) .go-to-top-btn {
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     right: 14px;
   }
 }

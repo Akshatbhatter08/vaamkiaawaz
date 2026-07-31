@@ -1538,11 +1538,48 @@ export default function ClientPage({
 
   const canLoadMoreFeed = newsVisibleCount < feedPosts.length || feedBackendHasMore;
 
-  /* Phone homepage sections. The hero takes the newest MOBILE_HERO_COUNT stories and ताज़ा खबरें
-     continues after them; the offset is dropped when the current list is too short to fill the
-     hero, so a small category still lists its stories instead of showing an empty section. */
-  const mobileHeroStories = useMemo(() => feedPosts.slice(0, MOBILE_HERO_COUNT), [feedPosts]);
-  const mobileLatestStart = feedPosts.length > MOBILE_HERO_COUNT ? MOBILE_HERO_COUNT : 0;
+  /* Phone homepage sections. Search filters both hero and ताज़ा खबरें; category filters only
+     ताज़ा खबरें while the hero stays on the default feed. When neither applies, hero takes the
+     first MOBILE_HERO_COUNT stories and ताज़ा खबरें continues after them (offset dropped when the
+     list is too short to fill the hero so a small result set still lists its stories). */
+  const mobileHeroFeedPosts = useMemo(() => {
+    if (isSearchActive || !isCategoryActive) {
+      return feedPosts;
+    }
+
+    const source = [...blogs];
+    const authorFiltered = selectedAuthor
+      ? source.filter((post) => normalizeCategoryName(post.author) === normalizeCategoryName(selectedAuthor))
+      : source;
+    const dateFiltered = selectedNewsDate
+      ? authorFiltered.filter((post) => {
+          if (post.createdAt) {
+            const parsed = new Date(post.createdAt);
+            if (!Number.isNaN(parsed.getTime())) {
+              return toDateKey(parsed) === selectedNewsDate;
+            }
+          }
+          return inferDateKeyFromTime(post.time) === selectedNewsDate;
+        })
+      : authorFiltered;
+    return [...dateFiltered].sort((a, b) => getPostSortTimestamp(b) - getPostSortTimestamp(a));
+  }, [
+    blogs,
+    feedPosts,
+    isCategoryActive,
+    isSearchActive,
+    selectedAuthor,
+    selectedNewsDate,
+  ]);
+  const mobileHeroStories = useMemo(
+    () => mobileHeroFeedPosts.slice(0, MOBILE_HERO_COUNT),
+    [mobileHeroFeedPosts],
+  );
+  const mobileLatestStart = isCategoryActive
+    ? 0
+    : feedPosts.length > MOBILE_HERO_COUNT
+      ? MOBILE_HERO_COUNT
+      : 0;
   const mobileLatestPosts = useMemo(
     () => feedPosts.slice(mobileLatestStart, mobileLatestStart + mobileLatestCount),
     [feedPosts, mobileLatestStart, mobileLatestCount],
@@ -3178,23 +3215,7 @@ export default function ClientPage({
                   </div>
                   
                   <div className="mb-4 flex flex-col gap-3 min-[450px]:hidden border-b border-[var(--line)] pb-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => changeFontSize(-1)}
-                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
-                        >
-                          अ−
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => changeFontSize(1)}
-                          className="border border-[var(--divider)] px-2 py-0.5 rounded text-[var(--gold)] text-sm font-medium"
-                        >
-                          अ+
-                        </button>
-                      </div>
+                    <div className="flex items-center justify-end">
                       <div className="flex gap-2">
                         <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon className="h-4 w-4" /></a>
                         <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon className="h-4 w-4" /></a>

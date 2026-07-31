@@ -145,10 +145,12 @@ const sectionLabelStyle: React.CSSProperties = {
    overlay the homepage the moment the tab is tapped, even if the stylesheet chunk in the browser
    predates these class names — otherwise the sheet mounts unstyled after the footer, off-screen. */
 /* The sheet reaches bottom: 0 and reserves the tab bar's strip as its own padding instead of
-   stopping short at bottom: 62. The tab bar is only ~49px tall once env(safe-area-inset-bottom)
-   is 0 (Android gesture nav), so a sheet that stopped at 62px left a strip of the homepage
-   showing between the sheet and the bar. The bar keeps z-index 90 and still paints on top. */
-const TABBAR_RESERVE = "calc(62px + env(safe-area-inset-bottom, 0px))";
+   stopping short above it. The bar is ~68px tall once env(safe-area-inset-bottom) is 0 (Android
+   gesture nav), so a sheet that stopped short left a strip of the homepage showing between the
+   sheet and the bar. The bar keeps z-index 90 and still paints on top. */
+const TABBAR_RESERVE = "calc(68px + env(safe-area-inset-bottom, 0px))";
+
+const HERO_AUTO_MS = 5500;
 
 const savedPanelStyle: React.CSSProperties = {
   position: "fixed",
@@ -380,6 +382,8 @@ export function MobileHome(props: MobileHomeProps) {
   } = props;
 
   const heroTrackRef = useRef<HTMLDivElement | null>(null);
+  const heroAutoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heroTouchingRef = useRef(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [isSavedOpen, setIsSavedOpen] = useState(false);
   const [isFeedOpen, setIsFeedOpen] = useState(false);
@@ -541,6 +545,31 @@ export function MobileHome(props: MobileHomeProps) {
 
   const showsAdminPanel = canPublishBlog || isMaster;
 
+  const clearHeroAutoTimer = useCallback(() => {
+    if (heroAutoTimerRef.current) {
+      clearInterval(heroAutoTimerRef.current);
+      heroAutoTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleHeroAutoAdvance = useCallback(() => {
+    clearHeroAutoTimer();
+    if (heroStories.length <= 1) return;
+    heroAutoTimerRef.current = setInterval(() => {
+      if (heroTouchingRef.current) return;
+      const track = heroTrackRef.current;
+      if (!track || track.clientWidth === 0) return;
+      const current = Math.round(track.scrollLeft / track.clientWidth);
+      const next = (current + 1) % heroStories.length;
+      track.scrollTo({ left: next * track.clientWidth, behavior: "smooth" });
+    }, HERO_AUTO_MS);
+  }, [clearHeroAutoTimer, heroStories.length]);
+
+  useEffect(() => {
+    scheduleHeroAutoAdvance();
+    return clearHeroAutoTimer;
+  }, [scheduleHeroAutoAdvance, clearHeroAutoTimer]);
+
   // Swipe position is read off the native scroll-snap container rather than a
   // gesture library, so the stack still works with keyboard and screen readers.
   const handleHeroScroll = useCallback(() => {
@@ -549,6 +578,21 @@ export function MobileHome(props: MobileHomeProps) {
     const next = Math.round(track.scrollLeft / track.clientWidth);
     setHeroIndex((prev) => (prev === next ? prev : next));
   }, []);
+
+  useEffect(() => {
+    if (heroTouchingRef.current) return;
+    scheduleHeroAutoAdvance();
+  }, [heroIndex, scheduleHeroAutoAdvance]);
+
+  const handleHeroTouchStart = useCallback(() => {
+    heroTouchingRef.current = true;
+    clearHeroAutoTimer();
+  }, [clearHeroAutoTimer]);
+
+  const handleHeroTouchEnd = useCallback(() => {
+    heroTouchingRef.current = false;
+    scheduleHeroAutoAdvance();
+  }, [scheduleHeroAutoAdvance]);
 
   const sharePost = useCallback((post: NewsPost) => {
     if (typeof window === "undefined") return;
@@ -609,6 +653,7 @@ export function MobileHome(props: MobileHomeProps) {
         </div>
       </header>
 
+      <div className="home-mobile__scaled">
       {/* 2 — Breaking news ticker */}
       {breakingStories.length > 0 && (
         <div className="home-mobile__breaking">
@@ -673,6 +718,9 @@ export function MobileHome(props: MobileHomeProps) {
             className="home-mobile__hero-track no-visible-scrollbar"
             ref={heroTrackRef}
             onScroll={handleHeroScroll}
+            onTouchStart={handleHeroTouchStart}
+            onTouchEnd={handleHeroTouchEnd}
+            onTouchCancel={handleHeroTouchEnd}
           >
             {heroStories.map((story) => (
               <HeroSlide
@@ -1142,6 +1190,7 @@ export function MobileHome(props: MobileHomeProps) {
         </div>
         <div className="home-mobile__footer-copy">© 2026 वाम की आवाज़ — जन संघर्ष का डिजिटल पुरालेख</div>
       </footer>
+      </div>
 
       {/* 14 — Bottom tab bar */}
       <nav className="home-mobile__tabbar" aria-label="मुख्य नेविगेशन">
@@ -1154,7 +1203,7 @@ export function MobileHome(props: MobileHomeProps) {
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         >
-          <Home size={19} />
+          <Home size={24} />
           <span>होम</span>
         </button>
         <button
@@ -1165,7 +1214,7 @@ export function MobileHome(props: MobileHomeProps) {
             openFeed();
           }}
         >
-          <Play size={19} />
+          <Play size={24} />
           <span>फीड</span>
         </button>
         {/* No dedicated search route exists; open the drawer that holds the search field.
@@ -1186,7 +1235,7 @@ export function MobileHome(props: MobileHomeProps) {
             onToggleMenu();
           }}
         >
-          <Search size={19} />
+          <Search size={24} />
           <span>खोजें</span>
         </button>
         <button
@@ -1194,12 +1243,12 @@ export function MobileHome(props: MobileHomeProps) {
           className={isSavedOpen ? "is-active" : undefined}
           onClick={openSaved}
         >
-          <Bookmark size={19} />
+          <Bookmark size={24} />
           <span>सहेजें</span>
         </button>
         {/* No profile route exists; reuse the existing auth entry point. */}
         <button type="button" onClick={onOpenAuth}>
-          <User size={19} />
+          <User size={24} />
           <span>प्रोफ़ाइल</span>
         </button>
       </nav>
