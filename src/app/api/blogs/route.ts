@@ -87,16 +87,31 @@ export async function GET(request: NextRequest) {
     const isPaginated = searchParams.has("limit") || Boolean(before);
     const limit = isPaginated ? parseFeedLimit(searchParams.get("limit"), 12) : 100;
     const category = searchParams.get("category")?.trim();
+    const rawAuthorIds = searchParams.get("authorIds")?.trim();
+    const authorIds = rawAuthorIds
+      ? rawAuthorIds
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0 && id.length <= 200)
+      : [];
 
     const where: {
       isHidden: boolean;
       category?: string;
       OR?: Array<Record<string, unknown>>;
+      AND?: Array<Record<string, unknown>>;
     } = { isHidden: false };
 
     /* Mirrors /api/blogs/search: "सभी" is the all-categories sentinel, not a stored value. */
     if (category && category !== "सभी") {
       where.category = category;
+    }
+
+    if (authorIds.length > 0) {
+      where.AND = [
+        ...(where.AND ?? []),
+        { author: { in: authorIds } },
+      ];
     }
 
     if (before) {

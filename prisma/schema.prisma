@@ -41,10 +41,12 @@ model ArticleComment {
   name       String
   email      String
   comment    String   @db.Text
+  visitorId  String?
   createdAt  DateTime @default(now())
   BlogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
 
   @@index([blogPostId])
+  @@index([visitorId])
 }
 
 model ArticleReaction {
@@ -70,6 +72,7 @@ model User {
   updatedAt    DateTime   @updatedAt
   BlogPost     BlogPost[]
   savedArticles SavedArticle[]
+  authorFollows AuthorFollow[]
 }
 
 model SavedArticle {
@@ -83,6 +86,18 @@ model SavedArticle {
   @@unique([userId, blogPostId])
   @@index([userId])
   @@index([blogPostId])
+}
+
+model AuthorFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  authorId  String
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, authorId])
+  @@index([userId])
+  @@index([authorId])
 }
 
 model AbhiyanEvent {
@@ -145,5 +160,35 @@ model Category {
   name      String   @unique
   isHidden  Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model StruggleTracker {
+  id           String   @id @default(cuid())
+  name         String
+  // One of the fixed keys in STRUGGLE_STATUSES (active/strike/success); the Hindi label and the
+  // badge class are both derived from it, so the homepage badge colours stay stable.
+  status       String   @db.VarChar(32)
+  location     String
+  description  String   @db.Text
+  sinceDate    DateTime
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@index([isActive, displayOrder])
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  visitorId    String
+  // Push endpoints exceed MySQL's 191-char index limit, so uniqueness is held by a sha256 of it.
+  endpointHash String   @unique
+  subscription String   @db.Text
+  affinity     String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@index([visitorId])
 }
 

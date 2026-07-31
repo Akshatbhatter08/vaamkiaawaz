@@ -3,7 +3,6 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LogIn, LogOut, Menu, ShieldCheck, X, Share2, Languages, Link as LinkIcon, Loader2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/tabs";
@@ -20,11 +19,19 @@ import { ensureHomepageTranslateState, rememberSiteGoogTrans, setTranslateScope 
 import { focusToObjectPosition, compressImageFile, resolveImageFocus } from "@/lib/imageCrop";
 import { resolvePostImage } from "@/lib/postImage";
 import { CLICK_WEIGHT, recordAffinity, SAVE_WEIGHT } from "@/lib/feedAffinity";
+import { recordRecentRead } from "@/lib/recentReads";
 import { uploadDataUrl, uploadMediaFile } from "@/lib/uploadClient";
 import { matchesSearch, MIN_SEARCH_LENGTH } from "@/lib/searchUtils";
 import { formatAuthorDisplayName, parsePenNameFromPermissions, resolveAuthorListName, type PenNameDisplayMode } from "@/lib/penName";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
+import { STRUGGLE_STATUSES, type StruggleStatus, type StruggleTrackerEntry } from "@/lib/struggleTrackerShared";
+import {
+  MobileNavActivityEntry,
+  MobileNavActivityPanels,
+  type MobileNavActivityPanel,
+} from "@/components/MobileNavActivity";
+import { MobileNavDrawerPortal } from "@/components/MobileNavDrawerPortal";
 import { MobileHome } from "./MobileHome";
 import "react-quill-new/dist/quill.snow.css";
 
@@ -230,20 +237,13 @@ const opinionPieces: string[] = [];
 
 const formatDate = formatBilingualDate;
 
-type MovementStatus = "active" | "strike" | "success";
-const movementTracker: {
-  name: string;
-  location: string;
-  startDate: string;
-  description: string;
-  status: MovementStatus;
-  statusLabel: string;
-}[] = [
-  { name: "किसान आंदोलन", location: "दिल्ली सीमा", startDate: "नवंबर 2024", description: "न्यूनतम समर्थन मूल्य की कानूनी गारंटी की मांग जारी।", status: "active", statusLabel: "सक्रिय" },
-  { name: "आशा कर्मी हड़ताल", location: "महाराष्ट्र", startDate: "जनवरी 2026", description: "वेतन और स्थायीकरण को लेकर राज्यव्यापी हड़ताल।", status: "strike", statusLabel: "हड़ताल" },
-  { name: "मनरेगा मज़दूर मोर्चा", location: "झारखंड", startDate: "मार्च 2026", description: "बकाया भुगतान और कार्यदिवस बढ़ाने की माँग।", status: "active", statusLabel: "सक्रिय" },
-  { name: "शिक्षक भर्ती संघर्ष", location: "उत्तर प्रदेश", startDate: "दिसंबर 2025", description: "लंबित नियुक्तियों पर अदालती फैसले के बाद आंशिक जीत।", status: "success", statusLabel: "आंशिक जीत" },
-];
+const emptyStruggleForm = {
+  name: "",
+  status: "active" as StruggleStatus,
+  location: "",
+  description: "",
+  sinceMonth: "",
+};
 
 const resistanceSlogans =
   "इंकलाब ज़िंदाबाद \u00A0\u00A0✊\u00A0\u00A0 मेहनतकश एक हों \u00A0\u00A0✊\u00A0\u00A0 न्याय, समानता, प्रगति \u00A0\u00A0✊\u00A0\u00A0 उठो ! बोलो ! बदलो ! \u00A0\u00A0✊\u00A0\u00A0 जन संघर्ष जारी है \u00A0\u00A0✊\u00A0\u00A0 हम न रुकेंगे, न झुकेंगे \u00A0\u00A0✊\u00A0\u00A0 संविधान बचाओ \u00A0\u00A0✊\u00A0\u00A0 लोकतंत्र हमारा अधिकार है \u00A0\u00A0✊\u00A0\u00A0 विकल्प की आवाज़ \u00A0\u00A0✊\u00A0\u00A0 ";
@@ -456,12 +456,14 @@ export default function ClientPage({
   initialEvents = [],
   initialResources = [],
   initialFeaturedVicharIds = [],
+  initialStruggleTracker = [],
 }: { 
   initialBlogs: NewsPost[], 
   initialTopBlogs?: NewsPost[],
   initialEvents?: any[],
   initialResources?: any[],
   initialFeaturedVicharIds?: string[],
+  initialStruggleTracker?: StruggleTrackerEntry[],
 }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
@@ -469,6 +471,7 @@ export default function ClientPage({
   const [isParichayVisible, setIsParichayVisible] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [mobileNavActivityPanel, setMobileNavActivityPanel] = useState<MobileNavActivityPanel>("main");
   /* Starts false so SSR and the first client render agree; the desktop tree is what the server
      emits, and only admin controls (which never render on the server anyway) react to this. */
   const [isPhoneViewport, setIsPhoneViewport] = useState(false);
@@ -479,6 +482,9 @@ export default function ClientPage({
   const [savedPostIds, setSavedPostIds] = useState<string[]>([]);
   const [savedPosts, setSavedPosts] = useState<NewsPost[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
+  const [followedAuthorIds, setFollowedAuthorIds] = useState<string[]>([]);
+  const [followedFeedPosts, setFollowedFeedPosts] = useState<NewsPost[]>([]);
+  const [followedFeedLoading, setFollowedFeedLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("सभी");
   const [selectedAuthor, setSelectedAuthor] = useState("");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
@@ -506,6 +512,14 @@ export default function ClientPage({
   const [showTranslate, setShowTranslate] = useState(false);
   const [activeNavTab, setActiveNavTab] = useState("home");
   const [resourceFilter, setResourceFilter] = useState<"all" | "link" | "pdf">("all");
+  /* Public list (active only) drives the homepage section; the admin list also carries hidden
+     entries and is only loaded once a master admin opens the panel. */
+  const [struggleEntries, setStruggleEntries] = useState<StruggleTrackerEntry[]>(initialStruggleTracker);
+  const [adminStruggleEntries, setAdminStruggleEntries] = useState<StruggleTrackerEntry[]>([]);
+  const [struggleForm, setStruggleForm] = useState(emptyStruggleForm);
+  const [editingStruggleId, setEditingStruggleId] = useState<string | null>(null);
+  const [struggleMessage, setStruggleMessage] = useState("");
+  const [struggleSaving, setStruggleSaving] = useState(false);
   const [featuredVicharIds, setFeaturedVicharIds] = useState<string[]>(initialFeaturedVicharIds);
   const [featuredVicharDisplayPosts, setFeaturedVicharDisplayPosts] = useState<NewsPost[]>([]);
   const [vicharSelectionPosts, setVicharSelectionPosts] = useState<{ id: string; title: string; author: string }[]>([]);
@@ -639,6 +653,7 @@ export default function ClientPage({
   const handlePostClick = (postId: string) => {
     /* Single choke point for every article open on the site, so the फीड tab's category
        affinity counter is fed from here rather than from each call site. */
+    recordRecentRead(postId);
     recordAffinity(blogs.find((item) => item.id === postId)?.category, CLICK_WEIGHT);
     if (!clickedPostIds.current.has(postId)) {
       clickedPostIds.current.add(postId);
@@ -1277,6 +1292,25 @@ export default function ClientPage({
     };
   }, [currentUser]);
 
+  // Followed authors live on the account, so the list is re-read whenever the session changes.
+  useEffect(() => {
+    if (!currentUser) {
+      setFollowedAuthorIds([]);
+      setFollowedFeedPosts([]);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/author-follows", { cache: "no-store", credentials: "include" })
+      .then((response) => (response.ok ? response.json() : { ids: [] }))
+      .then((data) => {
+        if (!cancelled) setFollowedAuthorIds(Array.isArray(data.ids) ? data.ids : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
   const handleToggleSavedPost = useCallback(
     async (postId: string) => {
       if (!currentUser) {
@@ -1327,6 +1361,35 @@ export default function ClientPage({
       setSavedLoading(false);
     }
   }, [currentUser, savedPostIds]);
+
+  /* Called when the फॉलो किए गए feed tab is opened, so article payloads are only fetched
+     when that tab is actually shown. */
+  const loadFollowedFeedPosts = useCallback(async (): Promise<NewsPost[]> => {
+    if (!currentUser || followedAuthorIds.length === 0) {
+      setFollowedFeedPosts([]);
+      return [];
+    }
+    setFollowedFeedLoading(true);
+    try {
+      const response = await fetch(
+        `/api/blogs?authorIds=${encodeURIComponent(followedAuthorIds.join(","))}&limit=50&includeTop=false`,
+        { cache: "no-store" },
+      );
+      if (response.ok) {
+        const data = (await response.json()) as { posts?: ApiBlogPost[] };
+        if (Array.isArray(data.posts)) {
+          const posts = data.posts.map(mapApiBlogToNewsPost);
+          setFollowedFeedPosts(posts);
+          return posts;
+        }
+      }
+    } catch {
+      /* keep whatever list is already on screen */
+    } finally {
+      setFollowedFeedLoading(false);
+    }
+    return [];
+  }, [currentUser, followedAuthorIds]);
 
   const isSearchActive = searchTerm.trim().length >= MIN_SEARCH_LENGTH;
   /* Search already applies the category server-side, so the dedicated category query is only
@@ -2179,6 +2242,123 @@ export default function ClientPage({
     } catch {}
   };
 
+  /* Keeps both copies in step: the admin table (all entries) and the homepage list (active only,
+     in displayOrder) so an edit shows up in the section without a page reload. */
+  const applyStruggleEntries = (entries: StruggleTrackerEntry[]) => {
+    const sorted = [...entries].sort((a, b) => a.displayOrder - b.displayOrder);
+    setAdminStruggleEntries(sorted);
+    setStruggleEntries(sorted.filter((entry) => entry.isActive));
+  };
+
+  const loadStruggleEntries = useCallback(async () => {
+    try {
+      const res = await fetch("/api/struggle-tracker?includeInactive=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.entries)) {
+        const sorted = [...(data.entries as StruggleTrackerEntry[])].sort((a, b) => a.displayOrder - b.displayOrder);
+        setAdminStruggleEntries(sorted);
+        setStruggleEntries(sorted.filter((entry) => entry.isActive));
+      }
+    } catch {}
+  }, []);
+
+  const handleSaveStruggle = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isMaster) return;
+    setStruggleSaving(true);
+    setStruggleMessage("");
+    try {
+      const url = editingStruggleId ? `/api/struggle-tracker/${editingStruggleId}` : "/api/struggle-tracker";
+      const method = editingStruggleId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(struggleForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await loadStruggleEntries();
+        setStruggleForm(emptyStruggleForm);
+        setEditingStruggleId(null);
+        setStruggleMessage(editingStruggleId ? "संघर्ष अपडेट किया गया!" : "संघर्ष जोड़ा गया!");
+      } else {
+        setStruggleMessage(data.error || "संघर्ष सहेजने में त्रुटि");
+      }
+    } catch {
+      setStruggleMessage("नेटवर्क त्रुटि");
+    } finally {
+      setStruggleSaving(false);
+    }
+  };
+
+  const patchStruggle = async (id: string, payload: Record<string, unknown>) => {
+    if (!isMaster) return;
+    try {
+      const res = await fetch(`/api/struggle-tracker/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        applyStruggleEntries(
+          adminStruggleEntries.map((entry) => (entry.id === id ? (data.entry as StruggleTrackerEntry) : entry)),
+        );
+      }
+    } catch {}
+  };
+
+  /* Swaps displayOrder with the neighbour above/below — simple up/down controls, since no
+     drag-and-drop helper exists anywhere else in this admin panel. */
+  const handleMoveStruggle = async (id: string, direction: -1 | 1) => {
+    if (!isMaster) return;
+    const index = adminStruggleEntries.findIndex((entry) => entry.id === id);
+    const swapIndex = index + direction;
+    if (index < 0 || swapIndex < 0 || swapIndex >= adminStruggleEntries.length) return;
+    const current = adminStruggleEntries[index];
+    const neighbour = adminStruggleEntries[swapIndex];
+    try {
+      await Promise.all([
+        fetch(`/api/struggle-tracker/${current.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayOrder: neighbour.displayOrder }),
+        }),
+        fetch(`/api/struggle-tracker/${neighbour.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayOrder: current.displayOrder }),
+        }),
+      ]);
+      await loadStruggleEntries();
+    } catch {}
+  };
+
+  const handleRemoveStruggle = async (id: string) => {
+    if (!isMaster) return;
+    const entry = adminStruggleEntries.find((item) => item.id === id);
+    if (!window.confirm(`"${entry?.name ?? "यह संघर्ष"}" हटाएं? यह वापस नहीं आएगा।`)) return;
+    try {
+      const res = await fetch(`/api/struggle-tracker/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        applyStruggleEntries(adminStruggleEntries.filter((item) => item.id !== id));
+        if (editingStruggleId === id) {
+          setEditingStruggleId(null);
+          setStruggleForm(emptyStruggleForm);
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!isMaster) {
+      setAdminStruggleEntries([]);
+      return;
+    }
+    void loadStruggleEntries();
+  }, [isMaster, loadStruggleEntries]);
+
   const handleSaveMasterAuthorProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!currentUser || currentUser.role !== "master") {
@@ -2728,13 +2908,18 @@ export default function ClientPage({
     }
   };
 
+  const closeMobileNav = () => {
+    setIsMobileNavOpen(false);
+    setMobileNavActivityPanel("main");
+  };
+
   const handleMobileNavTabClick = (value: string) => {
     if (value === "categories") {
       setIsCategoryMenuOpen((prev) => !prev);
       return;
     }
     setIsCategoryMenuOpen(false);
-    setIsMobileNavOpen(false);
+    closeMobileNav();
     handleNavTabChange(value);
   };
 
@@ -2877,7 +3062,7 @@ export default function ClientPage({
           }}
           explainerPosts={threeMinutePosts.length > 0 ? threeMinutePosts : filteredNews.slice(0, 10)}
           groundPosts={filteredNews.slice(5, 8)}
-          tracker={movementTracker}
+          tracker={struggleEntries}
           featuredVichar={featuredVicharDisplayPosts}
           topReadPosts={topReadPosts}
           resources={filteredResources}
@@ -2907,6 +3092,10 @@ export default function ClientPage({
           savedLoading={savedLoading}
           onToggleSavedPost={handleToggleSavedPost}
           onLoadSavedPosts={loadSavedPosts}
+          followedAuthorIds={followedAuthorIds}
+          followedFeedPosts={followedFeedPosts}
+          followedFeedLoading={followedFeedLoading}
+          onLoadFollowedFeedPosts={loadFollowedFeedPosts}
           canPublishBlog={canPublishBlog}
           isMaster={Boolean(isMaster)}
           addNewsSlotRef={setMobileAddNewsSlot}
@@ -3185,140 +3374,6 @@ export default function ClientPage({
               </div>
             </div>
           </nav>
-          <AnimatePresence>
-            {isMobileNavOpen && (
-              <motion.div
-                className="fixed inset-0 z-[130] bg-black/45 lg:hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                onClick={() => setIsMobileNavOpen(false)}
-              >
-                <motion.aside
-                  className="mr-auto flex h-full w-[82%] max-w-[320px] flex-col overflow-y-auto overscroll-y-auto border-r border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
-                  initial={{ x: "-100%" }}
-                  animate={{ x: 0 }}
-                  exit={{ x: "-100%" }}
-                  transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="mb-4 flex items-center justify-between">
-                    <p className="text-sm font-semibold text-[var(--headline)]">नेविगेशन</p>
-                    <button
-                      type="button"
-                      onClick={() => setIsMobileNavOpen(false)}
-                      className="rounded-md border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="mb-4 flex flex-col gap-3 min-[450px]:hidden border-b border-[var(--line)] pb-4">
-                    <div className="flex items-center justify-end">
-                      <div className="flex gap-2">
-                        <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon className="h-4 w-4" /></a>
-                        <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon className="h-4 w-4" /></a>
-                        <a href="https://www.x.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
-                      </div>
-                    </div>
-                    
-                    <a href="mailto:vaamkiaawaz@gmail.com" className="text-[var(--muted)] text-sm hover:text-[var(--primary)] block">
-                      संपर्क: vaamkiaawaz@gmail.com
-                    </a>
-                    
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTranslateScope("site");
-                          setShowTranslate(!showTranslate);
-                        }}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
-                        title="Translate"
-                      >
-                        <Languages className="h-4 w-4" />
-                      </button>
-                      
-                      <a href={LIVE_COVERAGE_URL} className="btn-primary text-xs px-3 py-1.5">
-                        सदस्यता में
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className="mb-4 lg:hidden">
-                    <a href={LIVE_COVERAGE_URL} className="btn-primary flex w-full justify-center">
-                      लाइव कवरेज
-                    </a>
-                  </div>
-                  
-                  <div className="home-nav-drawer-search mb-4 flex items-center gap-2">
-                    <GooeyInput
-                      value={searchTerm}
-                      onValueChange={setSearchTerm}
-                      /* Submitting from inside the drawer gets the reader to the results
-                         instead of leaving them to close the drawer by hand first. */
-                      onSubmit={(value) => {
-                        if (value.trim().length < MIN_SEARCH_LENGTH) return;
-                        setIsCategoryMenuOpen(false);
-                        setIsMobileNavOpen(false);
-                        scrollToSection("latest");
-                      }}
-                      placeholder="खोज"
-                      enableHindiKeyboard
-                      className="w-full min-w-0 flex-1"
-                      collapsedWidth={200}
-                      expandedWidth={280}
-                      expandedOffset={0}
-                    />
-                    {isSearchActive && searchLoading && (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--primary)]" aria-hidden />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {navTabs.map((tab) => (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={() => handleMobileNavTabClick(tab.value)}
-                        className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-left text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-                      >
-                        {tab.title}
-                      </button>
-                    ))}
-                  </div>
-                  {isCategoryMenuOpen && (
-                    <div className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">कैटेगरी</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
-                          <button
-                            key={`mobile-${category}`}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory(category);
-                              setNewsVisibleCount(24);
-                              setBlogVisibleCount(24);
-                              setIsCategoryMenuOpen(false);
-                              setIsMobileNavOpen(false);
-                              scrollToSection("latest");
-                            }}
-                            className={`rounded-md border px-3 py-2 text-left text-sm ${
-                              selectedCategory === category
-                                ? "border-[var(--primary)] text-[var(--primary)]"
-                                : "border-[var(--line)] text-[var(--foreground)]"
-                            }`}
-                          >
-                            {category}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </motion.aside>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         {showDesktopContent && (
@@ -3911,16 +3966,16 @@ export default function ClientPage({
           </section>
         )}
 
-        {showDesktopContent && (
+        {showDesktopContent && struggleEntries.length > 0 && (
         <section className="home-tracker-section home-desktop-only" style={{ background: "var(--surface)", padding: "40px 0" }}>
           <SectionHeader title="सक्रिय संघर्ष ट्रैकर" badge="LIVE" />
           <div style={{ border: "1px solid var(--divider)" }}>
-            {movementTracker.map((m, i) => (
+            {struggleEntries.map((m, i) => (
               <div
-                key={m.name}
+                key={m.id}
                 style={{
                   padding: "14px 16px",
-                  borderBottom: i < movementTracker.length - 1 ? "1px solid var(--divider)" : "none",
+                  borderBottom: i < struggleEntries.length - 1 ? "1px solid var(--divider)" : "none",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "flex-start",
@@ -4374,6 +4429,143 @@ export default function ClientPage({
                               <div className="flex gap-2">
                                 <button onClick={() => { setEditingEventId(ev.id); setNewEventForm({ title: ev.title, date: ev.date, time: ev.time, location: ev.location, details: ev.details, imageUrl: ev.imageUrl || '' }); }} className="text-xs text-blue-500 hover:underline">संपादित करें</button>
                                 <button onClick={() => handleRemoveEvent(ev.id)} className="text-xs text-red-500 hover:underline">हटाएं</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="rounded-lg border border-[var(--line)] p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="text-lg font-semibold text-[var(--headline)]">सक्रिय संघर्ष ट्रैकर नियंत्रण</h4>
+                          {editingStruggleId && (
+                            <button
+                              type="button"
+                              onClick={() => { setEditingStruggleId(null); setStruggleForm(emptyStruggleForm); setStruggleMessage(""); }}
+                              className="text-xs text-red-500 underline"
+                            >
+                              Cancel Edit
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--muted)]">होमपेज के संघर्ष ट्रैकर में दिखने वाले आंदोलन जोड़ें, क्रम बदलें या छिपाएं</p>
+                        <form onSubmit={handleSaveStruggle} className="mt-4 space-y-3">
+                          <input
+                            required
+                            value={struggleForm.name}
+                            onChange={(e) => setStruggleForm((prev) => ({ ...prev, name: e.target.value }))}
+                            placeholder="आंदोलन का नाम (जैसे: किसान आंदोलन)"
+                            className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                          />
+                          <div className="grid grid-cols-2 gap-3">
+                            <select
+                              value={struggleForm.status}
+                              onChange={(e) => setStruggleForm((prev) => ({ ...prev, status: e.target.value as StruggleStatus }))}
+                              className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                            >
+                              {STRUGGLE_STATUSES.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="month"
+                              required
+                              value={struggleForm.sinceMonth}
+                              onChange={(e) => setStruggleForm((prev) => ({ ...prev, sinceMonth: e.target.value }))}
+                              className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                            />
+                          </div>
+                          <input
+                            required
+                            value={struggleForm.location}
+                            onChange={(e) => setStruggleForm((prev) => ({ ...prev, location: e.target.value }))}
+                            placeholder="स्थान (जैसे: दिल्ली सीमा)"
+                            className="w-full rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                          />
+                          <textarea
+                            required
+                            value={struggleForm.description}
+                            onChange={(e) => setStruggleForm((prev) => ({ ...prev, description: e.target.value }))}
+                            placeholder="संक्षिप्त विवरण"
+                            className="w-full h-20 resize-none rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                          />
+                          <button
+                            disabled={struggleSaving}
+                            className="rise-on-hover rounded-md bg-[var(--primary)] px-3 py-2 text-sm font-semibold text-white hover:bg-[var(--primary-dark)] disabled:opacity-50"
+                          >
+                            {struggleSaving ? "प्रोसेसिंग..." : editingStruggleId ? "संघर्ष अपडेट करें" : "+ नया संघर्ष जोड़ें"}
+                          </button>
+                          {struggleMessage && <p className="text-xs text-[var(--primary)]">{struggleMessage}</p>}
+                        </form>
+                        <div className="mt-4 space-y-2 max-h-64 overflow-y-auto pr-1">
+                          {adminStruggleEntries.length === 0 && (
+                            <p className="text-xs text-[var(--muted)]">अभी कोई संघर्ष दर्ज नहीं है।</p>
+                          )}
+                          {adminStruggleEntries.map((entry, index) => (
+                            <div key={entry.id} className="rounded border border-[var(--line)] p-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-[var(--headline)]">
+                                    {entry.name}
+                                    {!entry.isActive && <span className="ml-2 text-xs font-normal text-[var(--muted)]">(छिपा हुआ)</span>}
+                                  </p>
+                                  <p className="text-xs text-[var(--muted)]">
+                                    {entry.statusLabel} · {entry.location} · {entry.startDate} से
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={index === 0}
+                                    onClick={() => void handleMoveStruggle(entry.id, -1)}
+                                    className="rounded border border-[var(--line)] px-2 text-xs disabled:opacity-30"
+                                    aria-label="ऊपर ले जाएं"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={index === adminStruggleEntries.length - 1}
+                                    onClick={() => void handleMoveStruggle(entry.id, 1)}
+                                    className="rounded border border-[var(--line)] px-2 text-xs disabled:opacity-30"
+                                    aria-label="नीचे ले जाएं"
+                                  >
+                                    ↓
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingStruggleId(entry.id);
+                                    setStruggleMessage("");
+                                    setStruggleForm({
+                                      name: entry.name,
+                                      status: entry.status,
+                                      location: entry.location,
+                                      description: entry.description,
+                                      sinceMonth: entry.sinceMonth,
+                                    });
+                                  }}
+                                  className="text-xs text-blue-500 hover:underline"
+                                >
+                                  संपादित करें
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void patchStruggle(entry.id, { isActive: !entry.isActive })}
+                                  className="text-xs text-[var(--primary)] hover:underline"
+                                >
+                                  {entry.isActive ? "छिपाएं" : "दिखाएं"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRemoveStruggle(entry.id)}
+                                  className="text-xs text-red-500 hover:underline"
+                                >
+                                  हटाएं
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -5018,6 +5210,145 @@ export default function ClientPage({
         </div>
       </div>
     )}
+
+    <MobileNavDrawerPortal open={isMobileNavOpen} onClose={closeMobileNav}>
+                  {mobileNavActivityPanel === "main" ? (
+                    <>
+                      <div className="mb-4 flex items-center justify-between">
+                        <p className="text-sm font-semibold text-[var(--headline)]">नेविगेशन</p>
+                        <button
+                          type="button"
+                          onClick={closeMobileNav}
+                          className="rounded-md border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mb-4 flex flex-col gap-3 min-[450px]:hidden border-b border-[var(--line)] pb-4">
+                        <div className="flex items-center justify-end">
+                          <div className="flex gap-2">
+                            <a href="https://www.facebook.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><FacebookIcon className="h-4 w-4" /></a>
+                            <a href="https://www.youtube.com/@VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><YoutubeIcon className="h-4 w-4" /></a>
+                            <a href="https://www.x.com/VaamKiAawaz" className="text-[var(--muted)] hover:text-[var(--primary)] p-1 border border-[var(--line)] rounded-full bg-[var(--surface)]"><TwitterIcon className="h-4 w-4" /></a>
+                          </div>
+                        </div>
+
+                        <a href="mailto:vaamkiaawaz@gmail.com" className="text-[var(--muted)] text-sm hover:text-[var(--primary)] block">
+                          संपर्क: vaamkiaawaz@gmail.com
+                        </a>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTranslateScope("site");
+                              setShowTranslate(!showTranslate);
+                            }}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--foreground)] hover:border-[var(--primary)]"
+                            title="Translate"
+                          >
+                            <Languages className="h-4 w-4" />
+                          </button>
+
+                          <a href={LIVE_COVERAGE_URL} className="btn-primary text-xs px-3 py-1.5">
+                            सदस्यता में
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="mb-4 lg:hidden">
+                        <a href={LIVE_COVERAGE_URL} className="btn-primary flex w-full justify-center">
+                          लाइव कवरेज
+                        </a>
+                      </div>
+
+                      <div className="home-nav-drawer-search mb-4 flex items-center gap-2">
+                        <GooeyInput
+                          value={searchTerm}
+                          onValueChange={setSearchTerm}
+                          onSubmit={(value) => {
+                            if (value.trim().length < MIN_SEARCH_LENGTH) return;
+                            setIsCategoryMenuOpen(false);
+                            closeMobileNav();
+                            scrollToSection("latest");
+                          }}
+                          placeholder="खोज"
+                          enableHindiKeyboard
+                          className="w-full min-w-0 flex-1"
+                          collapsedWidth={200}
+                          expandedWidth={280}
+                          expandedOffset={0}
+                        />
+                        {isSearchActive && searchLoading && (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--primary)]" aria-hidden />
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <MobileNavActivityEntry onOpen={() => setMobileNavActivityPanel("activity")} />
+                        {navTabs.map((tab) => (
+                          <button
+                            key={tab.value}
+                            type="button"
+                            onClick={() => handleMobileNavTabClick(tab.value)}
+                            className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-left text-sm font-medium text-[var(--foreground)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                          >
+                            {tab.title}
+                          </button>
+                        ))}
+                      </div>
+                      {isCategoryMenuOpen && (
+                        <div className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--surface-soft)] p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">कैटेगरी</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {allCategories.filter((category) => category !== "ब्लॉग").map((category) => (
+                              <button
+                                key={`mobile-${category}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCategory(category);
+                                  setNewsVisibleCount(24);
+                                  setBlogVisibleCount(24);
+                                  setIsCategoryMenuOpen(false);
+                                  closeMobileNav();
+                                  scrollToSection("latest");
+                                }}
+                                className={`rounded-md border px-3 py-2 text-left text-sm ${
+                                  selectedCategory === category
+                                    ? "border-[var(--primary)] text-[var(--primary)]"
+                                    : "border-[var(--line)] text-[var(--foreground)]"
+                                }`}
+                              >
+                                {category}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <MobileNavActivityPanels
+                      panel={mobileNavActivityPanel}
+                      onBack={() =>
+                        setMobileNavActivityPanel((prev) =>
+                          prev === "activity" ? "main" : "activity",
+                        )
+                      }
+                      onNavigate={setMobileNavActivityPanel}
+                      onClose={closeMobileNav}
+                      getPreviewImage={(post) => resolvePostImage(post.postImage, post.excerpt)}
+                      getPostTimeLabel={(post) =>
+                        getPostTimeLabel({
+                          ...post,
+                          time: post.createdAt,
+                          source: "blog",
+                        } as NewsPost)
+                      }
+                      getPostClicks={(post) => post.clickCount ?? 0}
+                      onPostClick={handlePostClick}
+                    />
+                  )}
+    </MobileNavDrawerPortal>
 
     <GoToTopButton />
     </>

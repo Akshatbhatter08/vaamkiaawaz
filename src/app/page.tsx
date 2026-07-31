@@ -6,6 +6,7 @@ import { ensureBlogSchema } from "@/lib/db-setup";
 import { enrichPostsWithAuthorImages } from "@/lib/authorImages";
 import { enrichPostsWithThumbnails } from "@/lib/postImageEnrich";
 import { readingTime } from "@/utils/designUtils";
+import { readStruggleTrackerEntries, type StruggleTrackerEntry } from "@/lib/struggleTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -159,6 +160,13 @@ async function HomePageContent() {
     console.error("Error fetching site config:", error);
   }
 
+  let initialStruggleTracker: StruggleTrackerEntry[] = [];
+  try {
+    initialStruggleTracker = await readStruggleTrackerEntries();
+  } catch (error) {
+    console.error("Error fetching struggle tracker:", error);
+  }
+
   return (
     <ClientPage
       initialBlogs={initialBlogs}
@@ -166,6 +174,7 @@ async function HomePageContent() {
       initialEvents={initialEvents}
       initialResources={initialResources}
       initialFeaturedVicharIds={initialFeaturedVicharIds}
+      initialStruggleTracker={initialStruggleTracker}
     />
   );
 }

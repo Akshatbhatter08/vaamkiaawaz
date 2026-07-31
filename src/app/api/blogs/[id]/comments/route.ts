@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { isValidVisitorId } from "@/lib/visitorId";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -73,11 +74,15 @@ export async function POST(request: NextRequest, context: Context) {
       name?: string;
       email?: string;
       comment?: string;
+      visitorId?: string;
     };
 
     const name = stripDangerousText(body.name || "");
     const email = (body.email?.trim() || "").toLowerCase();
     const comment = stripDangerousText(body.comment || "");
+    const visitorIdRaw = body.visitorId?.trim() || "";
+    const visitorId =
+      visitorIdRaw && isValidVisitorId(visitorIdRaw) ? visitorIdRaw : null;
 
     const emailLimit = checkRateLimit(`comment:email:${email}`, 5, 10 * 60 * 1000);
     if (email && !emailLimit.ok) {
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest, context: Context) {
     }
 
     const created = await prisma.articleComment.create({
-      data: { blogPostId: id, name, email, comment },
+      data: { blogPostId: id, name, email, comment, visitorId },
       select: { id: true, name: true, comment: true, createdAt: true },
     });
 

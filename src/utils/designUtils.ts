@@ -183,6 +183,20 @@ function chunkForSpeech(text: string): string[] {
 
 let lastSpokenText = "";
 let keepAlive: ReturnType<typeof setInterval> | null = null;
+type SpeechStateListener = (speaking: boolean) => void;
+const speechStateListeners = new Set<SpeechStateListener>();
+
+function notifySpeechState(speaking: boolean) {
+  speechStateListeners.forEach((listener) => listener(speaking));
+}
+
+export function subscribeSpeechState(listener: SpeechStateListener): () => void {
+  speechStateListeners.add(listener);
+  return () => {
+    speechStateListeners.delete(listener);
+  };
+}
+
 function stopKeepAlive() {
   if (keepAlive) {
     clearInterval(keepAlive);
@@ -203,6 +217,7 @@ export function speakHindiText(text: string) {
     synth.cancel();
     if (lastSpokenText === text) {
       lastSpokenText = "";
+      notifySpeechState(false);
       return;
     }
   }
@@ -230,14 +245,21 @@ export function speakHindiText(text: string) {
     hindiVoices[0];
 
   const chunks = chunkForSpeech(text.slice(0, 8000));
+  notifySpeechState(true);
   chunks.forEach((chunk, i) => {
     const u = new SpeechSynthesisUtterance(chunk);
     u.lang = "hi-IN";
     u.rate = 0.85;
     if (selectedVoice) u.voice = selectedVoice;
     if (i === chunks.length - 1) {
-      u.onend = stopKeepAlive;
-      u.onerror = stopKeepAlive;
+      u.onend = () => {
+        stopKeepAlive();
+        notifySpeechState(false);
+      };
+      u.onerror = () => {
+        stopKeepAlive();
+        notifySpeechState(false);
+      };
     }
     // Speak synchronously within the user gesture — deferring (setTimeout /
     // voiceschanged) silently fails in Chrome.

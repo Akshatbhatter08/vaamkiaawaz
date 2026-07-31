@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureBlogSchema } from "@/lib/db-setup";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { isValidVisitorId } from "@/lib/visitorId";
 
 type Context = {
   params: Promise<{ id: string }>;
 };
-
-function isValidVisitorId(visitorId: string): boolean {
-  return /^[A-Za-z0-9_-]{8,191}$/.test(visitorId);
-}
 
 export async function GET(request: NextRequest, context: Context) {
   const { id } = await context.params;

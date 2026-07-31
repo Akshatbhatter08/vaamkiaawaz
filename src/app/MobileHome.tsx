@@ -20,10 +20,11 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import { getCategoryClass, formatViews, getPostReadTime, speakHindiText } from "@/utils/designUtils";
+import { getCategoryClass, formatViews, getPostReadTime, speakHindiText, subscribeSpeechState } from "@/utils/designUtils";
 import { focusToObjectPosition, resolveImageFocus } from "@/lib/imageCrop";
 import { affinityWeight, readAffinity, weightedShuffle } from "@/lib/feedAffinity";
 import { SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
+import type { StruggleTrackerEntry } from "@/lib/struggleTrackerShared";
 import type { NewsPost, PlatformResource } from "./ClientPage";
 
 type AbhiyanEvent = {
@@ -36,14 +37,7 @@ type AbhiyanEvent = {
   imageUrl?: string;
 };
 
-type MovementRow = {
-  name: string;
-  location: string;
-  startDate: string;
-  description: string;
-  status: "active" | "strike" | "success";
-  statusLabel: string;
-};
+type MovementRow = StruggleTrackerEntry;
 
 export type MobileHomeProps = {
   theme: "light" | "dark";
@@ -108,6 +102,11 @@ export type MobileHomeProps = {
   onToggleSavedPost: (postId: string) => void;
   onLoadSavedPosts: () => void;
 
+  followedAuthorIds: string[];
+  followedFeedPosts: NewsPost[];
+  followedFeedLoading: boolean;
+  onLoadFollowedFeedPosts: () => Promise<NewsPost[]>;
+
   /* Publishing/resource controls are portaled into the admin panel below by ClientPage; these
      flags only decide whether the panel and its portal targets exist at all. */
   canPublishBlog: boolean;
@@ -123,6 +122,29 @@ const FEED_HASH = "#feed";
 /* The ranked order and swipe offset the feed had when the reader tapped into an article, so the
    restored feed comes back on the same card instead of a freshly re-ranked first card. */
 const FEED_STATE_KEY = "vka-feed-state";
+
+type FeedTab = "forYou" | "following";
+
+const feedTabSwitcherStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 24,
+  flex: 1,
+};
+
+const feedTabBtnStyle = (active: boolean): React.CSSProperties => ({
+  fontFamily: "Inter, sans-serif",
+  fontSize: 14,
+  fontWeight: active ? 700 : 500,
+  color: active ? "var(--foreground)" : "var(--muted)",
+  background: "transparent",
+  border: "none",
+  padding: "4px 0",
+  cursor: "pointer",
+  borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
+  transition: "color 0.15s, border-color 0.15s",
+});
 
 const stripHtml = (html?: string) =>
   (html || "")
@@ -375,6 +397,10 @@ export function MobileHome(props: MobileHomeProps) {
     savedLoading,
     onToggleSavedPost,
     onLoadSavedPosts,
+    followedAuthorIds,
+    followedFeedPosts,
+    followedFeedLoading,
+    onLoadFollowedFeedPosts,
     canPublishBlog,
     isMaster,
     addNewsSlotRef,
@@ -384,9 +410,11 @@ export function MobileHome(props: MobileHomeProps) {
   const heroTrackRef = useRef<HTMLDivElement | null>(null);
   const heroAutoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heroTouchingRef = useRef(false);
+  const heroSpeechActiveRef = useRef(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const [isSavedOpen, setIsSavedOpen] = useState(false);
   const [isFeedOpen, setIsFeedOpen] = useState(false);
+  const [feedTab, setFeedTab] = useState<FeedTab>("forYou");
   const [feedItems, setFeedItems] = useState<NewsPost[]>([]);
   const feedTrackRef = useRef<HTMLDivElement | null>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -413,11 +441,64 @@ export function MobileHome(props: MobileHomeProps) {
     return weightedShuffle(pool, (post) => affinityWeight(affinity, post.category));
   }, [feedPool]);
 
+  const rankFollowedFeed = useCallback(() => {
+    const pool = followedFeedPosts.slice(0, 50);
+    if (pool.length === 0) return pool;
+    return [...pool].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [followedFeedPosts]);
+
+  const activateFeedTab = useCallback(
+    async (tab: FeedTab) => {
+      if (tab === "following") {
+        if (!isLoggedIn) {
+          onOpenAuth();
+          return;
+        }
+        if (followedAuthorIds.length === 0) {
+          setFeedTab("following");
+          setFeedItems([]);
+          return;
+        }
+        setFeedTab("following");
+        const posts = followedFeedPosts.length > 0 ? followedFeedPosts : await onLoadFollowedFeedPosts();
+        if (posts.length === 0) {
+          setFeedItems([]);
+          return;
+        }
+        const sorted = [...posts].sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
+        setFeedItems(sorted);
+        feedRestoreScrollRef.current = 0;
+        return;
+      }
+      setFeedTab("forYou");
+      setFeedItems(rankFeed());
+      feedRestoreScrollRef.current = 0;
+    },
+    [
+      followedAuthorIds.length,
+      followedFeedPosts,
+      isLoggedIn,
+      onLoadFollowedFeedPosts,
+      onOpenAuth,
+      rankFeed,
+      rankFollowedFeed,
+    ],
+  );
+
   /* `items`/`scrollTop` are only passed when restoring a feed the reader had already swiped
      through; a plain tap on the फीड tab re-ranks and starts at the top as before. */
   const openFeed = useCallback(
     (items?: NewsPost[], scrollTop = 0) => {
       setIsFeedOpen(true);
+      setFeedTab("forYou");
       setFeedItems(items && items.length > 0 ? items : rankFeed());
       feedRestoreScrollRef.current = scrollTop;
       if (typeof window !== "undefined" && !feedHistoryRef.current) {
@@ -535,13 +616,13 @@ export function MobileHome(props: MobileHomeProps) {
     if (index < feedItems.length - 3) return;
     setFeedItems((prev) => {
       if (prev.length === 0 || prev.length > 400) return prev;
-      const next = rankFeed();
+      const next = feedTab === "following" ? rankFollowedFeed() : rankFeed();
       if (next.length > 1 && next[0].id === prev[prev.length - 1].id) {
         [next[0], next[1]] = [next[1], next[0]];
       }
       return [...prev, ...next];
     });
-  }, [feedItems.length, rankFeed]);
+  }, [feedItems.length, feedTab, rankFeed, rankFollowedFeed]);
 
   const showsAdminPanel = canPublishBlog || isMaster;
 
@@ -556,7 +637,7 @@ export function MobileHome(props: MobileHomeProps) {
     clearHeroAutoTimer();
     if (heroStories.length <= 1) return;
     heroAutoTimerRef.current = setInterval(() => {
-      if (heroTouchingRef.current) return;
+      if (heroTouchingRef.current || heroSpeechActiveRef.current) return;
       const track = heroTrackRef.current;
       if (!track || track.clientWidth === 0) return;
       const current = Math.round(track.scrollLeft / track.clientWidth);
@@ -580,9 +661,20 @@ export function MobileHome(props: MobileHomeProps) {
   }, []);
 
   useEffect(() => {
-    if (heroTouchingRef.current) return;
+    if (heroTouchingRef.current || heroSpeechActiveRef.current) return;
     scheduleHeroAutoAdvance();
   }, [heroIndex, scheduleHeroAutoAdvance]);
+
+  useEffect(() => {
+    return subscribeSpeechState((speaking) => {
+      heroSpeechActiveRef.current = speaking;
+      if (speaking) {
+        clearHeroAutoTimer();
+      } else if (!heroTouchingRef.current) {
+        scheduleHeroAutoAdvance();
+      }
+    });
+  }, [clearHeroAutoTimer, scheduleHeroAutoAdvance]);
 
   const handleHeroTouchStart = useCallback(() => {
     heroTouchingRef.current = true;
@@ -591,7 +683,9 @@ export function MobileHome(props: MobileHomeProps) {
 
   const handleHeroTouchEnd = useCallback(() => {
     heroTouchingRef.current = false;
-    scheduleHeroAutoAdvance();
+    if (!heroSpeechActiveRef.current) {
+      scheduleHeroAutoAdvance();
+    }
   }, [scheduleHeroAutoAdvance]);
 
   const sharePost = useCallback((post: NewsPost) => {
@@ -949,6 +1043,7 @@ export function MobileHome(props: MobileHomeProps) {
       )}
 
       {/* 8 — LIVE सक्रिय संघर्ष ट्रैकर */}
+      {tracker.length > 0 && (
       <section className="home-mobile__section home-mobile__section--divided">
         <div className="home-mobile__section-head">
           <span style={badgeStyle}>LIVE</span>
@@ -957,7 +1052,7 @@ export function MobileHome(props: MobileHomeProps) {
         </div>
         <div className="home-mobile__tracker">
           {tracker.map((row) => (
-            <div className="home-mobile__tracker-row" key={`m-tracker-${row.name}`}>
+            <div className="home-mobile__tracker-row" key={`m-tracker-${row.id}`}>
               <div>
                 <div className="home-mobile__tracker-name">{row.name}</div>
                 <div className="home-mobile__tracker-where">
@@ -976,6 +1071,7 @@ export function MobileHome(props: MobileHomeProps) {
           ))}
         </div>
       </section>
+      )}
 
       {/* प्रमुख विचार */}
       <section className="home-mobile__section home-mobile__section--divided">
@@ -1218,10 +1314,7 @@ export function MobileHome(props: MobileHomeProps) {
           <span>फीड</span>
         </button>
         {/* No dedicated search route exists; open the drawer that holds the search field.
-            The drawer is rendered inside .home-sticky-chrome (position: sticky, z-index: 50),
-            which is its own stacking context, so its z-[130] cannot rise above the फीड/सहेजें
-            sheets at z-index 89 — opening it over an open sheet puts it behind the sheet and
-            looks like nothing happened. Close the sheet first so the drawer is on the homepage. */}
+            The drawer is portaled to document.body at z-index 100 (above the tab bar). */}
         <button
           type="button"
           className={isMenuOpen ? "is-active" : undefined}
@@ -1324,7 +1417,22 @@ export function MobileHome(props: MobileHomeProps) {
       {isFeedOpen && (
         <div className="home-mobile__feed" role="dialog" aria-label="फीड" style={feedPanelStyle}>
           <div style={savedHeadStyle}>
-            <span style={sectionLabelStyle}>आपके लिए फीड</span>
+            <div style={feedTabSwitcherStyle}>
+              <button
+                type="button"
+                style={feedTabBtnStyle(feedTab === "forYou")}
+                onClick={() => void activateFeedTab("forYou")}
+              >
+                आपके लिए
+              </button>
+              <button
+                type="button"
+                style={feedTabBtnStyle(feedTab === "following")}
+                onClick={() => void activateFeedTab("following")}
+              >
+                फॉलो किए गए
+              </button>
+            </div>
             <button
               type="button"
               onClick={closeFeed}
@@ -1334,7 +1442,19 @@ export function MobileHome(props: MobileHomeProps) {
               <X size={18} />
             </button>
           </div>
-          {feedItems.length === 0 ? (
+          {feedTab === "following" && !isLoggedIn ? (
+            <div style={savedBodyStyle}>
+              <p className="home-mobile__empty">फॉलो किए गए लेखक देखने के लिए लॉग इन करें।</p>
+            </div>
+          ) : feedTab === "following" && followedAuthorIds.length === 0 ? (
+            <div style={savedBodyStyle}>
+              <p className="home-mobile__empty">आप अभी किसी लेखक को फॉलो नहीं करते।</p>
+            </div>
+          ) : feedTab === "following" && followedFeedLoading && feedItems.length === 0 ? (
+            <div style={savedBodyStyle}>
+              <p className="home-mobile__empty">लोड हो रहा है...</p>
+            </div>
+          ) : feedItems.length === 0 ? (
             <div style={savedBodyStyle}>
               <p className="home-mobile__empty">फीड तैयार हो रही है...</p>
             </div>

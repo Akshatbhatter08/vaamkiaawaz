@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ThumbsUp, ThumbsDown, Trash2, Send, MessageSquare } from "lucide-react";
 import { fmtDate } from "@/utils/designUtils";
+import { getVisitorId } from "@/lib/feedAffinity";
 
 type Comment = {
   id: string;
@@ -10,18 +11,6 @@ type Comment = {
   comment: string;
   createdAt: string;
 };
-
-const VISITOR_KEY = "vaamki-visitor-id";
-
-function getVisitorId() {
-  if (typeof window === "undefined") return "";
-  let id = localStorage.getItem(VISITOR_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(VISITOR_KEY, id);
-  }
-  return id;
-}
 
 export default function ArticleEngagement({
   postId,
@@ -108,7 +97,7 @@ export default function ArticleEngagement({
       const res = await fetch(`/api/blogs/${postId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, visitorId: getVisitorId() }),
       });
       const data = await res.json();
       if (!res.ok) {

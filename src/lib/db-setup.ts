@@ -174,12 +174,27 @@ const ensureBlogPostStorageColumns = async () => {
       \`name\` VARCHAR(191) NOT NULL,
       \`email\` VARCHAR(191) NOT NULL,
       \`comment\` TEXT NOT NULL,
+      \`visitorId\` VARCHAR(191) NULL,
       \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       INDEX \`ArticleComment_blogPostId_idx\`(\`blogPostId\`),
+      INDEX \`ArticleComment_visitorId_idx\`(\`visitorId\`),
       PRIMARY KEY (\`id\`),
       CONSTRAINT \`ArticleComment_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
+
+  const commentVisitorId = await prisma.$queryRawUnsafe<{ COLUMN_NAME: string }[]>(`
+    SELECT COLUMN_NAME FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ArticleComment' AND COLUMN_NAME = 'visitorId'
+  `);
+  if (commentVisitorId.length === 0) {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `ArticleComment` ADD COLUMN `visitorId` VARCHAR(191) NULL",
+    );
+    await prisma.$executeRawUnsafe(
+      "CREATE INDEX `ArticleComment_visitorId_idx` ON `ArticleComment`(`visitorId`)",
+    );
+  }
 
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS \`ArticleReaction\` (
@@ -207,6 +222,20 @@ const ensureBlogPostStorageColumns = async () => {
       PRIMARY KEY (\`id\`),
       CONSTRAINT \`SavedArticle_userId_fkey\` FOREIGN KEY (\`userId\`) REFERENCES \`User\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT \`SavedArticle_blogPostId_fkey\` FOREIGN KEY (\`blogPostId\`) REFERENCES \`BlogPost\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS \`AuthorFollow\` (
+      \`id\` VARCHAR(191) NOT NULL,
+      \`userId\` VARCHAR(191) NOT NULL,
+      \`authorId\` VARCHAR(191) NOT NULL,
+      \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+      INDEX \`AuthorFollow_userId_idx\`(\`userId\`),
+      INDEX \`AuthorFollow_authorId_idx\`(\`authorId\`),
+      UNIQUE INDEX \`AuthorFollow_userId_authorId_key\`(\`userId\`, \`authorId\`),
+      PRIMARY KEY (\`id\`),
+      CONSTRAINT \`AuthorFollow_userId_fkey\` FOREIGN KEY (\`userId\`) REFERENCES \`User\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
 };

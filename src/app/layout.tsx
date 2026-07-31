@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 import ContextMenu from "@/components/ContextMenu";
 import NavigationProgress from "@/components/NavigationProgress";
+import PushOptIn from "@/components/PushOptIn";
 import "./globals.css";
 
 const inter = Inter({
@@ -81,6 +82,7 @@ export default function RootLayout({
         <NavigationProgress />
         <ContextMenu />
         {children}
+        <PushOptIn />
         <Script id="google-translate-init" strategy="afterInteractive">
           {`
             function googleTranslateElementInit() {

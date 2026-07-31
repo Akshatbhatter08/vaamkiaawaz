@@ -2,10 +2,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages, Link as LinkIcon, Bookmark, BookmarkCheck } from "lucide-react";
+import { Share2, Printer, ArrowLeft, Clock, Eye, ChevronRight, Copy, Check, Trash2, Edit3, X, LogIn, Menu, Languages, Link as LinkIcon, Bookmark, BookmarkCheck, Bell } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { GooeyInput } from "@/components/ui/gooey-input";
-import { AnimatePresence, motion } from "motion/react";
 import { useRef, type CSSProperties } from "react";
 import "react-quill-new/dist/quill.snow.css";
 import { ArticleRichText } from "@/utils/sanitizeHtml";
@@ -20,6 +19,13 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { formatBilingualDate, formatUploaderDisplay, LIVE_COVERAGE_URL, SITE_TAGLINE, SITE_TAGLINE_LINES } from "@/lib/siteConstants";
 import { GoToTopButton } from "@/components/GoToTopButton";
 import ArticleEngagement from "@/components/ArticleEngagement";
+import {
+  MobileNavActivityEntry,
+  MobileNavActivityPanels,
+  type MobileNavActivityPanel,
+} from "@/components/MobileNavActivity";
+import { MobileNavDrawerPortal } from "@/components/MobileNavDrawerPortal";
+import { recordRecentRead } from "@/lib/recentReads";
 import { ImageCropModal, type ImageCropConfirmResult } from "@/components/ImageCropModal";
 import { uploadDataUrl } from "@/lib/uploadClient";
 import {
@@ -101,6 +107,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
   const [shareOpen, setShareOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmPush, setConfirmPush] = useState(false);
+  const [sendingPush, setSendingPush] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
   const [sessionEmail, setSessionEmail] = useState("");
   const [userRole, setUserRole] = useState("");
   const [sessionUserId, setSessionUserId] = useState("");
@@ -244,6 +253,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
   const [isScrolledHeader, setIsScrolledHeader] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [mobileNavActivityPanel, setMobileNavActivityPanel] = useState<MobileNavActivityPanel>("main");
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedNewsDate, setSelectedNewsDate] = useState("");
@@ -271,6 +281,11 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     router.push(`/?tab=${value}`);
   };
 
+  const closeMobileNav = () => {
+    setIsMobileNavOpen(false);
+    setMobileNavActivityPanel("main");
+  };
+
   const handleMobileNavTabClick = (value: string) => {
     if (value === "categories") {
       setIsCategoryMenuOpen((prev) => !prev);
@@ -280,8 +295,12 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     if (!leaveArticleTranslateAndGoHome(href)) {
       router.push(href);
     }
-    setIsMobileNavOpen(false);
+    closeMobileNav();
   };
+
+  useEffect(() => {
+    recordRecentRead(post.id);
+  }, [post.id]);
 
   useEffect(() => {
     let ticking = false;
@@ -350,6 +369,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
 
   // Saved state is per account, so it is re-read whenever the session changes.
   useEffect(() => {
@@ -368,6 +389,51 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       cancelled = true;
     };
   }, [sessionEmail, post.id]);
+
+  // Follow state is per account, re-read whenever the session or author changes.
+  useEffect(() => {
+    if (!sessionEmail) {
+      setIsFollowingAuthor(false);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/author-follows", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { ids: [] }))
+      .then((d) => {
+        if (!cancelled) {
+          const ids: string[] = Array.isArray(d.ids) ? d.ids : [];
+          setIsFollowingAuthor(ids.some((id) => id.toLowerCase() === post.author.toLowerCase()));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionEmail, post.author]);
+
+  const toggleFollowAuthor = async () => {
+    if (!sessionEmail) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    if (followLoading) return;
+    const next = !isFollowingAuthor;
+    setIsFollowingAuthor(next);
+    setFollowLoading(true);
+    try {
+      const res = await fetch("/api/author-follows", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ authorId: post.author, following: next }),
+      });
+      if (!res.ok) throw new Error("follow failed");
+    } catch {
+      setIsFollowingAuthor(!next);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const toggleSaved = async () => {
     if (!sessionEmail) {
@@ -458,6 +524,9 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase());
   const canEdit = isMaster || isAuthor;
   const canDelete = isMaster || isUploader;
+  // Mirrors the gate on POST /api/push/send.
+  const canSendPush =
+    isMaster || (userRole === "ADMIN" && userPermissions?.publishBlog === true);
   
   const roleText = userRole === "MASTER_ADMIN" 
     ? "मास्टर एडमिन" 
@@ -513,6 +582,28 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     }
     setDeleting(false);
     setConfirmDelete(false);
+  };
+
+  const handleSendPush = async () => {
+    setSendingPush(true);
+    try {
+      const res = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: post.id }),
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as { sent?: number; error?: string };
+      if (res.ok) {
+        setPushMessage(`${data.sent ?? 0} उपयोगकर्ताओं को भेजा गया`);
+      } else {
+        setPushMessage(data.error || "नोटिफिकेशन भेजने में त्रुटि हुई");
+      }
+    } catch {
+      setPushMessage("नेटवर्क त्रुटि");
+    }
+    setSendingPush(false);
+    setConfirmPush(false);
   };
 
   const handleEditSubmit = async () => {
@@ -789,29 +880,16 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
               </div>
             </div>
           </nav>
-          <AnimatePresence>
-            {isMobileNavOpen && (
-              <motion.div
-                className="fixed inset-0 z-[130] bg-black/45 lg:hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                onClick={() => setIsMobileNavOpen(false)}
-              >
-                <motion.aside
-                  className="mr-auto flex h-full w-[82%] max-w-[320px] flex-col overflow-y-auto overscroll-y-auto border-r border-[var(--line)] bg-[var(--surface)] p-4 shadow-xl"
-                  initial={{ x: "-100%" }}
-                  animate={{ x: 0 }}
-                  exit={{ x: "-100%" }}
-                  transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                  onClick={(event) => event.stopPropagation()}
-                >
+        </div>
+
+        <MobileNavDrawerPortal open={isMobileNavOpen} onClose={closeMobileNav}>
+                  {mobileNavActivityPanel === "main" ? (
+                    <>
                   <div className="mb-4 flex items-center justify-between">
                     <p className="text-sm font-semibold text-[var(--headline)]">नेविगेशन</p>
                     <button
                       type="button"
-                      onClick={() => setIsMobileNavOpen(false)}
+                      onClick={closeMobileNav}
                       className="rounded-md border border-[var(--line)] p-1.5 text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                     >
                       <X className="h-4 w-4" />
@@ -849,7 +927,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     
                     <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => { setIsMobileNavOpen(false); handleLoginClick(); }}
+                        onClick={() => { closeMobileNav(); handleLoginClick(); }}
                         className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--primary)]"
                       >
                         <LogIn className="h-3.5 w-3.5" />
@@ -878,6 +956,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     />
                   </div>
                   <div className="space-y-2">
+                    <MobileNavActivityEntry onOpen={() => setMobileNavActivityPanel("activity")} />
                     {navTabs.map((tab) => (
                       <button
                         key={tab.value}
@@ -900,7 +979,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                             onClick={() => {
                               setSelectedCategory(category);
                                                                                           setIsCategoryMenuOpen(false);
-                              setIsMobileNavOpen(false);
+                              closeMobileNav();
                                                           }}
                             className={`rounded-md border px-3 py-2 text-left text-sm ${
                               selectedCategory === category
@@ -914,11 +993,24 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                       </div>
                     </div>
                   )}
-                </motion.aside>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                    </>
+                  ) : (
+                    <MobileNavActivityPanels
+                      panel={mobileNavActivityPanel}
+                      onBack={() =>
+                        setMobileNavActivityPanel((prev) =>
+                          prev === "activity" ? "main" : "activity",
+                        )
+                      }
+                      onNavigate={setMobileNavActivityPanel}
+                      onClose={closeMobileNav}
+                      getPreviewImage={(item) => resolvePostImage(item.postImage, item.excerpt)}
+                      getPostTimeLabel={(item) => fmtDate(item.createdAt)}
+                      getPostClicks={(item) => item.clickCount ?? 0}
+                      onPostClick={recordRecentRead}
+                    />
+                  )}
+        </MobileNavDrawerPortal>
 
         {/* ─── Breadcrumb ─── */}
         <nav className="article-no-print notranslate flex items-center gap-1.5 py-3 text-xs text-[var(--muted)]">
@@ -1049,6 +1141,17 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <Link href={`/author/${encodeURIComponent(post.author)}`} className="font-semibold text-[var(--foreground)] hover:text-[var(--primary)] hover:underline">
                     {post.author}
                   </Link>
+                  <button
+                    type="button"
+                    onClick={toggleFollowAuthor}
+                    disabled={followLoading}
+                    aria-pressed={isFollowingAuthor}
+                    title={isFollowingAuthor ? "फॉलो किया — अनफॉलो करें" : "इस लेखक को फॉलो करें"}
+                    className="article-no-print inline-flex items-center gap-1"
+                    style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: isFollowingAuthor ? "var(--primary)" : "var(--muted)", background: "transparent", border: `1px solid ${isFollowingAuthor ? "var(--primary)" : "var(--line)"}`, padding: "2px 8px", borderRadius: 4, cursor: followLoading ? "wait" : "pointer" }}
+                  >
+                    {isFollowingAuthor ? "फॉलो किया" : "फॉलो करें"}
+                  </button>
                   <span>•</span>
                   <span>{fmtDate(post.createdAt)}</span>
                   <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{mins} मिनट पठन</span>
@@ -1172,8 +1275,14 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                   <Printer className="h-5 w-5" />
                 </button>
               </div>
-              {(canEdit || canDelete) && (
+              {(canEdit || canDelete || canSendPush) && (
                 <div className="mt-3 flex flex-col gap-2">
+                  {canSendPush && (
+                    <button onClick={() => { setPushMessage(""); setConfirmPush(true); }} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${theme === "dark" ? "border-amber-700 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50" : "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>
+                      <Bell className="h-4 w-4" /> भेजें ब्रेकिंग नोटिफिकेशन
+                    </button>
+                  )}
+                  {pushMessage && <p className="text-sm text-[var(--muted)]">{pushMessage}</p>}
                   {canEdit && (
                     <button onClick={() => setIsEditing(true)} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${theme === "dark" ? "border-blue-700 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50" : "border-blue-400 bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
                       <Edit3 className="h-4 w-4" /> संपादित करें
@@ -1280,6 +1389,30 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
             </section>
           </aside>
         </main>
+
+        {/* More from this author (full width) */}
+        {authorPosts.length > 0 && (
+          <section className="article-no-print notranslate pb-4 pt-2">
+            <SectionHeader title="इस लेखक से और" href={`/author/${encodeURIComponent(post.author)}`} linkText="सभी देखें →" />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {authorPosts.slice(0, 3).map((ap) => (
+                <Link key={ap.id} href={`/post/${ap.id}`} className="rise-on-hover card-lift group flex flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)]">
+                  {resolvePostImage(ap.postImage, ap.content) && (
+                    <div className="card-image-container">
+                      <img src={resolvePostImage(ap.postImage, ap.content)!} alt="" style={{ objectPosition: focusToObjectPosition(resolveImageFocus(ap, "card")) }} />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2 p-4">
+                    <span className={`cat-pill self-start ${getCategoryClass(ap.category)}`}>{ap.category}</span>
+                    <h4 className="line-clamp-2 font-serif text-lg font-semibold leading-snug text-[var(--headline)] group-hover:text-[var(--primary)]">{ap.title}</h4>
+                    <div className="line-clamp-2 text-sm leading-6 text-[var(--muted)] excerpt-html" dangerouslySetInnerHTML={{ __html: cleanHtml(ap.excerpt) }} />
+                    <p className="mt-1 text-xs text-[var(--muted)]">{ap.time}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Related posts (full width) */}
         {displayedSuggested.length > 0 && (
@@ -1440,6 +1573,23 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       </div>
 
       {/* Delete confirm dialog */}
+      {confirmPush && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-2xl">
+            <h3 className="font-serif text-xl font-bold text-[var(--headline)] mb-2">इस लेख के लिए नोटिफिकेशन भेजें?</h3>
+            <p className="text-sm text-[var(--muted)] mb-5">&ldquo;{post.category}&rdquo; श्रेणी में रुचि रखने वाले सभी सब्सक्राइबर्स को तुरंत ब्रेकिंग नोटिफिकेशन भेजा जाएगा।</p>
+            <div className="flex gap-3">
+              <button onClick={handleSendPush} disabled={sendingPush} className="flex-1 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                {sendingPush ? "भेजा जा रहा है..." : "हां, भेजें"}
+              </button>
+              <button onClick={() => setConfirmPush(false)} className="flex-1 rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold hover:border-[var(--primary)]">
+                रद्द करें
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDelete && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-2xl">
