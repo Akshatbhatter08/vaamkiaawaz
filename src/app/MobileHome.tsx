@@ -451,10 +451,26 @@ export function MobileHome(props: MobileHomeProps) {
     });
   }, [followedFeedPosts]);
 
+  /* Closing through the UI has to unwind the pushed entry too, otherwise the back gesture from
+     the homepage would land on a stale #feed. Only entries this component pushed are popped;
+     a #feed URL opened cold (no marker in the state) just has its hash stripped in place. */
+  const closeFeed = useCallback(() => {
+    if (feedHistoryRef.current && typeof window !== "undefined") {
+      feedHistoryRef.current = false;
+      if (window.history.state?.vkaFeed) {
+        window.history.back();
+      } else {
+        window.history.replaceState(window.history.state, "", window.location.pathname);
+      }
+    }
+    setIsFeedOpen(false);
+  }, []);
+
   const activateFeedTab = useCallback(
     async (tab: FeedTab) => {
       if (tab === "following") {
         if (!isLoggedIn) {
+          closeFeed();
           onOpenAuth();
           return;
         }
@@ -483,6 +499,7 @@ export function MobileHome(props: MobileHomeProps) {
       feedRestoreScrollRef.current = 0;
     },
     [
+      closeFeed,
       followedAuthorIds.length,
       followedFeedPosts,
       isLoggedIn,
@@ -509,21 +526,6 @@ export function MobileHome(props: MobileHomeProps) {
     },
     [rankFeed],
   );
-
-  /* Closing through the UI has to unwind the pushed entry too, otherwise the back gesture from
-     the homepage would land on a stale #feed. Only entries this component pushed are popped;
-     a #feed URL opened cold (no marker in the state) just has its hash stripped in place. */
-  const closeFeed = useCallback(() => {
-    if (feedHistoryRef.current && typeof window !== "undefined") {
-      feedHistoryRef.current = false;
-      if (window.history.state?.vkaFeed) {
-        window.history.back();
-      } else {
-        window.history.replaceState(window.history.state, "", window.location.pathname);
-      }
-    }
-    setIsFeedOpen(false);
-  }, []);
 
   const openSaved = useCallback(() => {
     if (!isLoggedIn) {
