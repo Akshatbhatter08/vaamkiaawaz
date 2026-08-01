@@ -676,6 +676,7 @@ export default function ClientPage({
     imageFocusHero: "",
     imageFocusGround: "",
     authorImage: "",
+    struggleTrackerIds: [] as string[],
   });
 
   const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
@@ -694,6 +695,9 @@ export default function ClientPage({
             imageFocusHero: typeof parsed.imageFocusHero === "string" ? parsed.imageFocusHero : "",
             imageFocusGround: typeof parsed.imageFocusGround === "string" ? parsed.imageFocusGround : "",
             authorImage: typeof parsed.authorImage === "string" ? parsed.authorImage : "",
+            struggleTrackerIds: Array.isArray(parsed.struggleTrackerIds)
+              ? parsed.struggleTrackerIds.filter((id: unknown): id is string => typeof id === "string")
+              : [],
           }));
         }
       } catch (e) {}
@@ -2666,6 +2670,7 @@ export default function ClientPage({
           imageFocus: (formState.imageFocus ?? "").trim() || undefined,
           imageFocusHero: (formState.imageFocusHero ?? "").trim() || undefined,
           imageFocusGround: (formState.imageFocusGround ?? "").trim() || undefined,
+          struggleTrackerIds: formState.struggleTrackerIds,
         }),
       });
       const data = (await response.json()) as { post?: ApiBlogPost; error?: string };
@@ -2707,6 +2712,7 @@ export default function ClientPage({
         imageFocusHero: "",
         imageFocusGround: "",
         authorImage: availableAuthors[0]?.image ?? "",
+        struggleTrackerIds: [],
       });
       setBlogMessage("नई पोस्ट सफलतापूर्वक जोड़ दी गई।");
     } catch (error) {
@@ -4046,6 +4052,34 @@ export default function ClientPage({
                     </option>
                   ))}
               </select>
+              {struggleEntries.length > 0 && (
+                <div className="md:col-span-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+                  <p className="text-sm font-medium text-[var(--headline)]">संघर्ष आंदोलन (वैकल्पिक)</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">इस लेख को एक या अधिक सक्रिय आंदोलनों से जोड़ें</p>
+                  <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">
+                    {struggleEntries.map((entry) => (
+                      <label key={entry.id} className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formState.struggleTrackerIds.includes(entry.id)}
+                          onChange={(event) => {
+                            setFormState((prev) => ({
+                              ...prev,
+                              struggleTrackerIds: event.target.checked
+                                ? [...prev.struggleTrackerIds, entry.id]
+                                : prev.struggleTrackerIds.filter((id) => id !== entry.id),
+                            }));
+                          }}
+                        />
+                        <span>
+                          <span className="font-medium text-[var(--headline)]">{entry.name}</span>
+                          <span className="text-[var(--muted)]"> · {entry.location}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)] md:col-span-2">
                 थंबनेल फोटो
                 <input

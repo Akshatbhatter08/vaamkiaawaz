@@ -14,6 +14,10 @@ import {
   sanitizeExcerptHtml,
   sanitizeTipTapHtml,
 } from "@/lib/tiptapSanitize";
+import {
+  readArticleStruggleTagIds,
+  syncArticleStruggleTags,
+} from "@/lib/articleStruggleTag";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -61,8 +65,11 @@ export async function GET(_request: NextRequest, context: Context) {
     if (!post || post.isHidden) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
-    const [enriched] = await enrichPostsWithAuthorImages([post]);
-    return NextResponse.json({ post: mapBlog(enriched) });
+    const [enriched, struggleTrackerIds] = await Promise.all([
+      enrichPostsWithAuthorImages([post]).then((items) => items[0]),
+      readArticleStruggleTagIds(id),
+    ]);
+    return NextResponse.json({ post: mapBlog(enriched), struggleTrackerIds });
   } catch (err) {
     console.error("GET /api/blogs/[id] error:", err);
     return NextResponse.json(
@@ -139,6 +146,7 @@ export async function PATCH(request: NextRequest, context: Context) {
     imageFocus?: string | null;
     imageFocusHero?: string | null;
     imageFocusGround?: string | null;
+    struggleTrackerIds?: string[];
   };
 
   const updateData: Record<string, unknown> = {};
@@ -194,20 +202,42 @@ export async function PATCH(request: NextRequest, context: Context) {
     updateData.imageFocusGround = body.imageFocusGround?.trim() || null;
   }
 
-  if (Object.keys(updateData).length === 0) {
+  if (Object.keys(updateData).length === 0 && body.struggleTrackerIds === undefined) {
     return NextResponse.json(
       { error: "कम से कम एक फ़ील्ड अपडेट करें।" },
       { status: 400 }
     );
   }
 
-  const updated = await prisma.blogPost.update({
-    where: { id },
-    data: updateData,
-  });
+  let updated;
+  if (Object.keys(updateData).length > 0) {
+    updated = await prisma.blogPost.update({
+      where: { id },
+      data: updateData,
+    });
+  } else {
+    updated = await prisma.blogPost.findUnique({ where: { id } });
+  }
+
+  if (!updated) {
+    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  }
+
+  let struggleTrackerIds: string[] | undefined;
+  try {
+    const synced = await syncArticleStruggleTags(id, body.struggleTrackerIds);
+    if (synced !== null) {
+      struggleTrackerIds = synced;
+    } else {
+      struggleTrackerIds = await readArticleStruggleTagIds(id);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "संघर्ष टैग सहेजने में त्रुटि";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
 
   const [enriched] = await enrichPostsWithAuthorImages([updated]);
-  return NextResponse.json({ post: mapBlog(enriched) });
+  return NextResponse.json({ post: mapBlog(enriched), struggleTrackerIds });
 }
 
 export async function DELETE(request: NextRequest, context: Context) {

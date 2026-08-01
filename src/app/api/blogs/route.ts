@@ -16,6 +16,7 @@ import {
 } from "@/lib/tiptapSanitize";
 import { seedInitialBlogsIfEmpty } from "@/lib/blogSeedGuard";
 import { readingTime } from "@/utils/designUtils";
+import { syncArticleStruggleTags } from "@/lib/articleStruggleTag";
 
 const mapBlog = (post: {
   id: string;
@@ -217,6 +218,7 @@ export async function POST(request: NextRequest) {
     imageFocusHero?: string;
     imageFocusGround?: string;
     authorImage?: string;
+    struggleTrackerIds?: string[];
   };
 
   const category = body.category?.trim() || "ब्लॉग";
@@ -305,6 +307,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let struggleTrackerIds: string[] = [];
+  if (body.struggleTrackerIds !== undefined) {
+    try {
+      const synced = await syncArticleStruggleTags(created.id, body.struggleTrackerIds);
+      struggleTrackerIds = synced ?? [];
+    } catch (error) {
+      await prisma.blogPost.delete({ where: { id: created.id } });
+      const message = error instanceof Error ? error.message : "संघर्ष टैग सहेजने में त्रुटि";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  }
+
   // Trigger Make.com Webhook for Automation
   try {
     const webhookUrl = process.env.MAKE_WEBHOOK_URL;
@@ -330,5 +344,5 @@ export async function POST(request: NextRequest) {
   }
 
   const enriched = await enrichPostsWithAuthorImages([created]);
-  return NextResponse.json({ post: mapBlog(enriched[0]) }, { status: 201 });
+  return NextResponse.json({ post: mapBlog(enriched[0]), struggleTrackerIds }, { status: 201 });
 }

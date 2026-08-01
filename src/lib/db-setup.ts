@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { initialBlogSeed } from "./blog-seed";
+import { ensureArticleStruggleTagTable } from "./articleStruggleTag";
 
 type BlogColumnMeta = {
   COLUMN_NAME: string;
@@ -238,6 +239,8 @@ const ensureBlogPostStorageColumns = async () => {
       CONSTRAINT \`AuthorFollow_userId_fkey\` FOREIGN KEY (\`userId\`) REFERENCES \`User\`(\`id\`) ON DELETE CASCADE ON UPDATE CASCADE
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
+
+  await ensureArticleStruggleTagTable();
 };
 
 /**

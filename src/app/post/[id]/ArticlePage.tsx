@@ -35,6 +35,7 @@ import {
   rememberSiteGoogTrans,
   setTranslateScope,
 } from "@/lib/translateScope";
+import { type StruggleTrackerEntry } from "@/lib/struggleTrackerShared";
 
 type Post = {
   id: string; category: string; title: string; excerpt: string; content: string;
@@ -125,6 +126,8 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     imageFocusHero: post.imageFocusHero || "",
     imageFocusGround: post.imageFocusGround || "",
   });
+  const [editStruggleTrackerIds, setEditStruggleTrackerIds] = useState<string[]>([]);
+  const [struggleEntries, setStruggleEntries] = useState<StruggleTrackerEntry[]>([]);
   const [cropModalSrc, setCropModalSrc] = useState<string | null>(null);
   const [resourceFilter, setResourceFilter] = useState<"all" | "link" | "pdf">("all");
   const [todayKaryakramOpen, setTodayKaryakramOpen] = useState(false);
@@ -524,9 +527,34 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
     (userAuthorName && post.uploaderName && userAuthorName === post.uploaderName.trim().toLowerCase());
   const canEdit = isMaster || isAuthor;
   const canDelete = isMaster || isUploader;
-  // Mirrors the gate on POST /api/push/send.
   const canSendPush =
     isMaster || (userRole === "ADMIN" && userPermissions?.publishBlog === true);
+
+  useEffect(() => {
+    if (!canEdit) return;
+    fetch("/api/struggle-tracker")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.entries)) {
+          setStruggleEntries(data.entries as StruggleTrackerEntry[]);
+        }
+      })
+      .catch(() => {});
+  }, [canEdit]);
+
+  useEffect(() => {
+    if (!isEditing || !canEdit) return;
+    fetch(`/api/blogs/${post.id}`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.struggleTrackerIds)) {
+          setEditStruggleTrackerIds(
+            data.struggleTrackerIds.filter((id: unknown): id is string => typeof id === "string"),
+          );
+        }
+      })
+      .catch(() => {});
+  }, [isEditing, canEdit, post.id]);
   
   const roleText = userRole === "MASTER_ADMIN" 
     ? "मास्टर एडमिन" 
@@ -612,7 +640,7 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
       const res = await fetch(`/api/blogs/${post.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({ ...editForm, struggleTrackerIds: editStruggleTrackerIds }),
         credentials: "include"
       });
       if (res.ok) {
@@ -1096,6 +1124,34 @@ export default function ArticlePage({ post, suggestedPosts, sidebarTopReads, aut
                     />
                   )}
                 </div>
+                {struggleEntries.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold mb-1 text-[var(--foreground)]">संघर्ष आंदोलन (वैकल्पिक)</label>
+                    <div className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+                      <div className="max-h-40 space-y-2 overflow-y-auto">
+                        {struggleEntries.map((entry) => (
+                          <label key={entry.id} className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={editStruggleTrackerIds.includes(entry.id)}
+                              onChange={(event) => {
+                                setEditStruggleTrackerIds((prev) =>
+                                  event.target.checked
+                                    ? [...prev, entry.id]
+                                    : prev.filter((id) => id !== entry.id),
+                                );
+                              }}
+                            />
+                            <span>
+                              <span className="font-medium text-[var(--headline)]">{entry.name}</span>
+                              <span className="text-[var(--muted)]"> · {entry.location}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-3 justify-end mt-6">
                   <button 
                     onClick={() => setIsEditing(false)} 

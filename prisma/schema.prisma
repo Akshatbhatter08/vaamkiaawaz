@@ -31,6 +31,7 @@ model BlogPost {
   comments     ArticleComment[]
   reactions    ArticleReaction[]
   savedBy      SavedArticle[]
+  struggleTags ArticleStruggleTag[]
 
   @@index([authorUserId], map: "BlogPost_authorUserId_fkey")
 }
@@ -175,8 +176,22 @@ model StruggleTracker {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
+  articleTags  ArticleStruggleTag[]
 
   @@index([isActive, displayOrder])
+}
+
+model ArticleStruggleTag {
+  id                String          @id @default(cuid())
+  blogPostId        String
+  struggleTrackerId String
+  createdAt         DateTime        @default(now())
+  BlogPost          BlogPost        @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  StruggleTracker   StruggleTracker @relation(fields: [struggleTrackerId], references: [id], onDelete: Cascade)
+
+  @@unique([blogPostId, struggleTrackerId])
+  @@index([blogPostId])
+  @@index([struggleTrackerId])
 }
 
 model PushSubscription {
